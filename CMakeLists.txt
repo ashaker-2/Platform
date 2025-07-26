@@ -5,17 +5,9 @@ cmake_minimum_required(VERSION 3.16)
 project(DemoFS C)
 
 # Include global project settings.
+# This File would tell CMake to use your cross-compiler for the ESP32.
 # This makes variables like GLOBAL_C_COMPILE_OPTIONS available throughout the project.
 include(cmake/project_global_settings.cmake)
-
-# --- Toolchain setup (highly simplified, real one is complex) ---
-# This part would tell CMake to use your cross-compiler for the ESP32.
-# This is highly dependent on your actual toolchain and build environment.
-# Example:
-# set(CMAKE_SYSTEM_NAME Generic)
-# set(CMAKE_SYSTEM_PROCESSOR xtensa-esp32)
-# set(CMAKE_C_COMPILER /path/to/xtensa-esp32-elf/bin/xtensa-esp32-elf-gcc)
-# # ... (rest of toolchain setup) ...
 
 # Apply global compile options and definitions to the entire project (e.g., to the executable itself)
 # This ensures a baseline, which can then be overridden/extended by component-specific options.
