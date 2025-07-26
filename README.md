@@ -1,2 +1,2 @@
 # SmartF_Demo
-Layered Architecture + FreeRtod
+Layered Architecture + FreeRtos
