@@ -4,8 +4,11 @@ cmake_minimum_required(VERSION 3.16)
 # Define your project name
 project(DemoFS C)
 
-# Include global project settings.
+# Include Toolchain setting.
 # This File would tell CMake to use your cross-compiler for the ESP32.
+include(cmake/esp32_toolchain.cmake)
+
+# Include global project settings.
 # This makes variables like GLOBAL_C_COMPILE_OPTIONS available throughout the project.
 include(cmake/project_global_settings.cmake)
 
