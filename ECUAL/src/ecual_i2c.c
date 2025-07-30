@@ -1,90 +1,133 @@
-// ecual/inc/ecual_i2c.h
+// ecual/src/ecual_i2c.c
 
-#ifndef ECUAL_I2C_H
-#define ECUAL_I2C_H
+#include "ecual_i2c.h"        // Includes driver/i2c.h
+#include "ecual_i2c_config.h" // For i2c_configurations array extern declaration
+#include "ecual_common.h"     // For ECUAL_OK and ECUAL_ERROR
 
-#include <stdint.h> // For uint8_t, uint16_t, uint32_t
+// Timeout conversion macro for ticks (assuming FreeRTOS tick is 1ms by default)
+#define I2C_TIMEOUT_TICKS(ms) ((ms) / portTICK_PERIOD_MS)
 
-// IMPORTANT: Directly include the MCAL driver header to align enum values.
-#include "driver/i2c.h" // Provides I2C_NUM_0, I2C_MODE_MASTER, I2C_MASTER_FREQ_HZ, etc.
+uint8_t ECUAL_I2C_Init(void) {
+    uint32_t i;
+    esp_err_t mcal_ret;
+    uint8_t ecual_ret = ECUAL_OK;
 
-/**
- * @brief Defines the I2C peripheral units.
- * Values are directly aligned with ESP-IDF's i2c_port_t.
- */
-typedef enum {
-    ECUAL_I2C_UNIT_0 = I2C_NUM_0, ///< I2C Controller 0
-    ECUAL_I2C_UNIT_1 = I2C_NUM_1  ///< I2C Controller 1
-} ECUAL_I2C_Unit_t;
+    for (i = 0; i < ECUAL_NUM_I2C_CONFIGURATIONS; i++) {
+        const ECUAL_I2C_Config_t *cfg = &i2c_configurations[i];
 
-/**
- * @brief Defines the I2C mode (Master or Slave).
- * Values are directly aligned with ESP-IDF's i2c_mode_t.
- * ECUAL focuses on Master mode primarily.
- */
-typedef enum {
-    ECUAL_I2C_MODE_MASTER = I2C_MODE_MASTER, ///< I2C Master mode
-    // ECUAL_I2C_MODE_SLAVE = I2C_MODE_SLAVE, // Uncomment if slave mode support is needed later
-} ECUAL_I2C_Mode_t;
+        // 1. Configure I2C parameters
+        i2c_config_t i2c_conf = {
+            .mode             = (i2c_mode_t)cfg->mode, // Direct cast
+            .sda_io_num       = cfg->sda_pin,
+            .scl_io_num       = cfg->scl_pin,
+            .sda_pullup_en    = cfg->sda_pullup_en,
+            .scl_pullup_en    = cfg->scl_pullup_en,
+            .master.clk_speed = cfg->master_freq_hz,
+            // .slave.slave_addr and buffer sizes are not needed for master mode
+        };
 
-/**
- * @brief Structure to hold the configuration for a single I2C unit.
- * Currently primarily for Master mode.
- */
-typedef struct {
-    ECUAL_I2C_Unit_t unit;          ///< I2C peripheral unit (0 or 1)
-    ECUAL_I2C_Mode_t mode;          ///< I2C mode (ECUAL_I2C_MODE_MASTER)
-    int              scl_pin;       ///< GPIO pin for SCL
-    int              sda_pin;       ///< GPIO pin for SDA
-    bool             scl_pullup_en; ///< Enable internal pull-up on SCL pin
-    bool             sda_pullup_en; ///< Enable internal pull-up on SDA pin
-    uint32_t         master_freq_hz;///< Master clock frequency in Hz (e.g., 100000, 400000)
-    // Add slave address and buffer sizes if slave mode is implemented
-} ECUAL_I2C_Config_t;
+        mcal_ret = i2c_param_config((i2c_port_t)cfg->unit, &i2c_conf);
+        if (mcal_ret != ESP_OK) {
+            ecual_ret = ECUAL_ERROR;
+            // Optionally: add logging here for which I2C unit failed
+            continue;
+        }
 
-/**
- * @brief Initializes all I2C units based on the configurations defined in ecual_i2c_config.h.
- * @return ECUAL_OK if all units are initialized successfully, ECUAL_ERROR otherwise.
- */
-uint8_t ECUAL_I2C_Init(void);
+        // 2. Install I2C driver (no buffer needed for master mode, 0 for event_queue_size)
+        mcal_ret = i2c_driver_install((i2c_port_t)cfg->unit, (i2c_mode_t)cfg->mode, 0, 0, 0);
+        if (mcal_ret != ESP_OK) {
+            ecual_ret = ECUAL_ERROR;
+            continue;
+        }
+    }
 
-/**
- * @brief Performs an I2C master write transaction to a slave device.
- * @param unit The I2C unit to use.
- * @param dev_addr The 7-bit slave device address.
- * @param data Pointer to the data buffer to write.
- * @param len The number of bytes to write.
- * @param timeout_ms The timeout for the transaction in milliseconds.
- * @return ECUAL_OK if the write was successful, ECUAL_ERROR otherwise.
- */
-uint8_t ECUAL_I2C_Master_Write(ECUAL_I2C_Unit_t unit, uint8_t dev_addr, const uint8_t *data, uint16_t len, uint32_t timeout_ms);
+    return ecual_ret;
+}
 
-/**
- * @brief Performs an I2C master read transaction from a slave device.
- * @param unit The I2C unit to use.
- * @param dev_addr The 7-bit slave device address.
- * @param data Pointer to the buffer to store read data.
- * @param len The number of bytes to read.
- * @param timeout_ms The timeout for the transaction in milliseconds.
- * @return ECUAL_OK if the read was successful, ECUAL_ERROR otherwise.
- */
-uint8_t ECUAL_I2C_Master_Read(ECUAL_I2C_Unit_t unit, uint8_t dev_addr, uint8_t *data, uint16_t len, uint32_t timeout_ms);
+uint8_t ECUAL_I2C_Master_Write(ECUAL_I2C_Unit_t unit, uint8_t dev_addr, const uint8_t *data, uint16_t len, uint32_t timeout_ms) {
+    esp_err_t mcal_ret;
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
 
-/**
- * @brief Performs an I2C master write-then-read transaction (e.g., for register read).
- * Writes data first (e.g., register address), then reads data without a stop condition in between.
- * @param unit The I2C unit to use.
- * @param dev_addr The 7-bit slave device address.
- * @param write_data Pointer to the data buffer to write.
- * @param write_len The number of bytes to write.
- * @param read_data Pointer to the buffer to store read data.
- * @param read_len The number of bytes to read.
- * @param timeout_ms The timeout for the entire transaction in milliseconds.
- * @return ECUAL_OK if the transaction was successful, ECUAL_ERROR otherwise.
- */
+    // Start condition
+    i2c_master_start(cmd);
+    // Write slave address + write bit
+    i2c_master_write_byte(cmd, (dev_addr << 1) | I2C_MASTER_WRITE, true); // true for ACK check
+    // Write data
+    i2c_master_write(cmd, (uint8_t *)data, len, true); // true for ACK check for each byte
+    // Stop condition
+    i2c_master_stop(cmd);
+
+    // Execute the command link
+    mcal_ret = i2c_master_cmd_begin((i2c_port_t)unit, cmd, I2C_TIMEOUT_TICKS(timeout_ms));
+    // Delete the command link to free memory
+    i2c_cmd_link_delete(cmd);
+
+    return (mcal_ret == ESP_OK) ? ECUAL_OK : ECUAL_ERROR;
+}
+
+uint8_t ECUAL_I2C_Master_Read(ECUAL_I2C_Unit_t unit, uint8_t dev_addr, uint8_t *data, uint16_t len, uint32_t timeout_ms) {
+    esp_err_t mcal_ret;
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+
+    // Start condition
+    i2c_master_start(cmd);
+    // Write slave address + read bit
+    i2c_master_write_byte(cmd, (dev_addr << 1) | I2C_MASTER_READ, true); // true for ACK check
+
+    if (len > 1) {
+        // Read multiple bytes, send ACK for all except the last one
+        i2c_master_read(cmd, data, len - 1, I2C_MASTER_ACK);
+    }
+    // Read the last byte, send NACK
+    i2c_master_read_byte(cmd, data + len - 1, I2C_MASTER_NACK);
+    
+    // Stop condition
+    i2c_master_stop(cmd);
+
+    // Execute the command link
+    mcal_ret = i2c_master_cmd_begin((i2c_port_t)unit, cmd, I2C_TIMEOUT_TICKS(timeout_ms));
+    // Delete the command link to free memory
+    i2c_cmd_link_delete(cmd);
+
+    return (mcal_ret == ESP_OK) ? ECUAL_OK : ECUAL_ERROR;
+}
+
+
 uint8_t ECUAL_I2C_Master_WriteRead(ECUAL_I2C_Unit_t unit, uint8_t dev_addr,
                                  const uint8_t *write_data, uint16_t write_len,
                                  uint8_t *read_data, uint16_t read_len,
-                                 uint32_t timeout_ms);
+                                 uint32_t timeout_ms) {
+    esp_err_t mcal_ret;
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
 
-#endif /* ECUAL_I2C_H */
+    // 1. Write phase
+    // Start condition
+    i2c_master_start(cmd);
+    // Write slave address + write bit
+    i2c_master_write_byte(cmd, (dev_addr << 1) | I2C_MASTER_WRITE, true);
+    // Write data (e.g., register address)
+    i2c_master_write(cmd, (uint8_t *)write_data, write_len, true);
+
+    // 2. Read phase (Repeated Start without Stop in between)
+    // Repeated Start condition
+    i2c_master_start(cmd);
+    // Write slave address + read bit
+    i2c_master_write_byte(cmd, (dev_addr << 1) | I2C_MASTER_READ, true);
+
+    if (read_len > 1) {
+        // Read multiple bytes, send ACK for all except the last one
+        i2c_master_read(cmd, read_data, read_len - 1, I2C_MASTER_ACK);
+    }
+    // Read the last byte, send NACK
+    i2c_master_read_byte(cmd, read_data + read_len - 1, I2C_MASTER_NACK);
+
+    // Stop condition for the entire transaction
+    i2c_master_stop(cmd);
+
+    // Execute the command link
+    mcal_ret = i2c_master_cmd_begin((i2c_port_t)unit, cmd, I2C_TIMEOUT_TICKS(timeout_ms));
+    // Delete the command link to free memory
+    i2c_cmd_link_delete(cmd);
+
+    return (mcal_ret == ESP_OK) ? ECUAL_OK : ECUAL_ERROR;
+}
