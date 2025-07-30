@@ -10,10 +10,29 @@
 /**
  * @brief Master initialization function for the Runtime Environment.
  * This function is called once from app_main. It is responsible for creating
- * the initial hardware initialization task (INIT_TASKS_HwInitTask).
+ * the initial hardware initialization task (RTE_HwInitTask).
  * @return APP_OK if successful, APP_ERROR otherwise.
  */
 uint8_t RTE_Init(void);
+
+/**
+ * @brief FreeRTOS Task for Hardware (ECUAL) Initialization.
+ * This task performs all ECUAL module initializations.
+ * It is created by RTE_Init().
+ * After completion, it creates RTE_AppInitTask and deletes itself.
+ * @param pvParameters Standard FreeRTOS task parameter (unused).
+ */
+void RTE_HwInitTask(void *pvParameters);
+
+/**
+ * @brief FreeRTOS Task for Application Module Initialization.
+ * This task performs all application module initializations (e.g., Fan, Temp Sensor, SysMgr).
+ * It also calls RTE_StartAllPermanentTasks() to create all the permanent application tasks.
+ * After completion, it deletes itself.
+ * @param pvParameters Standard FreeRTOS task parameter (unused).
+ */
+void RTE_AppInitTask(void *pvParameters);
+
 
 /**
  * @brief FreeRTOS Task for reading environmental sensors.
@@ -50,30 +69,11 @@ void RTE_MainLoopTask(void *pvParameters);
 
 /**
  * @brief Starts all the permanent application tasks.
- * This function is called by INIT_TASKS_AppInitTask after all modules are initialized.
+ * This function is called by RTE_AppInitTask after all modules are initialized.
  * It contains all xTaskCreate calls for the ongoing application tasks.
  * @return APP_OK if all tasks are created successfully, APP_ERROR otherwise.
  */
 uint8_t RTE_StartAllPermanentTasks(void);
-
-
-/**
- * @brief FreeRTOS Task for Hardware (ECUAL) Initialization.
- * This task performs all ECUAL module initializations.
- * It should be created by RTE_Init().
- * After completion, it creates INIT_TASKS_AppInitTask and deletes itself.
- * @param pvParameters Standard FreeRTOS task parameter (unused).
- */
-void INIT_TASKS_HwInitTask(void *pvParameters);
-
-/**
- * @brief FreeRTOS Task for Application Module Initialization.
- * This task performs all application module initializations (e.g., Fan, Temp Sensor, SysMgr).
- * It also calls RTE_StartAllPermanentTasks() to create all the permanent application tasks.
- * After completion, it deletes itself.
- * @param pvParameters Standard FreeRTOS task parameter (unused).
- */
-void INIT_TASKS_AppInitTask(void *pvParameters);
 
 
 #endif /* RTE_H */
