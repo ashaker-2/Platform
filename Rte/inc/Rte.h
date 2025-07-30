@@ -57,4 +57,23 @@ void RTE_MainLoopTask(void *pvParameters);
 uint8_t RTE_StartAllPermanentTasks(void);
 
 
+/**
+ * @brief FreeRTOS Task for Hardware (ECUAL) Initialization.
+ * This task performs all ECUAL module initializations.
+ * It should be created by RTE_Init().
+ * After completion, it creates INIT_TASKS_AppInitTask and deletes itself.
+ * @param pvParameters Standard FreeRTOS task parameter (unused).
+ */
+void INIT_TASKS_HwInitTask(void *pvParameters);
+
+/**
+ * @brief FreeRTOS Task for Application Module Initialization.
+ * This task performs all application module initializations (e.g., Fan, Temp Sensor, SysMgr).
+ * It also calls RTE_StartAllPermanentTasks() to create all the permanent application tasks.
+ * After completion, it deletes itself.
+ * @param pvParameters Standard FreeRTOS task parameter (unused).
+ */
+void INIT_TASKS_AppInitTask(void *pvParameters);
+
+
 #endif /* RTE_H */
