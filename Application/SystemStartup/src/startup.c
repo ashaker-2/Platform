@@ -6,7 +6,7 @@
 // Application Modules Includes (only logger for early logs)
 #include "logger.h"
 
-// Rte (Runtime Environment) Tasks Includes - now the central point for task creation
+// Rte (Runtime Environment) Tasks Includes - now the central point for task creation and init tasks
 #include "Rte.h"
 
 // FreeRTOS Includes
@@ -39,7 +39,7 @@ void app_main(void) {
     LOGI(APP_TAG, "Minimal system setup complete. Calling RTE_Init to create initial tasks.");
 
     // --- Call RTE's master initialization function ---
-    // RTE_Init will be responsible for creating the first init task (INIT_TASKS_HwInitTask).
+    // RTE_Init will be responsible for creating the first init task (RTE_HwInitTask).
     if (RTE_Init() != APP_OK) {
         LOGE(APP_TAG, "RTE_Init failed! System cannot proceed.");
         while(1) {} // Halt if critical failure
