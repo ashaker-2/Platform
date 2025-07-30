@@ -1,0 +1,6 @@
+// ecual/src/ecual_gpio_config.c
+const ECUAL_GPIO_Config_t gpio_pin_configurations[] = {
+    // ... existing configurations ...
+    {ECUAL_GPIO_VENTILATOR_EXHAUST, 27, ECUAL_GPIO_OUTPUT, ECUAL_GPIO_PULLUP_DISABLED}, // Example physical pin 27
+    // ...
+};
