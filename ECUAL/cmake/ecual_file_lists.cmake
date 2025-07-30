@@ -8,41 +8,41 @@
 # Path is relative from components/ to cmake/project_global_settings.cmake
 include(../../cmake/project_global_settings.cmake)
 
-# --- Component: app_fan ---
-# Define source files for the app_fan component
-set(ECUAL_SRCS
+# --- Component: ECUAL ---
+# Define source files for the ECUAL component by globbing
 
-    src/*
+# Define configuration source files for the ECUAL component (if any)
+file(GLOB ECUAL_SRCS_DIRS "${CMAKE_CURRENT_LIST_DIR}/ecual/src/*.c") # Assuming src/ for sources
 
-)
-# Define configuration source files for the app_fan component
-set(ECUAL_CONFIG_SRCS
 
-    cfg/*
-)
-# Define public include directories for the app_fan component
+# Define configuration source files for the ECUAL component (if any)
+file(GLOB ECUAL_CONFIG_DIRS "${CMAKE_CURRENT_LIST_DIR}/ecual/cfg/*.c") # Assuming cfg/ for config
+
+# Define public include directories for the ECUAL component
+# This sets the actual path to the 'inc' directory.
 set(ECUAL_PUBLIC_INC_DIRS
-
-    inc/*
+    "${CMAKE_CURRENT_LIST_DIR}/ecual/inc"
 )
-# Define private include directories for the app_fan component (if any)
-set(ECUALPRIVATE_INC_DIRS
-    # Example: "private_inc"
+# Example if ecual/inc/ is relative to THIS file's directory (components/):
+# set(ECUAL_PUBLIC_INC_DIRS "ecual/inc")
+# Define private include directories for the ECUAL component (if any)
+set(ECUAL_PRIVATE_INC_DIRS
+    # Example: "${CMAKE_CURRENT_LIST_DIR}/ecual/private_inc"
 )
-# Define public dependencies for the app_fan component
+# Define public dependencies for the ECUAL component
 set(ECUAL_PUBLIC_REQUIRES
     # Example: "some_internal_lib"
 )
-# Define private dependencies for the app_fan component (if any)
+# Define private dependencies for the ECUAL component (if any)
 set(ECUAL_PRIVATE_REQUIRES
     # Example: "some_internal_lib"
 )
-# Define compile options for the app_fan component (inherits from GLOBAL_C_COMPILE_OPTIONS)
+# Define compile options for the ECUAL component (inherits from GLOBAL_C_COMPILE_OPTIONS)
 set(ECUAL_COMPILE_OPTIONS
     ${GLOBAL_C_COMPILE_OPTIONS}
     # -Wno-unused-variable # Example: specific warning disable
 )
-# Define compile definitions for the app_fan component (inherits from GLOBAL_COMPILE_DEFINITIONS)
+# Define compile definitions for the ECUAL component (inherits from GLOBAL_COMPILE_DEFINITIONS)
 set(ECUAL_COMPILE_DEFINITIONS
     ${GLOBAL_COMPILE_DEFINITIONS}
 )
