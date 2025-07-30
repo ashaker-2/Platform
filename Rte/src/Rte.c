@@ -7,8 +7,24 @@
 #include "light_indication.h"   // For heartbeat LED in MainLoopTask
 #include "character_display.h"  // For backlight control in MainLoopTask
 
-// Headers for tasks whose implementations are in other files
-#include "init_tasks.h"     // For INIT_TASKS_HwInitTask, INIT_TASKS_AppInitTask
+// ECUAL Includes (now directly included here for RTE_HwInitTask)
+#include "ecual_gpio.h"
+#include "ecual_pwm.h"
+#include "ecual_adc.h"
+#include "ecual_i2c.h"
+
+// Application Modules Includes (now directly included here for RTE_AppInitTask)
+#include "fan.h"
+#include "temp_sensor.h"
+#include "ventilator.h"
+#include "humidity_sensor.h"
+#include "heater.h"
+#include "pump.h"
+#include "light_control.h"
+#include "light_indication.h"
+#include "character_display.h"
+
+// Headers for tasks whose implementations are in other files (permanent tasks)
 #include "system_monitor.h" // For SYS_MON_Task
 #include "comm_task.h"      // For COMM_MainTask
 
@@ -27,11 +43,85 @@ uint8_t RTE_Init(void) {
     LOGI(TAG, "RTE_Init called. Creating initial hardware initialization task.");
 
     // Create the initial hardware initialization task
-    if (xTaskCreate(INIT_TASKS_HwInitTask, "InitHwTask", 4096, NULL, configMAX_PRIORITIES - 1, NULL) != pdPASS) {
-        LOGE(TAG, "Failed to create InitHwTask!");
+    if (xTaskCreate(RTE_HwInitTask, "HwInitTask", 4096, NULL, configMAX_PRIORITIES - 1, NULL) != pdPASS) {
+        LOGE(TAG, "Failed to create HwInitTask!");
         return APP_ERROR;
     }
     return APP_OK;
+}
+
+// --- Implementation of the Initialization Tasks (now part of RTE) ---
+
+void RTE_HwInitTask(void *pvParameters) {
+    LOGI(TAG, "RTE_HwInitTask started: Initializing ECUAL modules...");
+
+    // ECUAL Initializations
+    if (ECUAL_GPIO_Init() != ECUAL_OK) { LOGE(TAG, "GPIO ECUAL Init failed! Halting."); vTaskSuspend(NULL); }
+    if (ECUAL_PWM_Init() != ECUAL_OK) { LOGE(TAG, "PWM ECUAL Init failed! Halting."); vTaskSuspend(NULL); }
+    if (ECUAL_ADC_Init() != ECUAL_OK) { LOGE(TAG, "ADC ECUAL Init failed! Halting."); vTaskSuspend(NULL); }
+    if (ECUAL_I2C_Init() != ECUAL_OK) { LOGE(TAG, "I2C ECUAL Init failed! Halting."); vTaskSuspend(NULL); }
+
+    LOGI(TAG, "ECUAL Initialization complete. Creating Application Initialization Task.");
+
+    // Create the Application Initialization Task
+    if (xTaskCreate(RTE_AppInitTask, "AppInitTask", 4096, NULL, configMAX_PRIORITIES - 2, NULL) != pdPASS) {
+        LOGE(TAG, "Failed to create AppInitTask! Halting.");
+        vTaskSuspend(NULL); // Suspend self if unable to create next task
+    }
+
+    // Delete this task as its job is done
+    LOGI(TAG, "RTE_HwInitTask deleting itself.");
+    vTaskDelete(NULL);
+}
+
+
+void RTE_AppInitTask(void *pvParameters) {
+    LOGI(TAG, "RTE_AppInitTask started: Initializing Application modules...");
+
+    // Application Modules Initializations
+    if (FAN_Init() != APP_OK) { LOGE(TAG, "Fan APP Init failed! Halting."); vTaskSuspend(NULL); }
+    if (TEMP_SENSOR_Init() != APP_OK) { LOGE(TAG, "Temperature Sensor APP Init failed! Halting."); vTaskSuspend(NULL); }
+    if (VENTILATOR_Init() != APP_OK) { LOGE(TAG, "Ventilator APP Init failed! Halting."); vTaskSuspend(NULL); }
+    if (HUMIDITY_SENSOR_Init() != APP_OK) { LOGE(TAG, "Humidity Sensor APP Init failed! Halting."); vTaskSuspend(NULL); }
+    if (HEATER_Init() != APP_OK) { LOGE(TAG, "Heater APP Init failed! Halting."); vTaskSuspend(NULL); }
+    if (PUMP_Init() != APP_OK) { LOGE(TAG, "Pump APP Init failed! Halting."); vTaskSuspend(NULL); }
+    if (LIGHT_Init() != APP_OK) { LOGE(TAG, "LightControl APP Init failed! Halting."); vTaskSuspend(NULL); }
+    if (LIGHT_INDICATION_Init() != APP_OK) { LOGE(TAG, "LightIndication APP Init failed! Halting."); vTaskSuspend(NULL); }
+    if (CHARACTER_DISPLAY_Init() != APP_OK) { LOGE(TAG, "CharacterDisplay APP Init failed! Halting."); vTaskSuspend(NULL); }
+
+    // System Manager, Monitor, and Communication Initializations
+    if (SYS_MGR_Init() != APP_OK) { LOGE(TAG, "System Manager Init failed! Halting."); vTaskSuspend(NULL); }
+    if (SYS_MON_Init() != APP_OK) { LOGE(TAG, "System Monitor Init failed! Halting."); vTaskSuspend(NULL); }
+    if (COMM_Init() != APP_OK) { LOGE(TAG, "Communication Task Init failed! Halting."); vTaskSuspend(NULL); }
+
+    LOGI(TAG, "All Application modules initialized. Configuring System Manager parameters...");
+
+    // Configure System Manager from "User Input" (simulated here)
+    SYS_MGR_SetOperationalTemperature(22.0f, 26.0f); // Desired 22-26 C
+    SYS_MGR_SetOperationalHumidity(45.0f, 65.0f);   // Desired 45-65 %
+    SYS_MGR_SetVentilatorSchedule(10, 0, 18, 0); // ON from 10:00 to 18:00 simulated time
+    SYS_MGR_SetLightSchedule(19, 0, 23, 0);      // ON from 19:00 to 23:00 simulated time
+
+    // Initial display messages (tasks will update these shortly)
+    CHARACTER_DISPLAY_Clear(CHARACTER_DISPLAY_MAIN_STATUS);
+    CHARACTER_DISPLAY_PrintString(CHARACTER_DISPLAY_MAIN_STATUS, "System Init OK");
+    CHARACTER_DISPLAY_SetCursor(CHARACTER_DISPLAY_MAIN_STATUS, 0, 1);
+    CHARACTER_DISPLAY_PrintString(CHARACTER_DISPLAY_MAIN_STATUS, "Tasks Starting...");
+
+    CHARACTER_DISPLAY_Clear(CHARACTER_DISPLAY_ALARM_PANEL);
+    CHARACTER_DISPLAY_PrintString(CHARACTER_DISPLAY_ALARM_PANEL, "ALARM STATUS");
+    CHARACTER_DISPLAY_SetCursor(CHARACTER_DISPLAY_ALARM_PANEL, 0, 1);
+    CHARACTER_DISPLAY_PrintString(CHARACTER_DISPLAY_ALARM_PANEL, "Monitoring...");
+
+    LOGI(TAG, "Calling RTE_StartAllPermanentTasks to create all permanent FreeRTOS tasks...");
+    // This function contains ALL xTaskCreate calls for the ongoing application tasks.
+    if (RTE_StartAllPermanentTasks() != APP_OK) {
+        LOGE(TAG, "Failed to start all permanent tasks via RTE! Halting.");
+        vTaskSuspend(NULL);
+    }
+
+    LOGI(TAG, "All permanent tasks created. RTE_AppInitTask deleting itself.");
+    vTaskDelete(NULL); // Delete this task as its job is done
 }
 
 // --- Implementation of RTE's permanent tasks (as before) ---
@@ -86,7 +176,7 @@ void RTE_MainLoopTask(void *pvParameters) {
         // System Status LED heartbeat
         LIGHT_INDICATION_Toggle(LIGHT_INDICATION_SYSTEM_STATUS);
         
-        // WiFi Status LED (always ON for this demo)
+        // WiFi Status LED (always ON for this demo, would be dynamic in a real system)
         LIGHT_INDICATION_On(LIGHT_INDICATION_WIFI_STATUS);
 
         // Toggle backlight for Alarm Panel every 15 seconds
@@ -111,7 +201,7 @@ void RTE_MainLoopTask(void *pvParameters) {
     }
 }
 
-// --- New function to centralize creation of ALL permanent tasks ---
+// --- Function to centralize creation of ALL permanent tasks ---
 uint8_t RTE_StartAllPermanentTasks(void) {
     LOGI(TAG, "RTE_StartAllPermanentTasks: Creating all permanent application tasks...");
 
