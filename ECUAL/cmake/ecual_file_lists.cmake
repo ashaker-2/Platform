@@ -27,7 +27,7 @@ set(ECUAL_PUBLIC_INC_DIRS
 # set(ECUAL_PUBLIC_INC_DIRS "ecual/inc")
 # Define private include directories for the ECUAL component (if any)
 set(ECUAL_PRIVATE_INC_DIRS
-    # Example: "${CMAKE_CURRENT_LIST_DIR}/ecual/private_inc"
+    "${CMAKE_CURRENT_LIST_DIR}/ecual/inc"
 )
 # Define public dependencies for the ECUAL component
 set(ECUAL_PUBLIC_REQUIRES
