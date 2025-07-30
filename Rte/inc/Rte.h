@@ -4,7 +4,16 @@
 #define RTE_H
 
 #include <stdint.h>
+#include "app_common.h"     // For APP_OK/APP_ERROR
 #include "freertos/FreeRTOS.h" // For TaskFunction_t (FreeRTOS task prototype)
+
+/**
+ * @brief Master initialization function for the Runtime Environment.
+ * This function is called once from app_main. It is responsible for creating
+ * the initial hardware initialization task (INIT_TASKS_HwInitTask).
+ * @return APP_OK if successful, APP_ERROR otherwise.
+ */
+uint8_t RTE_Init(void);
 
 /**
  * @brief FreeRTOS Task for reading environmental sensors.
@@ -38,6 +47,14 @@ void RTE_DisplayAlarmTask(void *pvParameters);
  * @param pvParameters Standard FreeRTOS task parameter (unused).
  */
 void RTE_MainLoopTask(void *pvParameters);
+
+/**
+ * @brief Starts all the permanent application tasks.
+ * This function is called by INIT_TASKS_AppInitTask after all modules are initialized.
+ * It contains all xTaskCreate calls for the ongoing application tasks.
+ * @return APP_OK if all tasks are created successfully, APP_ERROR otherwise.
+ */
+uint8_t RTE_StartAllPermanentTasks(void);
 
 
 #endif /* RTE_H */
