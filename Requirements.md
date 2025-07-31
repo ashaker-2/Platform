@@ -4,8 +4,8 @@
 
 #### 1.1. Monitoring and Display
 * The System shall display the current indoor temperature.  
-* The System shall display the current indoor humidity if a humidity sensor is connected.  241]
-* If no humidity sensor is present, the system shall display fan speed in place of humidity.  250]
+* The System shall display the current indoor humidity if a humidity sensor is connected. 
+* If no humidity sensor is present, the system shall display fan speed in place of humidity. 
 * The display shall alternate between temperature and humidity readings.  
 * The System shall display the current fan speed.  
 * The System shall display alarm statuses if errors occur.  
