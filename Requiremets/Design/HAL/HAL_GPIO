@@ -1,0 +1,11 @@
+Detailed Design Document: HAL_GPIO Component
+1. Introduction
+1.1. Purpose
+This document details the design of the HAL_GPIO component, which provides a hardware abstraction layer for General Purpose Input/Output (GPIO) pins. Its primary purpose is to offer a standardized, microcontroller-independent interface for configuring and controlling GPIO pins, abstracting the low-level register access and specific MCU details from higher layers.
+
+1.2. Scope
+The scope of this document covers the HAL_GPIO module's architecture, functional behavior, interfaces, dependencies, and resource considerations. It details how the HAL layer interacts with the underlying Microcontroller Abstraction Layer (MCAL) for GPIO operations.
+
+1.3. References
+Software Architecture Document (SAD) - Environmental Monitoring & Control System (Final Version)
+
