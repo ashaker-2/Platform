@@ -68,54 +68,54 @@ The ComM component will consist of the following files:
 ```c
 // Enum for ComM status/error codes  
 typedef enum {  
-    SERVICE_COMM_OK = 0,  
-    SERVICE_COMM_ERROR_INIT_FAILED,  
-    SERVICE_COMM_ERROR_TX_FAILED,  
-    SERVICE_COMM_ERROR_RX_FAILED,  
-    SERVICE_COMM_ERROR_ROUTING_FAILED,  
-    SERVICE_COMM_ERROR_INVALID_PARAM,  
-    SERVICE_COMM_ERROR_PROTOCOL_NOT_ENABLED,  
+    COMM_OK = 0,  
+    COMM_ERROR_INIT_FAILED,  
+    COMM_ERROR_TX_FAILED,  
+    COMM_ERROR_RX_FAILED,  
+    COMM_ERROR_ROUTING_FAILED,  
+    COMM_ERROR_INVALID_PARAM,  
+    COMM_ERROR_PROTOCOL_NOT_ENABLED,  
     // Add more specific errors as needed  
-} SERVICE_COMM_Status_t;
+} COMM_Status_t;
 
 // Enum for communication protocols  
 typedef enum {  
-    SERVICE_COMM_PROTOCOL_MODBUS,  
-    SERVICE_COMM_PROTOCOL_BLE,  
-    SERVICE_COMM_PROTOCOL_WIFI,  
-    SERVICE_COMM_PROTOCOL_COUNT  
-} SERVICE_COMM_Protocol_t;
+    COMM_PROTOCOL_MODBUS,  
+    COMM_PROTOCOL_BLE,  
+    COMM_PROTOCOL_WIFI,  
+    COMM_PROTOCOL_COUNT  
+} COMM_Protocol_t;
 
 // Enum for connection states (generic across protocols)  
 typedef enum {  
-    SERVICE_COMM_STATE_DISCONNECTED,  
-    SERVICE_COMM_STATE_CONNECTING,  
-    SERVICE_COMM_STATE_CONNECTED,  
-    SERVICE_COMM_STATE_ERROR  
-} SERVICE_COMM_ConnectionState_t;
+    COMM_STATE_DISCONNECTED,  
+    COMM_STATE_CONNECTING,  
+    COMM_STATE_CONNECTED,  
+    COMM_STATE_ERROR  
+} COMM_ConnectionState_t;
 
 // Function pointer for generic incoming message routing  
-typedef void (*SERVICE_COMM_MessageRxCallback_t)(SERVICE_COMM_Protocol_t protocol, const uint8_t *data, uint16_t len);
+typedef void (*COMM_MessageRxCallback_t)(COMM_Protocol_t protocol, const uint8_t *data, uint16_t len);
 
 // Function pointer for connection state changes  
-typedef void (*SERVICE_COMM_ConnectionStateCallback_t)(SERVICE_COMM_Protocol_t protocol, SERVICE_COMM_ConnectionState_t state, const char *info);
+typedef void (*COMM_ConnectionStateCallback_t)(COMM_Protocol_t protocol, COMM_ConnectionState_t state, const char *info);
 
 /**  
  * @brief Initializes the ComM module and all enabled communication HAL drivers.  
  * This function should be called once during system initialization.  
  * @param msg_rx_cb Callback for routing incoming messages.  
  * @param conn_state_cb Callback for connection state changes.  
- * @return SERVICE_COMM_OK on success, an error code on failure.  
+ * @return COMM_OK on success, an error code on failure.  
  */  
-SERVICE_COMM_Status_t SERVICE_COMM_Init(SERVICE_COMM_MessageRxCallback_t msg_rx_cb,  
-                                        SERVICE_COMM_ConnectionStateCallback_t conn_state_cb);
+COMM_Status_t COMM_Init(COMM_MessageRxCallback_t msg_rx_cb,  
+                                        COMM_ConnectionStateCallback_t conn_state_cb);
 
 /**  
  * @brief Main processing function for the Communication Manager.  
  * This function should be called periodically by the COMMUNICATION_STACK_MainTask.  
  * It processes all enabled communication protocols.  
  */  
-void SERVICE_COMM_Process(void);
+void COMM_Process(void);
 
 /**  
  * @brief Sends data via a specified communication protocol.  
@@ -124,9 +124,9 @@ void SERVICE_COMM_Process(void);
  * @param data Pointer to the data to send.  
  * @param len Length of the data.  
  * @param destination_info Optional: Protocol-specific destination info (e.g., BLE char handle, Wi-Fi socket FD, Modbus slave ID).  
- * @return SERVICE_COMM_OK on success, an error code on failure.  
+ * @return COMM_OK on success, an error code on failure.  
  */  
-SERVICE_COMM_Status_t SERVICE_COMM_Send(SERVICE_COMM_Protocol_t protocol,  
+COMM_Status_t COMM_Send(COMM_Protocol_t protocol,  
                                         const uint8_t *data, uint16_t len,  
                                         void *destination_info);
 
@@ -135,56 +135,56 @@ SERVICE_COMM_Status_t SERVICE_COMM_Send(SERVICE_COMM_Protocol_t protocol,
  * @param protocol The communication protocol.  
  * @return The current connection state.  
  */  
-SERVICE_COMM_ConnectionState_t SERVICE_COMM_GetConnectionState(SERVICE_COMM_Protocol_t protocol);
+COMM_ConnectionState_t COMM_GetConnectionState(COMM_Protocol_t protocol);
 
 /**  
  * @brief Requests a specific communication protocol to connect/disconnect.  
  * @param protocol The communication protocol.  
  * @param connect True to connect, false to disconnect.  
  * @param config_info Optional: Protocol-specific configuration (e.g., Wi-Fi STA config, AP config).  
- * @return SERVICE_COMM_OK on success, an error code on failure.  
+ * @return COMM_OK on success, an error code on failure.  
  */  
-SERVICE_COMM_Status_t SERVICE_COMM_RequestConnection(SERVICE_COMM_Protocol_t protocol, bool connect, void *config_info);
+COMM_Status_t COMM_RequestConnection(COMM_Protocol_t protocol, bool connect, void *config_info);
 ```
 
 ### **5.3. Internal Design**
 
-The ComM module will maintain internal state for each communication protocol (e.g., connection status, internal buffers). It will register itself as the callback handler for all HAL communication drivers and then dispatch these events to the higher-layer SERVICE_COMM_MessageRxCallback_t or SERVICE_COMM_ConnectionStateCallback_t provided during Init.
+The ComM module will maintain internal state for each communication protocol (e.g., connection status, internal buffers). It will register itself as the callback handler for all HAL communication drivers and then dispatch these events to the higher-layer COMM_MessageRxCallback_t or COMM_ConnectionStateCallback_t provided during Init.
 
-1. **Initialization (SERVICE_COMM_Init)**:  
+1. **Initialization (COMM_Init)**:  
    * Validate input callback pointers and store them internally.  
    * **Initialize HAL Drivers**:  
-     * If SERVICE_COMM_MODBUS_ENABLED is true: Call HAL_Modbus_Init() with its specific config and register internal HAL_Modbus callbacks. If fails, report SERVICE_COMM_ERROR_INIT_FAILED.  
-     * If SERVICE_COMM_BLE_ENABLED is true: Call HAL_BLE_Init() with its specific config and register internal HAL_BLE callbacks. If fails, report SERVICE_COMM_ERROR_INIT_FAILED.  
-     * If SERVICE_COMM_WIFI_ENABLED is true: Call HAL_WIFI_Init() with its specific config and register internal HAL_WIFI callbacks. If fails, report SERVICE_COMM_ERROR_INIT_FAILED.  
-   * Initialize internal state variables (e.g., connection_states[SERVICE_COMM_PROTOCOL_COUNT]).  
-   * Return SERVICE_COMM_OK.  
-2. **Main Processing Loop (SERVICE_COMM_Process)**:  
+     * If COMM_MODBUS_ENABLED is true: Call HAL_Modbus_Init() with its specific config and register internal HAL_Modbus callbacks. If fails, report COMM_ERROR_INIT_FAILED.  
+     * If COMM_BLE_ENABLED is true: Call HAL_BLE_Init() with its specific config and register internal HAL_BLE callbacks. If fails, report COMM_ERROR_INIT_FAILED.  
+     * If COMM_WIFI_ENABLED is true: Call HAL_WIFI_Init() with its specific config and register internal HAL_WIFI callbacks. If fails, report COMM_ERROR_INIT_FAILED.  
+   * Initialize internal state variables (e.g., connection_states[COMM_PROTOCOL_COUNT]).  
+   * Return COMM_OK.  
+2. **Main Processing Loop (COMM_Process)**:  
    * This function is called periodically by RTE_COMMUNICATION_STACK_MainTask().  
    * **Call HAL Driver Processors**:  
-     * If SERVICE_COMM_MODBUS_ENABLED: Call HAL_Modbus_Process() (if such a function exists in HAL_Modbus for periodic tasks).  
-     * If SERVICE_COMM_BLE_ENABLED: Call HAL_BLE_Process() (if such a function exists in HAL_BLE).  
-     * If SERVICE_COMM_WIFI_ENABLED: Call HAL_WIFI_Process() (if such a function exists in HAL_WIFI).  
+     * If COMM_MODBUS_ENABLED: Call HAL_Modbus_Process() (if such a function exists in HAL_Modbus for periodic tasks).  
+     * If COMM_BLE_ENABLED: Call HAL_BLE_Process() (if such a function exists in HAL_BLE).  
+     * If COMM_WIFI_ENABLED: Call HAL_WIFI_Process() (if such a function exists in HAL_WIFI).  
    * **Process Internal Queues (if any)**: If ComM uses internal queues to decouple reception from routing, process those here.  
-3. **Sending Data (SERVICE_COMM_Send)**:  
+3. **Sending Data (COMM_Send)**:  
    * Validate protocol, data, len.  
    * Use a switch statement based on protocol:  
-     * SERVICE_COMM_PROTOCOL_MODBUS: Call HAL_Modbus_TransmitFrame(data, len). destination_info might be used to indicate a specific Modbus slave ID if HAL_Modbus supports it.  
-     * SERVICE_COMM_PROTOCOL_BLE: Cast destination_info to uint16_t char_handle. Call HAL_BLE_SendData(char_handle, data, len).  
-     * SERVICE_COMM_PROTOCOL_WIFI: Cast destination_info to int socket_fd. Call HAL_WIFI_TcpSend(socket_fd, data, len) or HAL_WIFI_UdpSend().  
-   * If the specific HAL send function returns an error, translate it to SERVICE_COMM_ERROR_TX_FAILED and report to SystemMonitor.  
-4. **Request Connection (SERVICE_COMM_RequestConnection)**:  
+     * COMM_PROTOCOL_MODBUS: Call HAL_Modbus_TransmitFrame(data, len). destination_info might be used to indicate a specific Modbus slave ID if HAL_Modbus supports it.  
+     * COMM_PROTOCOL_BLE: Cast destination_info to uint16_t char_handle. Call HAL_BLE_SendData(char_handle, data, len).  
+     * COMM_PROTOCOL_WIFI: Cast destination_info to int socket_fd. Call HAL_WIFI_TcpSend(socket_fd, data, len) or HAL_WIFI_UdpSend().  
+   * If the specific HAL send function returns an error, translate it to COMM_ERROR_TX_FAILED and report to SystemMonitor.  
+4. **Request Connection (COMM_RequestConnection)**:  
    * Validate protocol, connect.  
    * Use a switch statement based on protocol:  
-     * SERVICE_COMM_PROTOCOL_MODBUS: (Modbus RTU is usually always "connected" if UART is up). This might just enable/disable the Modbus processing loop or bus arbitration.  
-     * SERVICE_COMM_PROTOCOL_BLE: Call HAL_BLE_StartAdvertising() or HAL_BLE_Disconnect(). config_info might be used for advertising parameters.  
-     * SERVICE_COMM_PROTOCOL_WIFI: Cast config_info to HAL_WIFI_StaConfig_t or HAL_WIFI_ApConfig_t. Call HAL_WIFI_SetMode(HAL_WIFI_MODE_STA/AP/OFF, config_info, NULL/config_info).  
+     * COMM_PROTOCOL_MODBUS: (Modbus RTU is usually always "connected" if UART is up). This might just enable/disable the Modbus processing loop or bus arbitration.  
+     * COMM_PROTOCOL_BLE: Call HAL_BLE_StartAdvertising() or HAL_BLE_Disconnect(). config_info might be used for advertising parameters.  
+     * COMM_PROTOCOL_WIFI: Cast config_info to HAL_WIFI_StaConfig_t or HAL_WIFI_ApConfig_t. Call HAL_WIFI_SetMode(HAL_WIFI_MODE_STA/AP/OFF, config_info, NULL/config_info).  
    * Update internal connection state and report to SystemMonitor.  
 5. **Internal HAL Callbacks (e.g., comm_hal_ble_conn_state_cb, comm_hal_modbus_rx_cb)**:  
-   * These static functions are registered with the respective HAL drivers during SERVICE_COMM_Init.  
+   * These static functions are registered with the respective HAL drivers during COMM_Init.  
    * When invoked by a HAL driver (e.g., HAL_BLE reports a connection change, HAL_Modbus reports a received frame):  
      * Update ComM's internal state (e.g., connection_states[]).  
-     * Call the SERVICE_COMM_MessageRxCallback_t (for received data) or SERVICE_COMM_ConnectionStateCallback_t (for connection changes) provided by the higher layer (RTE).  
+     * Call the COMM_MessageRxCallback_t (for received data) or COMM_ConnectionStateCallback_t (for connection changes) provided by the higher layer (RTE).  
      * Report any unexpected errors from the HAL layer to SystemMonitor.
 
 **Sequence Diagram (Example: Incoming BLE Data):**
@@ -201,7 +201,7 @@ sequenceDiagram
     ComM->>ComM: Update internal state (if needed)  
     ComM->>ComM: Determine message type/destination (e.g., based on char_handle)  
     alt Message is Diagnostic Command  
-        ComM->>RTE: SERVICE_COMM_MessageRxCallback_t(SERVICE_COMM_PROTOCOL_BLE, data, len)  
+        ComM->>RTE: COMM_MessageRxCallback_t(COMM_PROTOCOL_BLE, data, len)  
         RTE->>Diagnostic: DIAGNOSTIC_ProcessCommand(data, len)  
         Diagnostic->>Diagnostic: Process command (e.g., query SystemMonitor)  
         Diagnostic->>RTE: Return result  
@@ -209,7 +209,7 @@ sequenceDiagram
         ComM->>HAL_BLE: HAL_BLE_SendData(response_char_handle, response_data, response_len)  
         HAL_BLE-->>ComM: Return HAL_BLE_OK  
     else Message is not recognized  
-        ComM->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(SERVICE_COMM_ERROR_ROUTING_FAILED, SEVERITY_LOW, ...)  
+        ComM->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(COMM_ERROR_ROUTING_FAILED, SEVERITY_LOW, ...)  
     end  
     ComM-->>HAL_BLE: (Return from internal callback)
 ```
@@ -227,20 +227,20 @@ sequenceDiagram
 
 * **Input Validation**: All public API functions will validate input parameters.  
 * **HAL Driver Error Propagation**: Errors returned by underlying HAL communication drivers will be caught by ComM.  
-* **Fault Reporting**: Upon detection of an error (e.g., HAL driver initialization failure, send/receive failure, message routing error, protocol not enabled), ComM will report a specific fault ID (e.g., SERVICE_COMM_ERROR_INIT_FAILED, SERVICE_COMM_ERROR_TX_FAILED, SERVICE_COMM_ERROR_RX_FAILED, SERVICE_COMM_ERROR_ROUTING_FAILED, SERVICE_COMM_ERROR_PROTOCOL_NOT_ENABLED) to SystemMonitor via the RTE service.  
-* **Return Status**: All public API functions will return SERVICE_COMM_Status_t indicating success or specific error.
+* **Fault Reporting**: Upon detection of an error (e.g., HAL driver initialization failure, send/receive failure, message routing error, protocol not enabled), ComM will report a specific fault ID (e.g., COMM_ERROR_INIT_FAILED, COMM_ERROR_TX_FAILED, COMM_ERROR_RX_FAILED, COMM_ERROR_ROUTING_FAILED, COMM_ERROR_PROTOCOL_NOT_ENABLED) to SystemMonitor via the RTE service.  
+* **Return Status**: All public API functions will return COMM_Status_t indicating success or specific error.
 
 ### **5.6. Configuration**
 
 The Service/ComM/cfg/service_comm_cfg.h file will contain:
 
-* Macros to enable/disable each communication protocol (SERVICE_COMM_MODBUS_ENABLED, SERVICE_COMM_BLE_ENABLED, SERVICE_COMM_WIFI_ENABLED).  
+* Macros to enable/disable each communication protocol (COMM_MODBUS_ENABLED, COMM_BLE_ENABLED, COMM_WIFI_ENABLED).  
 * Any protocol-specific routing rules or message ID mappings (if not handled by Diagnostic directly).
 ```c
 // Example: Service/ComM/cfg/service_comm_cfg.h  
-#define SERVICE_COMM_MODBUS_ENABLED     1  
-#define SERVICE_COMM_BLE_ENABLED        1  
-#define SERVICE_COMM_WIFI_ENABLED       0 // Wi-Fi optional, disabled by default
+#define COMM_MODBUS_ENABLED     1  
+#define COMM_BLE_ENABLED        1  
+#define COMM_WIFI_ENABLED       0 // Wi-Fi optional, disabled by default
 ```
 
 ### **5.7. Resource Usage**
@@ -255,10 +255,10 @@ The Service/ComM/cfg/service_comm_cfg.h file will contain:
 
 * **Mock HAL Drivers**: Unit tests for ComM will mock the HAL_Modbus, HAL_BLE, and HAL_WIFI functions to isolate ComM's logic.  
 * **Test Cases**:  
-  * SERVICE_COMM_Init: Test with various enabled/disabled protocols. Verify correct HAL driver initialization calls and error propagation. Verify callback registration.  
-  * SERVICE_COMM_Process: Test periodic calls and ensure it calls the Process() functions of enabled HAL drivers.  
-  * SERVICE_COMM_Send: Test sending data via each enabled protocol. Mock HAL send functions to simulate success/failure. Verify correct routing and error reporting.  
-  * SERVICE_COMM_RequestConnection: Test requesting connection/disconnection for each protocol. Mock HAL connection functions.  
+  * COMM_Init: Test with various enabled/disabled protocols. Verify correct HAL driver initialization calls and error propagation. Verify callback registration.  
+  * COMM_Process: Test periodic calls and ensure it calls the Process() functions of enabled HAL drivers.  
+  * COMM_Send: Test sending data via each enabled protocol. Mock HAL send functions to simulate success/failure. Verify correct routing and error reporting.  
+  * COMM_RequestConnection: Test requesting connection/disconnection for each protocol. Mock HAL connection functions.  
   * Internal HAL Callbacks: Simulate HAL driver callbacks (e.g., HAL_BLE reports a connection, HAL_Modbus reports a received frame) and verify that ComM correctly updates its internal state and invokes the higher-layer MessageRxCallback or ConnectionStateCallback.  
   * Error reporting: Verify that RTE_SystemMonitor_ReportFault() is called with the correct fault ID on various error conditions.
 
