@@ -68,27 +68,27 @@ The OS component will consist of the following files:
 
 // Enum for OS status/error codes  
 typedef enum {  
-    SERVICE_OS_OK = 0,  
-    SERVICE_OS_ERROR_TASK_CREATE_FAILED,  
-    SERVICE_OS_ERROR_MUTEX_CREATE_FAILED,  
-    SERVICE_OS_ERROR_QUEUE_CREATE_FAILED,  
-    SERVICE_OS_ERROR_TIMEOUT,  
-    SERVICE_OS_ERROR_INVALID_PARAM,  
+    OS_OK = 0,  
+    OS_ERROR_TASK_CREATE_FAILED,  
+    OS_ERROR_MUTEX_CREATE_FAILED,  
+    OS_ERROR_QUEUE_CREATE_FAILED,  
+    OS_ERROR_TIMEOUT,  
+    OS_ERROR_INVALID_PARAM,  
     // Add more specific errors as needed  
-} SERVICE_OS_Status_t;
+} OS_Status_t;
 
 // Typedefs for FreeRTOS handles to abstract them  
-typedef TaskHandle_t SERVICE_OS_TaskHandle_t;  
-typedef SemaphoreHandle_t SERVICE_OS_MutexHandle_t;  
-typedef QueueHandle_t SERVICE_OS_QueueHandle_t;  
-typedef void (*SERVICE_OS_TaskFunction_t)(void *pvParameters);
+typedef TaskHandle_t OS_TaskHandle_t;  
+typedef SemaphoreHandle_t OS_MutexHandle_t;  
+typedef QueueHandle_t OS_QueueHandle_t;  
+typedef void (*OS_TaskFunction_t)(void *pvParameters);
 
 /**  
  * @brief Initializes the OS module.  
  * This function should be called once during system initialization.  
- * @return SERVICE_OS_OK on success, an error code on failure.  
+ * @return OS_OK on success, an error code on failure.  
  */  
-SERVICE_OS_Status_t SERVICE_OS_Init(void);
+OS_Status_t OS_Init(void);
 
 /**  
  * @brief Creates a new FreeRTOS task.  
@@ -98,57 +98,57 @@ SERVICE_OS_Status_t SERVICE_OS_Init(void);
  * @param pvParameters Pointer to the task's parameters.  
  * @param uxPriority The priority at which the task should run.  
  * @param pxCreatedTask Optional: Pointer to store the handle of the created task.  
- * @return SERVICE_OS_OK on success, an error code on failure.  
+ * @return OS_OK on success, an error code on failure.  
  */  
-SERVICE_OS_Status_t SERVICE_OS_CreateTask(SERVICE_OS_TaskFunction_t pxTaskCode,  
+OS_Status_t OS_CreateTask(OS_TaskFunction_t pxTaskCode,  
                                           const char *const pcName,  
                                           const uint16_t usStackDepth,  
                                           void *const pvParameters,  
                                           UBaseType_t uxPriority,  
-                                          SERVICE_OS_TaskHandle_t *pxCreatedTask);
+                                          OS_TaskHandle_t *pxCreatedTask);
 
 /**  
  * @brief Deletes a FreeRTOS task.  
  * @param xTaskToDelete Handle of the task to delete (NULL for calling task).  
  */  
-void SERVICE_OS_DeleteTask(SERVICE_OS_TaskHandle_t xTaskToDelete);
+void OS_DeleteTask(OS_TaskHandle_t xTaskToDelete);
 
 /**  
  * @brief Delays the calling task for a specified number of milliseconds.  
  * @param delay_ms The delay duration in milliseconds.  
  */  
-void SERVICE_OS_DelayMs(uint32_t delay_ms);
+void OS_DelayMs(uint32_t delay_ms);
 
 /**  
  * @brief Creates a FreeRTOS mutex.  
  * @return Handle to the created mutex, or NULL on failure.  
  */  
-SERVICE_OS_MutexHandle_t SERVICE_OS_CreateMutex(void);
+OS_MutexHandle_t OS_CreateMutex(void);
 
 /**  
  * @brief Acquires a mutex.  
  * @param xMutex The handle of the mutex to acquire.  
  * @param xBlockTimeMs The maximum time to wait for the mutex in milliseconds.  
- * @return SERVICE_OS_OK on success, SERVICE_OS_ERROR_TIMEOUT on timeout, or other error.  
+ * @return OS_OK on success, OS_ERROR_TIMEOUT on timeout, or other error.  
  */  
-SERVICE_OS_Status_t SERVICE_OS_AcquireMutex(SERVICE_OS_MutexHandle_t xMutex, uint32_t xBlockTimeMs);
+OS_Status_t OS_AcquireMutex(OS_MutexHandle_t xMutex, uint32_t xBlockTimeMs);
 
 /**  
  * @brief Releases a mutex.  
  * @param xMutex The handle of the mutex to release.  
- * @return SERVICE_OS_OK on success, or other error.  
+ * @return OS_OK on success, or other error.  
  */  
-SERVICE_OS_Status_t SERVICE_OS_ReleaseMutex(SERVICE_OS_MutexHandle_t xMutex);
+OS_Status_t OS_ReleaseMutex(OS_MutexHandle_t xMutex);
 
 /**  
  * @brief Enters a critical section (disables interrupts).  
  */  
-void SERVICE_OS_EnterCritical(void);
+void OS_EnterCritical(void);
 
 /**  
  * @brief Exits a critical section (enables interrupts).  
  */  
-void SERVICE_OS_ExitCritical(void);
+void OS_ExitCritical(void);
 ```
 // Add more functions for semaphores, queues, software timers as needed
 
@@ -156,32 +156,32 @@ void SERVICE_OS_ExitCritical(void);
 
 The OS module will directly call the FreeRTOS APIs. Its primary role is to provide a consistent wrapper, perform basic parameter validation, and report errors to SystemMonitor.
 
-1. **Initialization (SERVICE_OS_Init)**:  
+1. **Initialization (OS_Init)**:  
    * This function might perform minimal FreeRTOS-related setup if not already done by the MCU SDK's startup code.  
    * It mainly serves as an entry point for future extensions or checks.  
-   * Currently, it simply returns SERVICE_OS_OK.  
-2. **Task Management (SERVICE_OS_CreateTask, SERVICE_OS_DeleteTask)**:  
-   * SERVICE_OS_CreateTask:  
+   * Currently, it simply returns OS_OK.  
+2. **Task Management (OS_CreateTask, OS_DeleteTask)**:  
+   * OS_CreateTask:  
      * Validate pxTaskCode (not NULL).  
      * Call xTaskCreate(pxTaskCode, pcName, usStackDepth, pvParameters, uxPriority, pxCreatedTask).  
-     * If xTaskCreate returns pdFAIL, report SERVICE_OS_ERROR_TASK_CREATE_FAILED to SystemMonitor.  
-   * SERVICE_OS_DeleteTask:  
+     * If xTaskCreate returns pdFAIL, report OS_ERROR_TASK_CREATE_FAILED to SystemMonitor.  
+   * OS_DeleteTask:  
      * Call vTaskDelete(xTaskToDelete). No error return for this FreeRTOS API.  
-3. **Time Management (SERVICE_OS_DelayMs)**:  
+3. **Time Management (OS_DelayMs)**:  
    * Call vTaskDelay(pdMS_TO_TICKS(delay_ms)).  
-4. **Synchronization Primitives (SERVICE_OS_CreateMutex, SERVICE_OS_AcquireMutex, SERVICE_OS_ReleaseMutex)**:  
-   * SERVICE_OS_CreateMutex:  
+4. **Synchronization Primitives (OS_CreateMutex, OS_AcquireMutex, OS_ReleaseMutex)**:  
+   * OS_CreateMutex:  
      * Call xSemaphoreCreateMutex().  
-     * If NULL is returned, report SERVICE_OS_ERROR_MUTEX_CREATE_FAILED to SystemMonitor.  
-   * SERVICE_OS_AcquireMutex:  
+     * If NULL is returned, report OS_ERROR_MUTEX_CREATE_FAILED to SystemMonitor.  
+   * OS_AcquireMutex:  
      * Validate xMutex (not NULL).  
      * Call xSemaphoreTake(xMutex, pdMS_TO_TICKS(xBlockTimeMs)).  
-     * If pdPASS is not returned, report SERVICE_OS_ERROR_TIMEOUT to SystemMonitor.  
-   * SERVICE_OS_ReleaseMutex:  
+     * If pdPASS is not returned, report OS_ERROR_TIMEOUT to SystemMonitor.  
+   * OS_ReleaseMutex:  
      * Validate xMutex (not NULL).  
      * Call xSemaphoreGive(xMutex).  
      * If pdPASS is not returned (e.g., mutex not owned), report a relevant error to SystemMonitor.  
-5. **Critical Section Management (SERVICE_OS_EnterCritical, SERVICE_OS_ExitCritical)**:  
+5. **Critical Section Management (OS_EnterCritical, OS_ExitCritical)**:  
    * Directly call taskENTER_CRITICAL() and taskEXIT_CRITICAL().
 
 **Sequence Diagram (Example: Task Creates and Acquires Mutex):**
@@ -192,23 +192,23 @@ sequenceDiagram
     participant FreeRTOS_Kernel as FreeRTOS Kernel  
     participant SystemMonitor as Application/SystemMonitor
 
-    RTE->>OS: SERVICE_OS_CreateTask(myTaskFunc, "MyTask", ...)  
+    RTE->>OS: OS_CreateTask(myTaskFunc, "MyTask", ...)  
     OS->>FreeRTOS_Kernel: xTaskCreate(myTaskFunc, "MyTask", ...)  
     FreeRTOS_Kernel-->>OS: Return pdPASS (Success)  
-    OS-->>RTE: Return SERVICE_OS_OK
+    OS-->>RTE: Return OS_OK
 
-    RTE->>OS: SERVICE_OS_CreateMutex()  
+    RTE->>OS: OS_CreateMutex()  
     OS->>FreeRTOS_Kernel: xSemaphoreCreateMutex()  
     FreeRTOS_Kernel-->>OS: Return MutexHandle_t  
     OS-->>RTE: Return MutexHandle_t
 
-    MyTask->>OS: SERVICE_OS_AcquireMutex(myMutex, portMAX_DELAY)  
+    MyTask->>OS: OS_AcquireMutex(myMutex, portMAX_DELAY)  
     OS->>FreeRTOS_Kernel: xSemaphoreTake(myMutex, portMAX_DELAY)  
     alt Mutex not available  
         FreeRTOS_Kernel--xOS: (Task blocks)  
     else Mutex available  
         FreeRTOS_Kernel-->>OS: Return pdPASS  
-        OS-->>MyTask: Return SERVICE_OS_OK  
+        OS-->>MyTask: Return OS_OK  
     end
 ```
 ### **5.4. Dependencies**
@@ -216,15 +216,15 @@ sequenceDiagram
 * **FreeRTOS Headers**: FreeRTOS.h, task.h, semphr.h, queue.h, etc.  
 * **Application/logger/inc/logger.h**: For internal logging.  
 * **Rte/inc/Rte.h**: For calling RTE_Service_SystemMonitor_ReportFault().  
-* **Application/common/inc/app_common.h**: For APP_Status_t (though SERVICE_OS_Status_t is more specific).  
+* **Application/common/inc/app_common.h**: For APP_Status_t (though OS_Status_t is more specific).  
 * **Service/os/cfg/service_os_cfg.h**: For OS-specific configurations.
 
 ### **5.5. Error Handling**
 
 * **Input Validation**: Public API functions will perform basic validation (e.g., non-NULL pointers).  
 * **FreeRTOS API Return Values**: OS will check the return values of FreeRTOS APIs.  
-* **Fault Reporting**: Upon detection of an error (e.g., task creation failure, mutex creation failure, timeout), OS will report a specific fault ID (e.g., SERVICE_OS_ERROR_TASK_CREATE_FAILED, SERVICE_OS_ERROR_MUTEX_CREATE_FAILED, SERVICE_OS_ERROR_TIMEOUT) to SystemMonitor via the RTE service.  
-* **Return Status**: All public API functions will return SERVICE_OS_Status_t indicating success or specific error, or the appropriate handle/value for creation functions.
+* **Fault Reporting**: Upon detection of an error (e.g., task creation failure, mutex creation failure, timeout), OS will report a specific fault ID (e.g., OS_ERROR_TASK_CREATE_FAILED, OS_ERROR_MUTEX_CREATE_FAILED, OS_ERROR_TIMEOUT) to SystemMonitor via the RTE service.  
+* **Return Status**: All public API functions will return OS_Status_t indicating success or specific error, or the appropriate handle/value for creation functions.
 
 ### **5.6. Configuration**
 
@@ -235,10 +235,10 @@ The Service/os/cfg/service_os_cfg.h file will contain:
 * Any FreeRTOS configuration macros that are not handled by the main FreeRTOSConfig.h.
 ```c
 // Example: Service/os/cfg/service_os_cfg.h  
-#define SERVICE_OS_DEFAULT_TASK_STACK_SIZE_WORDS    2048  
-#define SERVICE_OS_SENSOR_TASK_STACK_SIZE_WORDS     1500  
-#define SERVICE_OS_COMM_TASK_STACK_SIZE_WORDS       4096 // Communication tasks often need more stack  
-#define SERVICE_OS_DEFAULT_QUEUE_LENGTH             10
+#define OS_DEFAULT_TASK_STACK_SIZE_WORDS    2048  
+#define OS_SENSOR_TASK_STACK_SIZE_WORDS     1500  
+#define OS_COMM_TASK_STACK_SIZE_WORDS       4096 // Communication tasks often need more stack  
+#define OS_DEFAULT_QUEUE_LENGTH             10
 ```
 ### **5.7. Resource Usage**
 
@@ -252,13 +252,13 @@ The Service/os/cfg/service_os_cfg.h file will contain:
 
 * **Mock FreeRTOS Kernel**: Unit tests for OS will mock the FreeRTOS kernel APIs (e.g., xTaskCreate, xSemaphoreCreateMutex, xSemaphoreTake) to isolate OS's logic.  
 * **Test Cases**:  
-  * SERVICE_OS_Init: Verify basic initialization.  
-  * SERVICE_OS_CreateTask: Test valid/invalid parameters. Mock xTaskCreate to return success/failure. Verify SERVICE_OS_OK/error return and SystemMonitor fault reporting.  
-  * SERVICE_OS_DeleteTask: Verify vTaskDelete call.  
-  * SERVICE_OS_DelayMs: Verify vTaskDelay call.  
-  * SERVICE_OS_CreateMutex: Mock xSemaphoreCreateMutex to return handle/NULL. Verify SERVICE_OS_OK/error return and SystemMonitor fault reporting.  
-  * SERVICE_OS_AcquireMutex/ReleaseMutex: Test valid/invalid mutex handles, timeouts. Mock xSemaphoreTake/Give to simulate success, timeout, and other failures. Verify return status and fault reporting.  
-  * SERVICE_OS_EnterCritical/ExitCritical: Verify taskENTER_CRITICAL/taskEXIT_CRITICAL calls.  
+  * OS_Init: Verify basic initialization.  
+  * OS_CreateTask: Test valid/invalid parameters. Mock xTaskCreate to return success/failure. Verify OS_OK/error return and SystemMonitor fault reporting.  
+  * OS_DeleteTask: Verify vTaskDelete call.  
+  * OS_DelayMs: Verify vTaskDelay call.  
+  * OS_CreateMutex: Mock xSemaphoreCreateMutex to return handle/NULL. Verify OS_OK/error return and SystemMonitor fault reporting.  
+  * OS_AcquireMutex/ReleaseMutex: Test valid/invalid mutex handles, timeouts. Mock xSemaphoreTake/Give to simulate success, timeout, and other failures. Verify return status and fault reporting.  
+  * OS_EnterCritical/ExitCritical: Verify taskENTER_CRITICAL/taskEXIT_CRITICAL calls.  
   * Error reporting: Verify that RTE_Service_SystemMonitor_ReportFault() is called with the correct fault ID on various error conditions.
 
 ### **6.2. Integration Testing**
