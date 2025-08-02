@@ -1,14 +1,14 @@
-# **Detailed Design Document: Service_OS Component**
+# **Detailed Design Document: OS Component**
 
 ## **1. Introduction**
 
 ### **1.1. Purpose**
 
-This document details the design of the Service_OS component, which provides an abstraction layer for the underlying Real-Time Operating System (RTOS), FreeRTOS in this case. Its primary purpose is to encapsulate direct FreeRTOS API calls, offering a standardized interface for OS services (task management, synchronization, time management) to higher layers, thereby promoting portability and making it easier to swap or update the RTOS in the future if needed.
+This document details the design of the OS component, which provides an abstraction layer for the underlying Real-Time Operating System (RTOS), FreeRTOS in this case. Its primary purpose is to encapsulate direct FreeRTOS API calls, offering a standardized interface for OS services (task management, synchronization, time management) to higher layers, thereby promoting portability and making it easier to swap or update the RTOS in the future if needed.
 
 ### **1.2. Scope**
 
-The scope of this document covers the Service_OS module's architecture, functional behavior, interfaces, dependencies, and resource considerations. It details how the Service layer provides OS functionalities to the Runtime Environment (RTE) and other Service layer modules.
+The scope of this document covers the OS module's architecture, functional behavior, interfaces, dependencies, and resource considerations. It details how the Service layer provides OS functionalities to the Runtime Environment (RTE) and other Service layer modules.
 
 ### **1.3. References**
 
@@ -18,13 +18,13 @@ The scope of this document covers the Service_OS module's architecture, function
 
 ## **2. Functional Description**
 
-The Service_OS component provides the following core functionalities:
+The OS component provides the following core functionalities:
 
 1. **Task Management**: Create, delete, suspend, resume, and change priority of FreeRTOS tasks.  
 2. **Time Management**: Provide delay functions, retrieve system tick count, and manage software timers.  
 3. **Synchronization Primitives**: Provide interfaces for mutexes, semaphores (binary, counting), and queues for inter-task communication and resource protection.  
 4. **Critical Section Management**: Provide mechanisms to enter and exit critical sections for protecting shared resources from interrupt contention.  
-5. **Error Reporting**: Report any failures during OS operations (e.g., task creation failure, mutex acquisition timeout, invalid parameter) to the SystemMonitor via RTE_Service_SystemMonitor_ReportFault().
+5. **Error Reporting**: Report any failures during OS operations (e.g., task creation failure, mutex acquisition timeout, invalid parameter) to the SystemMonitor via RTE_SystemMonitor_ReportFault().
 
 ## **3. Non-Functional Requirements**
 
@@ -35,7 +35,7 @@ The Service_OS component provides the following core functionalities:
 
 ### **3.2. Memory**
 
-* **Minimal Footprint**: The Service_OS code and data shall have a minimal memory footprint.  
+* **Minimal Footprint**: The OS code and data shall have a minimal memory footprint.  
 * **Dynamic Allocation Control**: Provide controlled interfaces for dynamic memory allocation (e.g., for task stacks, queues) or rely on static allocation where possible.
 
 ### **3.3. Reliability**
@@ -45,16 +45,16 @@ The Service_OS component provides the following core functionalities:
 
 ## **4. Architectural Context**
 
-As per the SAD (Section 3.1.2, Service Layer), Service_OS resides in the Service Layer. It encapsulates direct FreeRTOS API calls. The RTE layer primarily interacts with Service_OS for creating tasks and using synchronization primitives. Other Service layer modules might also use Service_OS for their internal task management or synchronization needs.
+As per the SAD (Section 3.1.2, Service Layer), OS resides in the Service Layer. It encapsulates direct FreeRTOS API calls. The RTE layer primarily interacts with OS for creating tasks and using synchronization primitives. Other Service layer modules might also use OS for their internal task management or synchronization needs.
 
 ## **5. Design Details**
 
 ### **5.1. Module Structure**
 
-The Service_OS component will consist of the following files:
+The OS component will consist of the following files:
 
 * Service/os/inc/service_os.h: Public header file containing function prototypes, data types, and error codes.  
-* Service/os/src/service_os.c: Source file containing the implementation of the Service_OS functions.  
+* Service/os/src/service_os.c: Source file containing the implementation of the OS functions.  
 * Service/os/cfg/service_os_cfg.h: Configuration header for OS-specific parameters (e.g., default stack sizes, queue lengths).
 
 ### **5.2. Public Interface (API)**
@@ -84,7 +84,7 @@ typedef QueueHandle_t SERVICE_OS_QueueHandle_t;
 typedef void (*SERVICE_OS_TaskFunction_t)(void *pvParameters);
 
 /**  
- * @brief Initializes the Service_OS module.  
+ * @brief Initializes the OS module.  
  * This function should be called once during system initialization.  
  * @return SERVICE_OS_OK on success, an error code on failure.  
  */  
@@ -154,7 +154,7 @@ void SERVICE_OS_ExitCritical(void);
 
 ### **5.3. Internal Design**
 
-The Service_OS module will directly call the FreeRTOS APIs. Its primary role is to provide a consistent wrapper, perform basic parameter validation, and report errors to SystemMonitor.
+The OS module will directly call the FreeRTOS APIs. Its primary role is to provide a consistent wrapper, perform basic parameter validation, and report errors to SystemMonitor.
 
 1. **Initialization (SERVICE_OS_Init)**:  
    * This function might perform minimal FreeRTOS-related setup if not already done by the MCU SDK's startup code.  
@@ -188,27 +188,27 @@ The Service_OS module will directly call the FreeRTOS APIs. Its primary role is 
 ```mermaid
 sequenceDiagram  
     participant RTE as Runtime Environment  
-    participant Service_OS as Service/OS  
+    participant OS as Service/OS  
     participant FreeRTOS_Kernel as FreeRTOS Kernel  
     participant SystemMonitor as Application/SystemMonitor
 
-    RTE->>Service_OS: SERVICE_OS_CreateTask(myTaskFunc, "MyTask", ...)  
-    Service_OS->>FreeRTOS_Kernel: xTaskCreate(myTaskFunc, "MyTask", ...)  
-    FreeRTOS_Kernel-->>Service_OS: Return pdPASS (Success)  
-    Service_OS-->>RTE: Return SERVICE_OS_OK
+    RTE->>OS: SERVICE_OS_CreateTask(myTaskFunc, "MyTask", ...)  
+    OS->>FreeRTOS_Kernel: xTaskCreate(myTaskFunc, "MyTask", ...)  
+    FreeRTOS_Kernel-->>OS: Return pdPASS (Success)  
+    OS-->>RTE: Return SERVICE_OS_OK
 
-    RTE->>Service_OS: SERVICE_OS_CreateMutex()  
-    Service_OS->>FreeRTOS_Kernel: xSemaphoreCreateMutex()  
-    FreeRTOS_Kernel-->>Service_OS: Return MutexHandle_t  
-    Service_OS-->>RTE: Return MutexHandle_t
+    RTE->>OS: SERVICE_OS_CreateMutex()  
+    OS->>FreeRTOS_Kernel: xSemaphoreCreateMutex()  
+    FreeRTOS_Kernel-->>OS: Return MutexHandle_t  
+    OS-->>RTE: Return MutexHandle_t
 
-    MyTask->>Service_OS: SERVICE_OS_AcquireMutex(myMutex, portMAX_DELAY)  
-    Service_OS->>FreeRTOS_Kernel: xSemaphoreTake(myMutex, portMAX_DELAY)  
+    MyTask->>OS: SERVICE_OS_AcquireMutex(myMutex, portMAX_DELAY)  
+    OS->>FreeRTOS_Kernel: xSemaphoreTake(myMutex, portMAX_DELAY)  
     alt Mutex not available  
-        FreeRTOS_Kernel--xService_OS: (Task blocks)  
+        FreeRTOS_Kernel--xOS: (Task blocks)  
     else Mutex available  
-        FreeRTOS_Kernel-->>Service_OS: Return pdPASS  
-        Service_OS-->>MyTask: Return SERVICE_OS_OK  
+        FreeRTOS_Kernel-->>OS: Return pdPASS  
+        OS-->>MyTask: Return SERVICE_OS_OK  
     end
 ```
 ### **5.4. Dependencies**
@@ -222,8 +222,8 @@ sequenceDiagram
 ### **5.5. Error Handling**
 
 * **Input Validation**: Public API functions will perform basic validation (e.g., non-NULL pointers).  
-* **FreeRTOS API Return Values**: Service_OS will check the return values of FreeRTOS APIs.  
-* **Fault Reporting**: Upon detection of an error (e.g., task creation failure, mutex creation failure, timeout), Service_OS will report a specific fault ID (e.g., SERVICE_OS_ERROR_TASK_CREATE_FAILED, SERVICE_OS_ERROR_MUTEX_CREATE_FAILED, SERVICE_OS_ERROR_TIMEOUT) to SystemMonitor via the RTE service.  
+* **FreeRTOS API Return Values**: OS will check the return values of FreeRTOS APIs.  
+* **Fault Reporting**: Upon detection of an error (e.g., task creation failure, mutex creation failure, timeout), OS will report a specific fault ID (e.g., SERVICE_OS_ERROR_TASK_CREATE_FAILED, SERVICE_OS_ERROR_MUTEX_CREATE_FAILED, SERVICE_OS_ERROR_TIMEOUT) to SystemMonitor via the RTE service.  
 * **Return Status**: All public API functions will return SERVICE_OS_Status_t indicating success or specific error, or the appropriate handle/value for creation functions.
 
 ### **5.6. Configuration**
@@ -243,14 +243,14 @@ The Service/os/cfg/service_os_cfg.h file will contain:
 ### **5.7. Resource Usage**
 
 * **Flash**: Minimal for the wrapper functions.  
-* **RAM**: Depends heavily on the number of tasks, queues, semaphores created, and their configured stack/buffer sizes. Service_OS itself adds minimal RAM overhead.  
+* **RAM**: Depends heavily on the number of tasks, queues, semaphores created, and their configured stack/buffer sizes. OS itself adds minimal RAM overhead.  
 * **CPU**: Minimal overhead for API calls. The CPU usage is dominated by the FreeRTOS kernel itself and the tasks it schedules.
 
 ## **6. Test Considerations**
 
 ### **6.1. Unit Testing**
 
-* **Mock FreeRTOS Kernel**: Unit tests for Service_OS will mock the FreeRTOS kernel APIs (e.g., xTaskCreate, xSemaphoreCreateMutex, xSemaphoreTake) to isolate Service_OS's logic.  
+* **Mock FreeRTOS Kernel**: Unit tests for OS will mock the FreeRTOS kernel APIs (e.g., xTaskCreate, xSemaphoreCreateMutex, xSemaphoreTake) to isolate OS's logic.  
 * **Test Cases**:  
   * SERVICE_OS_Init: Verify basic initialization.  
   * SERVICE_OS_CreateTask: Test valid/invalid parameters. Mock xTaskCreate to return success/failure. Verify SERVICE_OS_OK/error return and SystemMonitor fault reporting.  
@@ -263,12 +263,12 @@ The Service/os/cfg/service_os_cfg.h file will contain:
 
 ### **6.2. Integration Testing**
 
-* **Service_OS-FreeRTOS Integration**: Verify that Service_OS correctly interfaces with the actual FreeRTOS kernel.  
-* **Task Scheduling**: Create multiple tasks with different priorities and delays using Service_OS APIs and verify correct scheduling behavior.  
+* **OS-FreeRTOS Integration**: Verify that OS correctly interfaces with the actual FreeRTOS kernel.  
+* **Task Scheduling**: Create multiple tasks with different priorities and delays using OS APIs and verify correct scheduling behavior.  
 * **Synchronization**: Test mutexes, semaphores, and queues for inter-task communication and resource protection to ensure no deadlocks or race conditions.  
 * **Critical Sections**: Verify that critical sections correctly disable/enable interrupts and protect shared data.  
 * **Memory Management**: Monitor FreeRTOS heap usage and task HWMs to ensure no unexpected memory leaks or stack overflows.  
-* **Fault Reporting**: Trigger FreeRTOS-related errors (e.g., by attempting to create too many tasks, or acquiring a mutex that was never given) and verify that Service_OS reports faults to SystemMonitor.
+* **Fault Reporting**: Trigger FreeRTOS-related errors (e.g., by attempting to create too many tasks, or acquiring a mutex that was never given) and verify that OS reports faults to SystemMonitor.
 
 ### **6.3. System Testing**
 
