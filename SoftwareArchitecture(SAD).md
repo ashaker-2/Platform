@@ -107,32 +107,32 @@ The system employs a strict layered architecture to achieve separation of concer
 | +---------+  +------------+  +-----------+  +--------------+ |
 | | FAN_CTL |  | Diagnostic |  | Light_CTL |  |SystemMonitor | |
 +--------------------------------------------------------------|
-| +-----------+  +-----------+  +-----------+  +-----------+   |
-| |  common   |  |  Display  |  | TEMP_SENS |  | Logger    |   |
+| +--------+ +---------+ +-----------+ +--------+ +---------+  |
+| | common | | Display | | TEMP_SENS | | Logger | | STORAGE |  |
 +--------------------------------------------------------------|
-| +--------+  +--------+  +------------+  +-----------+        |
-| |  power |  |  pump  |  | ventilator |  | Light_Indication | |
+| +-------+ +------+ +------------+  +----------+              |
+| | power | | pump | | ventilator |  | LightInd |              |
 +--------------------------------------------------------------|
 +--------------------------------------------------------------+
 |                  Runtime Environment (RTE)                   |
 +--------------------------------------------------------------+
 |                        Service Layer                         |
-| +-----------+          +-----------+          +-----------+  |
-| |     OS    |          |  ComM     |          | MODBUS_MW |  |
+| +----+ +-----+ +------+ +--------+ +----------+ +---------+  |
+| | OS | | OTA | | ComM | | MODBUS | | Security | | Factory |  |
 +--------------------------------------------------------------+
 |                   Hardware Abstraction Layer (HAL)           |
-| +-----------+  +-----------+  +-----------+  +-----------+   |
-| | HAL_GPIO  |  | HAL_PWM   |  | HAL_ADC   |  | HAL_UART  |   |
+| +----------+ +---------+ +---------+ +----------+ +---------+|
+| | HAL_GPIO | | HAL_PWM | | HAL_ADC | | HAL_UART | | HAL_BLE ||
 +--------------------------------------------------------------+
-| +-----------+  +-----------+  +-----------+  +-----------+   |
-| | HAL_TIMER |  | HAL_RTC   |  | ECUAL_I2C |  | ECUAL_UART|   |
+| +-----------+  +------------+  +---------+  +----------+     |
+| | HAL_TIMER |  | HAL_Modbus |  | HAL_I2C |  | HAL_WIFI |     |
 +--------------------------------------------------------------+
 |                       MCAL Hardware                          |
 | +------+     +-----+     +-----+      +-----+    +-----+     |
 | | GPIO |     | PWM |     | ADC |      | I2C |    | spi |     |
 +--------------------------------------------------------------+
-| +------+     +-----+     +-----+      +------+               |
-| | UART |     | RTC |     | BLE |      | WIFI |               |
+| +------+  +-----+  +-----+  +------+  +-------+  +--------+  |
+| | UART |  | RTC |  | BLE |  | WIFI |  | FLASH |  | EEPROM |  |
 +--------------------------------------------------------------+
 ```
 
@@ -146,7 +146,8 @@ The system employs a strict layered architecture to achieve separation of concer
 
   * **Modules**:
 
-    * `sys_mgr`: The central control logic. Manages operational parameters, applies control algorithms (e.g., fan staging, heater control, pump control), and determines overall system state and alarms. It is the "brain" of the application.
+    * `systemMgr` (`sys_mgr`): The central control logic. Manages operational parameters, applies control algorithms (e.g., fan staging, heater control, pump control), and determines overall system state and alarms. It is the "brain" of the application. It manages the **SW Modes** (Automatic, Manual, Hybrid). It also receives power consumption data from the `power` module and can take corrective actions (e.g., overriding actuator control, preventing OTA updates) based on power constraints.
+
 
     * `fan`, `heater`, `pump`, `ventilator`, `light_control`: Modules encapsulating the control logic for specific actuators. They expose functions like `SetSpeed()`, `On()`, `Off()`.
 
@@ -158,9 +159,21 @@ The system employs a strict layered architecture to achieve separation of concer
 
     * `logger`: Provides a standardized logging mechanism for all layers.
 
-    * `system_monitor`: Calculates and provides system health metrics (CPU load, stack usage).
+    * `SystemMonitor`: **(Fault Manager)** Receives fault reports from other application components, monitors overall system health (CPU load, stack usage), stores active and historical faults, and **requests `systemMgr` to change its state or take corrective actions** (e.g., enter fail-safe mode) based on detected issues.
 
-  * **Interaction**: Modules in this layer **do not** directly call functions in other application modules or middleware. All inter-module communication is exclusively routed through **RTE Service Functions**. They can, however, directly call functions within their own module or common utilities like `logger`.
+    * `diagnostic`: **(External Diagnostics Interface)** Responsible for retrieving fault information from `SystemMonitor` and exposing it to the outside world via communication interfaces. It also handles external configuration commands, initiates OTA updates (after checking power readiness with `systemMgr`), runs specific test cases, and manages system reboots. It includes logic for parsing incoming commands.
+
+    * `NVM`: **(Non-Volatile Configuration Storage)** Provides a high-level, structured interface for other application modules (e.g., `systemMgr`) to persistently store and retrieve configuration parameters and application data in Flash or EEPROM. It uses MCAL Flash/EEPROM drivers via RTE services.
+
+    * `power`: **(Power Management & Monitoring)** Manages the ECU's **Power Management Modes** (ON, OFF, Sleep) by interacting with HAL/MCAL power control features. It also continuously monitors and calculates the ECU's current, voltage, and power consumption, reporting this data to `systemMgr`.
+
+    * `SystemStartup`: Contains the `app_main` entry point.
+
+    * `common`: Other application-level utilities.
+
+
+  * **Interaction**: 
+    * Modules in this layer **do not** directly call functions in other application modules or middleware. All inter-module communication is exclusively routed through **RTE Service Functions**. They can, however, directly call functions within their own module or common utilities like `logger`.
 
 * **Runtime Environment (RTE) Layer**:
 
@@ -176,25 +189,32 @@ The system employs a strict layered architecture to achieve separation of concer
 
 * **Service Layer**:
 
-  * **Purpose**: Provides high-level protocol implementations for external communication, abstracting the complexities of network and serial protocols.
+    * **Purpose**: Provides high-level communication management, operating system services, and other core system services, abstracting complexities from the application layer.
 
-  * **Modules**:
+    * **Modules**:
 
-    * `modbus_middleware`: Implements the Modbus RTU/TCP protocol logic (e.g., register mapping, request/response handling). It interacts with `ECUAL_UART` or network drivers.
+        * `ComM`: **(Communication Manager)** Acts as the central communication stack, managing and orchestrating all external communication protocols (Modbus, Bluetooth, Wi-Fi). It provides a unified interface to the Application and RTE layers for sending/receiving data, handling connection states, and routing messages. It interacts with the lower-level communication drivers in the HAL layer.
 
-    * `bluetooth_middleware`: Manages Bluetooth (BLE/Classic) advertising, connections, and GATT services/characteristics. It interacts with native Bluetooth drivers.
+        * `os`: Encapsulates FreeRTOS APIs. While FreeRTOS is the core OS, its direct APIs are managed/wrapped here for consistency, though tasks are still created by RTE.
 
-    * `wifi_middleware`: Handles Wi-Fi connectivity (STA/AP mode) and higher-level network protocols (e.g., HTTP, MQTT). It interacts with native Wi-Fi drivers.
+        * `ota`: **(Over-the-Air Update Service)** Manages the firmware update process, including downloading new firmware images (e.g., via `ComM`'s Wi-Fi services) and writing them to the Flash memory (using `MCAL_FLASH`). It is initiated by `Diagnostic`.
 
-  * **Interaction**: Service modules are primarily called by the `COMMUNICATION_STACK_MainTask` (which is part of RTE). They interact with the underlying HAL/Driver layer. When they need to provide data or commands to the application, they do so via RTE Service calls.
+        * `security`: **(Security Services)** Provides cryptographic services, secure communication mechanisms (e.g., TLS, BLE encryption), and key management for the system. It can be utilized by `ComM` for secure channels.
 
-* **HW Abstraction Layer (HAL)**:
+    * **Interaction**: Service modules are primarily called by the `COM_MGR_Task` (which is part of RTE) or directly by RTE Services. `ComM` interacts with the underlying HAL communication drivers. When they need to provide data or commands to the application, they do so via RTE Service calls.
 
-  * **Purpose**: Provides a hardware-agnostic interface to the microcontroller's peripherals. It abstracts away the low-level register access and specific MCU details.
 
-  * **Modules**: `ecual_gpio`, `ecual_pwm`, `ecual_adc`, `ecual_i2c`, `ecual_uart`, `ecual_common` (for uptime, etc.).
 
-  * **Interaction**: HAL modules are called directly by application modules (e.g., `fan.c` calls `ECUAL_PWM_SetDutyCycle()`) or middleware modules (e.g., `modbus_middleware.c` calls `ECUAL_UART_Read()`).
+* **Hardware Abstraction Layer (HAL)**:
+
+    * **Purpose**: Provides a higher level of abstraction for complex peripherals or combinations of MCAL functionalities, including the high-level drivers for communication protocols. It encapsulates more complex driver logic and provides a unified interface for specific hardware components or communication stacks.
+
+    * **Modules**: Config (`cfg`), Source (`src`), Include (`inc`) files for various HAL components.
+        * `Modbus`: Implements the Modbus RTU/TCP protocol driver, handling frame parsing, CRC, and register access. It interacts with `MCAL_UART`.
+        * `Bluetooth`: Manages the Bluetooth (BLE/Classic) stack, including advertising, connections, and GATT services/characteristics. It interacts with native Bluetooth radio drivers (often part of MCAL or a vendor SDK).
+        * `Wifi`: Handles Wi-Fi connectivity (STA/AP mode), network interface management, and basic socket operations. It interacts with native Wi-Fi radio drivers (often part of MCAL or a vendor SDK).
+
+    * **Interaction**: HAL modules are called by the Service Layer (specifically `ComM`) or directly by RTE Services. They, in turn, call functions in the MCAL layer.
 
 ### 3.2. Process View
 
@@ -287,22 +307,22 @@ The development view describes the system's organization within the file system 
 ```text
 
 ├── Application/
-│   ├── SystemMonitor/                # Contains system_monitor.h/.c
+│   ├── SystemMonitor/                # Contains system_monitor
 │   ├── SystemStartup/                # Contains startup.c (app_main entry point)
 │   ├── common/                       # Contains app_common.h
 │   ├── diagnostic/                   # (Placeholder for diagnostic features)
-│   ├── display/                      # Contains character_display.h/.c
-│   ├── fan/                          # Contains fan.h/.c
-│   ├── heater/                       # Contains heater.h/.c
-│   ├── humadity/                     # Contains humidity_sensor.h/.c 
-│   ├── lightControl/                 # Contains light_control.h/.c
-│   ├── lightIndication/              # Contains light_indication.h/.c
-│   ├── logger/                       # Contains logger.h/.c
+│   ├── display/                      # Contains character_display
+│   ├── fan/                          # Contains fan
+│   ├── heater/                       # Contains heater
+│   ├── humadity/                     # Contains humidity_sensor 
+│   ├── lightControl/                 # Contains light_control
+│   ├── lightIndication/              # Contains light_indication
+│   ├── logger/                       # Contains logger
 │   ├── power/                        # (Placeholder for power management)
-│   ├── pump/                         # Contains pump.h/.c
-│   ├── systemMgr/                    # Contains sys_mgr.h/.c
-│   ├── temperature/                  # Contains temp_sensor.h/.c
-│   ├── ventilator/                   # Contains ventilator.h/.c
+│   ├── pump/                         # Contains pump
+│   ├── systemMgr/                    # Contains sys_mgr
+│   ├── temperature/                  # Contains temp_sensor
+│   ├── ventilator/                   # Contains ventilator
 │   ├── cmake/                        # CMake configuration for Application modules
 │   └── CMakeLists.txt                # Main CMakeLists for the Application layer
 ├── HAL/
@@ -312,21 +332,26 @@ The development view describes the system's organization within the file system 
 │   ├── cmake/                        # CMake configuration for HAL
 │   └── CMakeLists.txt                # Main CMakeLists for the HAL layer
 ├── Mcal/
-│   ├── adc/                          # MCAL ADC driver (inc/src)
-│   ├── uart/                         # MCAL UART driver (inc/src)
-│   ├── gpio/                         # MCAL GPIO driver (inc/src)
-│   ├── i2c/                          # MCAL I2C driver (inc/src)
-│   ├── pwm/                          # MCAL PWM driver (inc/src)
-│   ├── spi/                          # MCAL SPI driver (inc/src)
-│   ├── timers/                       # MCAL Timers driver (inc/src)
-│   ├── Bluetooth/                    # Bluetooth driver (inc/src)
-│   ├── Wifi/                         # WiFi driver (inc/src)
+│   ├── adc/                          # MCAL ADC driver 
+│   ├── uart/                         # MCAL UART driver 
+│   ├── gpio/                         # MCAL GPIO driver 
+│   ├── i2c/                          # MCAL I2C driver 
+│   ├── pwm/                          # MCAL PWM driver 
+│   ├── spi/                          # MCAL SPI driver 
+│   ├── timers/                       # MCAL Timers driver 
+│   ├── Bluetooth/                    # Bluetooth driver 
+│   ├── Wifi/                         # WiFi driver 
+│   ├── flash/                        # MCAL Flash driver 
+│   ├── eeprom/                       # MCAL EEPROM driver (Optional) 
 │   ├── cmake/                        # CMake configuration for MCAL
 │   └── CMakeLists.txt                # Main CMakeLists for the MCAL layer
 ├── Service/
-│   ├── modbus/                       # Modbus Middleware (inc/src)
+│   ├── modbus/                       # Modbus Middleware 
 │   ├── os/                           # OS (FreeRTOS) related configurations/wrappers
-│   ├── ComM/                         # Communication Manager (inc/src)
+│   ├── ComM/                         # Communication Manager 
+|   ├── ota/                          # OTA Update Service
+|   ├── Security/                     # Security Service
+│   ├── NVM/                          # Contains storage 
 │   ├── cmake/                        # CMake configuration for Service layer
 │   └── CMakeLists.txt                # Main CMakeLists for the Service layer
 ├── Rte/
@@ -355,7 +380,8 @@ The project uses **CMake** as its build system, suitable for modular embedded de
 
 - **`HAL/`, `Mcal/`, `Service/`, and `Rte/` `CMakeLists.txt`**: Each defines static libraries for hardware abstraction, microcontroller drivers, communication stacks (e.g., Modbus, Bluetooth, Wi-Fi), and runtime integration.
 
-#### 3.3.3. Coding Standards and Conventions
+
+#### 3.3.4. Coding Standards and Conventions
 
 * **Language**: All source code is written in **C**, following modular and layered architecture principles.
 
@@ -544,8 +570,8 @@ The physical view describes the mapping of software components to the hardware p
   * **`RTE_MainLoopTask()`**: 
     * Handles general system heartbeat and low-priority tasks.
 
-  * **`COMMUNICATION_STACK_MainTask()`**: 
-    * The main communication task. Periodically calls `COMMUNICATION_STACK_ProcessModbus()`, `COMMUNICATION_STACK_ProcessBluetooth()`, `COMMUNICATION_STACK_ProcessWiFi()` (which are functions in `Service/communication_stack_interface.c`).
+  * **`COM_MGR_Task()`**: 
+    *The main communication task. Periodically calls `COMM_Process()` to manage all communication protocols.
 
   * **`RTE_Service_...()` functions**: 
     * Implement the actual routing of calls to the target modules (e.g., `RTE_Service_SetOperationalTemperature()` calls `Application/systemMgr/sys_mgr.c::SYS_MGR_SetOperationalTemperature()`).
@@ -553,108 +579,102 @@ The physical view describes the mapping of software components to the hardware p
 * **Dependencies**: 
   * Directly includes headers from `Mcal/*/inc`, `HAL/inc`, `Service/*/inc`, `Application/*/inc`, and FreeRTOS headers.
 
-### 5.3. `SystemMgr`
+#### 5.3. `SystemMgr`
 
 * **Role**: Central application logic and state management.
 
 * **Responsibilities**:
 
-  * Manages operational temperature/humidity ranges and ventilator/light schedules.
+    * Manages operational temperature/humidity ranges and ventilator/light schedules.
+    * Stores current sensor readings and actuator states.
+    * Implements the fan staging, heater control, pump control, and ventilator control logic.
+    * Manages fire alarm conditions and state.
+    * Provides getter/setter functions for its internal state.
+    * Responds to `SystemMonitor`'s requests: Changes system operating mode (e.g., enters fail-safe) based on commands from `SystemMonitor`.
+    * Loads/Saves Configuration: Utilizes `Application/storage` (via RTE services) to load persistent configuration parameters at startup and save them when modified.
+    * **Manages SW Modes**: Controls the overall system behavior based on the selected mode:
+        * **Automatic (Default)**: All actuators are managed by SW based on sensor readings and schedules. This is the default mode if no configuration is set.
+        * **Manual**: All actuators are managed directly by user inputs (OnTime/OffTime, On/Off commands).
+        * **Hybrid**: User defines which specific actuators are automatic (sensor/schedule-based) and which are manual (user-controlled).
+    * **Monitors Power Consumption**: Receives current, voltage, and calculated power data from `Application/power` (via RTE services).
+    * **Power-Based Actuator Override**: Can override actuator commands (even in Manual or Hybrid mode) if voltage/power is outside safe operational ranges, ensuring system stability and preventing damage.
+    * **OTA Power Readiness Check**: Provides the status of power readiness for OTA updates to `Diagnostic`.
 
-  * Stores current sensor readings and actuator states.
-
-  * Implements the fan staging, heater control, pump control, and ventilator control logic.
-
-  * Manages fire alarm conditions and state.
-
-  * Provides getter/setter functions for its internal state.
-
-* **Dependencies**: 
-  * `sys_mgr.h`, `logger.h`, `app_common.h`, `Rte.h`, `freertos/semphr.h` (for mutex).
+* **Dependencies**:`logger.h`, `app_common.h` (for uptime), `Rte.h` (for calling RTE services to control actuators/display, `storage`, and `power` services), `freertos/semphr.h` (for mutex).
 
 ### 5.4. `SystemMonitor`
 
-* **Role**: Monitors system health.
+* **Role**: Monitors system health and acts as the **Fault Manager**.
 
 * **Responsibilities**:
 
-  * Calculates CPU load based on idle task runtime.
+    * **Receives Fault Reports**: Acts as a central collection point for error/fault notifications from other application modules (e.g., `temperature` module reports a sensor read error, `Service/Bluetooth` reports an initialization failure).
+    * **Stores Faults**: Maintains a record of active and historical faults, including timestamps and severity.
+  
+    * **System Health Metrics**: Calculates and provides CPU load and total minimum free stack (HWM) for all FreeRTOS tasks. These can also be considered "system faults" if they exceed predefined thresholds.
+    * **Requests Corrective Actions**: Based on received fault reports or system health metrics exceeding thresholds, it **requests `systemMgr` (via RTE services) to change its state** (e.g., enter fail-safe mode) or take other corrective actions.
+    * **Fault Status Query**: Provides functions for `Diagnostic` to query the current active faults and fault history.
+    * **Periodic Logging**: Logs system health metrics and significant fault events.
 
-  * Calculates total minimum free stack (HWM) across all tasks.
-
-  * Provides getter functions for these metrics.
+* **Interaction**:
+    * Receives fault reports from `Application SWC`,`Service Module`, etc. (these modules would call `RTE_Service_SystemMonitor_ReportFault()`).
+    * Directly interacts with FreeRTOS APIs (e.g., `uxTaskGetSystemState()`, `uxTaskGetStackHighWaterMark()`) to gather raw system metrics.
+    * Uses `Application/logger` for reporting.
+    * Calls `RTE_Service_SYS_MGR_Set...()` to influence `systemMgr`'s state.
+    * Provides data to `Diagnostic` via RTE services (`RTE_Service_SystemMonitor_GetFaultStatus()`).
 
 * **Dependencies**: 
-  * `logger.h`, `app_common.h`, FreeRTOS headers.
+  * `logger.h`, `app_common.h`, `Rte.h` (for calling `systemMgr` services), FreeRTOS headers.
+* 
 
-### 5.5. `ComM(Communication MGR)`
+### 5.5. `Diagnostic`
 
-* **Role**: 
-  * Provides the functional interface between the `COM_MGR_Task` and the actual communication modules. It encapsulates the data exchange logic.
+* **Role**: Provides the **external interface for system diagnostics and maintenance**.
 
 * **Responsibilities**:
 
-  * **`COM_MGR_ProcessModbus()`**: Calls `MODBUS_Process()` and handles data flow between `systemMgr` (via RTE) and Modbus registers.
+    * **Fault Retrieval and Reporting**: Queries `SystemMonitor` (via `RTE_Service_SystemMonitor_GetFaultStatus()`) for active and historical faults and exposes this information to external interfaces (BLE, Wi-Fi, Modbus).
+    * **Configuration Management Interface**: Provides the interface for external entities to set system configurations (e.g., operational temperature ranges, schedules). These commands are then routed to `systemMgr` via RTE services (`RTE_Service_SYS_MGR_Set...()`).
+    * **OTA Update Initiation**: Receives commands (e.g., via Wi-Fi) to initiate Over-the-Air (OTA) firmware updates. It **first checks with `systemMgr` (via `RTE_Service_SYS_MGR_GetOTAPowerReadiness()`) for sufficient power** before initiating the update process with the `Service/ota` module (via RTE services).
+    * **Self-Test Execution**: Receives commands to run specific diagnostic test cases to verify system functionality (e.g., "test fan motor," "check sensor calibration"). These tests might involve calling other application modules via RTE services.
+    * **System Reboot/Bank Selection**: Receives commands to trigger a system reboot, potentially to a specific firmware bank (e.g., factory bank for recovery). To return from OFF power mode, this module would also manage the wake-up from the power button (via `RTE_Service_POWER_GetWakeupSource()`).
+    * **Command Parsing**: Contains the logic to parse incoming diagnostic and configuration commands received from the communication stack (via `COMM_Process()` in `Service/ComM` or specific RTE services).
 
-  * **`COM_MGR_ProcessBluetooth()`**: Calls `BLUETOOTH_Process()` and handles data flow between `systemMgr` (via RTE) and Bluetooth characteristics.
-
-  * **`COM_MGR_ProcessWiFi()`**: Calls `WIFI_Process()` and handles data flow between `systemMgr` (via RTE) and Wi-Fi network services.
-
-  * **`COM_MGR_Internal_...()` functions**: Direct wrappers around middleware functions, called by `RTE_Service_COMM_...` functions.
+* **Interaction**:
+    * Queries `SystemMonitor` via RTE services.
+    * Sends data/responses via communication services (`RTE_Service_ComM_SendData()`).
+    * Calls `systemMgr` services (e.g., `RTE_Service_SetOperationalTemperature()`, `RTE_Service_SYS_MGR_GetOTAPowerReadiness()`) for configuration changes and power checks.
+    * Calls `Service/ota` services (e.g., `RTE_Service_OTA_StartUpdate()`) to initiate firmware updates.
+    * Calls `Application/power` services (e.g., `RTE_Service_POWER_GetWakeupSource()`) for system wake-up.
+    * Calls other application modules (e.g., `fan`, `temperature`) via RTE services to execute self-tests.
+    * Uses `Application/logger` for logging diagnostic activities.
 
 * **Dependencies**: 
-  * `comm_interface.h`, `logger.h`, `Rte.h` , `modbus.h`, `bluetooth.h`, `wifi.h`.
+  * `diagnostic.h`, `logger.h`, `Rte.h` (for all necessary RTE services).
+  
 
-### 5.6. `Modbus`
+### 5.6. `ComM(Communication MGR)`
 
-* **Role**: Implements the Modbus protocol specific logic.
+* **Role**: The central **Communication Manager (ComM)**, responsible for orchestrating and managing all external communication protocols. It acts as the unified communication stack for the system.
 
 * **Responsibilities**:
+    * **Protocol Orchestration**: Manages the state and operation of individual communication protocols (Modbus, Bluetooth, Wi-Fi) by interacting with their respective HAL drivers.
+    * **Unified Interface**: Provides a high-level, abstract interface to the Application and RTE layers for all communication needs (e.g., `COMM_SendData(protocol_id, data)`, `COMM_ReadData(protocol_id, buffer)`).
+    * **Message Routing**: Routes incoming messages from HAL communication drivers to the appropriate Application layer modules (e.g., `Diagnostic` for commands, `systemMgr` for specific data) via RTE services.
+    * **Connection Management**: Manages connection states for wireless protocols (Bluetooth, Wi-Fi).
+    * **Data Serialization/Deserialization (High-Level)**: Handles high-level data formatting for external communication, potentially using `security` services for encryption/decryption.
+    * **Error Handling**: Reports communication stack-level errors (e.g., failure to route a message, protocol handler error) to `SystemMonitor`. It also propagates errors from HAL communication drivers.
 
-  * Initializes Modbus driver (e.g., using `Mcal/uart`).
+* **Interaction**:
+    * Called by `COM_MGR_MainTask` (in `Rte.c`) to process communication.
+    * Uses `HAL/modbus`, `HAL/Bluetooth`, `HAL/Wifi` (via RTE services) to send and receive raw protocol data.
+    * Uses `Service/security` (via RTE services) for secure communication.
+    * Sends incoming parsed commands/data to `Application/diagnostic` or `Application/systemMgr` via RTE services.
+    * Reports communication errors to `SystemMonitor` via RTE services.
 
-  * Manages simulated Modbus holding registers.
+* **Dependencies**: `logger.h`, `Rte.h` (for HAL communication drivers, `security`, `SystemMonitor`, `Diagnostic`, `systemMgr` services).
 
-  * Provides functions to read from and write to these registers.
-
-  * **`MODBUS_Process()`**: Handles incoming Modbus requests and dispatches them.
-
-* **Dependencies**: 
-  * `modbus.h`, `logger.h`, `hal_uart.h`.
-
-### 5.7. `Bluetooth`
-
-* **Role**: Implements Bluetooth (BLE) protocol specific logic.
-
-* **Responsibilities**:
-
-  * Initializes Bluetooth stack (controller, host, GAP, GATT services).
-
-  * Provides functions to send data (notifications/indications) via GATT characteristics.
-
-  * **`BLUETOOTH_Process()`**: Manages advertising, connections, and incoming GATT writes.
-
-* **Dependencies**: 
-  * `bluetooth.h`, `logger.h`
-
-### 5.8. `WIFI`
-
-* **Role**: Implements Wi-Fi connectivity and network-level data transfer.
-
-* **Responsibilities**:
-
-  * Initializes Wi-Fi driver.
-
-  * Manages connection to access points.
-
-  * Provides functions to send data over the network (e.g., HTTP, MQTT).
-
-  * **`WIFI_Process()`**: Handles network events and manages data queues.
-
-* **Dependencies**: 
-  * `wifi.h`, `logger.h`.
-
-### 5.9. Microcontroller Abstraction Layer (MCAL) Modules
+### 5.7. Microcontroller Abstraction Layer (MCAL) Modules
 
 * **Role**: Provide direct, low-level hardware abstraction for specific MCU peripherals.
 
@@ -662,7 +682,7 @@ The physical view describes the mapping of software components to the hardware p
 
 * **Dependencies**: Only MCU-specific headers (e.g., `driver/mcu_registers.h` or `<driver/gpio.h>`).
 
-### 5.10. Hardware Abstraction Layer (HAL)
+### 5.8. Hardware Abstraction Layer (HAL)
 
 * **Role**:  It would typically provide higher-level drivers or composite drivers that utilize MCAL functions. For example, a `HAL_DisplayDriver` might use `Mcal/gpio` and `Mcal/i2c` to control an LCD.
 
@@ -670,106 +690,430 @@ The physical view describes the mapping of software components to the hardware p
 
 * **Dependencies**: `Mcal/*/inc` headers.
 
-### 5.11. Other Application Modules 
-* **Like**: `fan`, `heater`, `temperature`, `display`, `lightControl`, `lightIndication`
-  
-* **Role**: 
-  * Encapsulate specific hardware control or sensor reading logic.
+### 5.9. Other Application Modules
 
-* **Responsibilities**: 
-  * Provide basic `_Init()` functions and functional APIs (e.g., `FAN_SetSpeed()`, `TEMP_SENSOR_ReadTemperature()`).
+* **Role**: Encapsulate specific hardware control or sensor reading logic.
 
-* **Dependencies**: 
-  * Only their own `_config.h` and relevant `HAL/inc` or `Mcal/*/inc` headers (if they directly use MCAL/HAL functions, which is typically via RTE now). Their public functions are called by RTE Services.
+* **Responsibilities**: Provide basic `_Init()` functions and functional APIs (e.g., `FAN_SetSpeed()`, `TEMP_SENSOR_ReadTemperature()`).
+    * **Fault Reporting**: These modules are responsible for detecting specific errors within their domain (e.g., `temperature` module detects a sensor read error) and **reporting these faults to `SystemMonitor`** via an RTE service (e.g., `RTE_Service_SystemMonitor_ReportFault()`).
 
-## 6. Scenarios
+* **Dependencies**: Only their own `_config.h` and relevant `HAL/inc` or `Mcal/*/inc` headers (if they directly use MCAL/HAL functions, which is typically via RTE now). Their public functions are called by RTE Services.
 
-### 6.1. Scenario 1: Sensor Reading and Actuator Control
+
+#### 5.10. `flash`
+
+* **Role**: Provides low-level, hardware-specific drivers for the internal Flash memory.
+
+* **Responsibilities**:
+    * **Initialization**: Initializes the Flash memory controller.
+    * **Read/Write/Erase**: Provides basic block-level or page-level read, write, and erase operations for the Flash memory.
+    * **Sector Management**: Handles sector/page size awareness and alignment.
+    * **Error Reporting**: Reports low-level Flash operation failures (e.g., write protection error, erase failure).
+
+* **Interaction**:
+    * Used by `ota` for firmware updates.
+    * Used by `Application` for persistent data storage.
+    * Its public functions are exposed via RTE services for use by higher layers.
+
+* **Dependencies**: MCU-specific Flash controller headers.
+
+#### 5.11. `EEPROM` 
+
+* **Role**: Provides low-level, hardware-specific drivers for an optional external EEPROM or simulated EEPROM in Flash.
+
+* **Responsibilities**:
+    * **Initialization**: Initializes the EEPROM interface (e.g., I2C if external, or Flash emulation if internal).
+    * **Read/Write**: Provides byte-level or page-level read and write operations.
+    * **Wear Leveling (if Flash-based)**: Manages wear-leveling algorithms if EEPROM is emulated on Flash.
+    * **Error Reporting**: Reports low-level EEPROM operation failures.
+
+* **Interaction**:
+    * Used by `Application/storage` for persistent data storage, especially for frequently changing small data.
+    * Its public functions are exposed via RTE services for use by higher layers.
+
+* **Dependencies**: MCU-specific I2C driver (if external EEPROM) or `Mcal/flash` (if Flash emulation).
+
+#### 5.12. `NVM` 
+
+* **Role**: Provides a high-level, structured interface for non-volatile storage of application configuration and data.
+
+* **Responsibilities**:
+    * **Data Serialization/Deserialization**: Handles converting application-specific data structures (e.g., `systemMgr`'s operational parameters) into a byte stream for storage and vice-versa.
+    * **Data Validation**: Implements checksums or CRCs to ensure data integrity.
+    * **Read/Write Operations**: Provides abstract `NVM_ReadConfig()` and `NVM_WriteConfig()` functions.
+    * **Memory Management**: Decides whether to use Flash or EEPROM (via RTE services to `Mcal/flash` or `Mcal/eeprom`) for different types of data based on size, frequency of writes, and wear-leveling considerations.
+    * **Error Handling**: Reports errors during storage operations to `SystemMonitor` (e.g., `RTE_Service_SystemMonitor_ReportFault(FAULT_ID_STORAGE_WRITE_FAILURE, ...)`).
+
+* **Interaction**:
+    * Used by `Application/systemMgr` to load/save configurations.
+    * Uses `Mcal/flash` and `Mcal/eeprom` (via RTE services) for actual read/write operations.
+    * Reports errors to `SystemMonitor` via RTE services.
+
+* **Dependencies**: `logger.h`, `Rte.h` (for `Mcal/flash`, `Mcal/eeprom`, and `SystemMonitor` services).
+
+#### 5.13. `OTA`
+
+* **Role**: Manages the Over-the-Air (OTA) firmware update process.
+
+* **Responsibilities**:
+    * **Firmware Download**: Handles downloading new firmware images from a remote server (e.g., via Wi-Fi HTTP/MQTT, using `Service/ComM`).
+    * **Image Verification**: Verifies the integrity and authenticity of the downloaded firmware image (e.g., using checksums, digital signatures).
+    * **Flash Programming**: Programs the new firmware image into a designated partition of the Flash memory (using `Mcal/flash` via RTE services).
+    * **Bootloader Interaction**: Sets the appropriate boot partition for the next reboot.
+    * **Update Status Reporting**: Reports the progress and status of the OTA update to `Diagnostic` (via RTE services).
+    * **Error Handling**: Reports OTA-specific errors (e.g., download failure, verification failure, flash write error) to `SystemMonitor`.
+
+* **Interaction**:
+    * Initiated by `Application/diagnostic` via an RTE service (`RTE_Service_OTA_StartUpdate()`), **only after `Diagnostic` confirms sufficient power with `systemMgr`**.
+    * Uses `Service/ComM` (via RTE services) for downloading.
+    * Uses `Mcal/flash` (via RTE services) for programming.
+    * Reports status/errors to `Application/diagnostic` and `SystemMonitor` via RTE services.
+
+* **Dependencies**:`logger.h`, `Rte.h` (for `Service/Wifi`, `Mcal/flash`, `Application/diagnostic`, `SystemMonitor` services).
+
+### New: 5.14. `security`
+
+* **Role**: Provides cryptographic services and secure communication mechanisms for the system.
+
+* **Responsibilities**:
+    * **Encryption/Decryption**: Handles data encryption and decryption for secure communication channels (e.g., TLS for Wi-Fi, BLE encryption).
+    * **Authentication**: Manages authentication protocols and mechanisms for secure connections.
+    * **Key Management**: Secure storage, generation, and management of cryptographic keys (e.g., device certificates, private keys).
+    * **Secure Random Number Generation (RNG)**: Provides cryptographically secure random numbers for various security operations.
+    * **Firmware Integrity Verification (Optional)**: Can provide functions to verify the integrity and authenticity of firmware images at boot or before updates (complementary to OTA's verification).
+
+* **Interaction**:
+    * Used by `Service/Bluetooth` for BLE pairing and encryption.
+    * Used by `Service/Wifi` for TLS/SSL connections (e.g., MQTT over TLS, HTTPS).
+    * Potentially used by `Application/storage` to encrypt sensitive configuration data before writing to non-volatile memory.
+    * Its public functions are exposed via RTE services for use by other Service or Application layers.
+
+* **Dependencies**: Underlying MCAL modules for hardware cryptographic accelerators (if available, e.g., `Mcal/crypto_hw`), or integrated software cryptographic libraries (e.g., MbedTLS, TinyCrypt).
+
+#### 5.15. `MODBUS`
+
+* **Role**: Provides the Modbus RTU/TCP protocol driver at the Hardware Abstraction Layer.
+
+* **Responsibilities**:
+    * **Initialization**: Initializes Modbus-specific hardware (e.g., UART configuration) and protocol stack.
+    * **Frame Handling**: Handles Modbus frame assembly, disassembly, and CRC calculation/verification.
+    * **Register Mapping**: Manages the internal Modbus register map and provides functions to read/write raw register values.
+    * **Data Exchange**: Provides functions for `Service/ComM` to send and receive Modbus frames.
+    * **Error Reporting**: Reports low-level Modbus protocol errors (e.g., CRC errors, invalid function codes) to `Service/ComM`.
+
+* **Interaction**:
+    * Used by `Service/ComM` for Modbus communication.
+    * Uses `Mcal/uart` (via RTE services) for serial communication.
+    * Reports errors to `Service/ComM`.
+
+* **Dependencies**:`logger.h`, `Rte/inc/Rte.h` (for `Mcal/uart` services).
+
+#### 5.16. `Bluetooth.h`
+
+* **Role**: Provides the Bluetooth (BLE/Classic) protocol driver at the Hardware Abstraction Layer.
+
+* **Responsibilities**:
+    * **Initialization**: Initializes the Bluetooth radio and stack.
+    * **Advertising/Scanning**: Manages BLE advertising and scanning procedures.
+    * **Connection Management**: Handles BLE connection establishment, maintenance, and termination.
+    * **GATT Services/Characteristics**: Manages GATT service registration and characteristic read/write/notify operations.
+    * **Data Exchange**: Provides functions for `Service/ComM` to send and receive Bluetooth data.
+    * **Error Reporting**: Reports low-level Bluetooth errors (e.g., connection failure, GATT operation error) to `Service/ComM`.
+
+* **Interaction**:
+    * Used by `Service/ComM` for Bluetooth communication.
+    * Uses `Service/security` (via RTE services) for pairing and encryption.
+    * Interacts with native Bluetooth SDK APIs (often exposed via MCAL or a vendor-specific driver).
+    * Reports errors to `Service/ComM`.
+
+* **Dependencies**: `logger.h`, `Rte/inc/Rte.h` (for `Service/security` services).
+
+
+#### 5.17. `wifi`
+
+* **Role**: Provides the Wi-Fi connectivity driver at the Hardware Abstraction Layer.
+
+* **Responsibilities**:
+    * **Initialization**: Initializes the Wi-Fi radio and network stack.
+    * **Station/AP Mode**: Manages Wi-Fi station (client) and Access Point modes.
+    * **Connection Management**: Handles Wi-Fi network scanning, connection establishment, and re-connection.
+    * **IP Layer Management**: Manages IP address assignment (DHCP client/server) and basic network configuration.
+    * **Socket Interface**: Provides a basic socket interface (TCP/UDP) for `Service/ComM` to use for higher-level protocols (HTTP, MQTT).
+    * **Error Reporting**: Reports low-level Wi-Fi errors (e.g., connection failure, IP acquisition failure) to `Service/ComM`.
+
+* **Interaction**:
+    * Used by `Service/ComM` for Wi-Fi communication.
+    * Uses `Service/security` (via RTE services) for TLS/SSL connections.
+    * Interacts with native Wi-Fi SDK APIs (often exposed via MCAL or a vendor-specific driver).
+    * Reports errors to `Service/ComM`.
+
+* **Dependencies**: `logger.h`, `Rte/inc/Rte.h` (for `Service/security` services).
+
+#### 5.18. `PowerMgr` 
+
+* **Role**: Manages the ECU's power management modes and monitors power consumption.
+
+* **Responsibilities**:
+    * **Power Mode Control**: Implements the logic to transition the ECU between **ON**, **OFF**, and **Sleep** power management modes, by controlling relevant hardware peripherals (clocks, power gates, low-power states) via MCAL/HAL.
+        * **ON Mode**: Ensures all necessary components are powered and clocked for full operation.
+        * **OFF Mode**: Puts the MCU into its deepest sleep/power-off state, minimizing consumption. Requires an external event (e.g., power button press) to wake up.
+        * **Sleep Mode**: Enters a low-power state where non-essential peripherals are disabled, but the display (for Temp/Hum) and specific wake-up sources remain active.
+    * **Current & Voltage Measurement**: Reads raw current and voltage values from dedicated sensors (via MCAL/ADC).
+    * **Power Calculation**: Calculates instantaneous power consumption ($P = V \times I$).
+    * **Power Data Reporting**: Provides current, voltage, and calculated power data to `systemMgr` (via RTE services).
+    * **Wakeup Source Detection**: Detects and reports the source of a wake-up event (e.g., power button press, timer interrupt) when exiting a low-power state.
+    * **Error Handling**: Reports power-related faults (e.g., sensor read failure, voltage out of range, failure to enter/exit power mode) to `SystemMonitor`.
+
+* **Interaction**:
+    * Receives power mode change requests from `systemMgr` via RTE services (`RTE_Service_POWER_SetMode()`).
+    * Provides power consumption data to `systemMgr` via RTE services (`RTE_Service_POWER_GetConsumptionData()`).
+    * Uses MCAL/ADC for current/voltage sensing.
+    * Uses MCAL/HAL for low-level power control (e.g., clock gating, deep sleep commands).
+    * Reports errors to `SystemMonitor` via RTE services.
+    * Provides wake-up source information to `Diagnostic` via RTE services.
+
+* **Dependencies**: `logger.h`, `Rte/inc/Rte.h` (for `Mcal/adc`, `SystemMonitor`, `systemMgr` services).
+
+## 6. Error Handling and Fault Tolerance
+
+Robust error handling and fault tolerance are critical for the reliability and safety of the embedded system. The architecture incorporates several mechanisms:
+
+### 6.1. Fault Detection and Reporting
+
+* **Distributed Detection**: Faults are detected at the lowest possible layer where the error occurs.
+    * **MCAL**: Reports low-level hardware or driver errors (e.g., I2C bus error, UART frame error, Flash/EEPROM read/write/erase failure).
+    * **HAL Layer (e.g., `HAL/modbus`, `HAL/Bluetooth`, `HAL/Wifi`)**: Reports failures in protocol handling or driver-level issues (e.g., Modbus CRC error, Bluetooth connection timeout, Wi-Fi authentication failure). These errors are typically reported to `Service/ComM`.
+    * **Service Layer (e.g., `Service/ComM`, `Service/ota`, `Service/security`)**: Reports higher-level service failures (e.g., `ComM` fails to route a message, OTA download/verification failure, Security module failures like key loading error or crypto operation failure).
+    * **Application Modules (e.g., `temperature`, `fan`, `storage`, `power`)**: Detect application-specific errors (e.g., sensor reading out of expected range, actuator feedback indicating a stuck state, failure to enable a communication module, corrupted configuration data read from storage, **voltage/current out of safe range, failure to enter/exit power mode**).
+* **Centralized Reporting to `SystemMonitor`**: All detected faults, regardless of their origin, are ultimately reported to the `SystemMonitor` module via a dedicated RTE Service (e.g., `RTE_Service_SystemMonitor_ReportFault(fault_id, severity, data)`). This ensures `SystemMonitor` has a comprehensive view of system health.
+
+### 6.9. System Faults Table
+
+This table provides a comprehensive list of potential faults based on the analysis of the SAD. The faults are categorized by the layer/domain where they are detected. All faults are reported to the `SystemMonitor` module by the detecting HAL, Service, or Application layer component.
+
+| Domain | Fault ID Range | Fault ID Example | Description |
+| :--- | :--- | :--- | :--- |
+| **HAL** | `0x0100 - 0x01FF` | `0x0100` | **HAL_MODBUS_COMM_FAILURE**: A low-level Modbus communication error occurred (e.g., CRC error, framing error, or bus issue detected by the Modbus driver). |
+| | | `0x0101` | **HAL_BT_CONNECTION_FAILURE**: A Bluetooth connection attempt failed or an established connection was lost. |
+| | | `0x0102` | **HAL_WIFI_NETWORK_FAILURE**: A Wi-Fi network issue occurred (e.g., authentication failure, IP acquisition failure, or connection loss). |
+| **Service** | `0x0200 - 0x02FF` | `0x0200` | **COMM_MESSAGE_ROUTE_ERROR**: A received message could not be routed to its intended Application module by `ComM`. |
+| | | `0x0201` | **OTA_DOWNLOAD_FAILURE**: The firmware image download from the server failed. |
+| | | `0x0202` | **OTA_VERIFICATION_FAILURE**: The downloaded firmware image failed a checksum or signature verification. |
+| | | `0x0203` | **SEC_KEY_LOAD_FAILURE**: A cryptographic key could not be loaded from secure storage. |
+| | | `0x0204` | **SEC_CRYPTO_OPERATION_FAILURE**: A cryptographic operation (e.g., encryption, decryption) failed. |
+| | | `0x0205` | **COMM_PROTOCOL_INIT_FAILURE**: A communication protocol (Modbus, Bluetooth, Wi-Fi) failed to initialize within `ComM` (after HAL reports). |
+| **Application** | `0x0300 - 0x03FF` | `0x0300` | **APP_TEMP_OUT_OF_RANGE**: Measured temperature is outside the expected physical range (e.g., -50C to 100C). |
+| | | `0x0301` | **APP_HUM_OUT_OF_RANGE**: Measured humidity is outside the expected physical range (e.g., 0% to 100%). |
+| | | `0x0302` | **APP_SENSOR_READ_FAILURE**: A specific sensor (e.g., temperature, humidity, current/voltage) failed to provide a valid reading after retries, possibly due to underlying hardware issues. |
+| | | `0x0303` | **APP_STORAGE_CORRUPT_DATA**: A configuration block read from storage failed a checksum validation, indicating data corruption or underlying Flash/EEPROM hardware issues. |
+| | | `0x0304` | **APP_ACTUATOR_FEEDBACK_ERROR**: Actuator feedback (if available) indicates a stuck motor, open circuit, or a state mismatch. |
+| | | `0x0305` | **APP_VOLTAGE_LOW_CRITICAL**: The measured input voltage is critically low, requiring immediate action. |
+| | | `0x0306` | **APP_VOLTAGE_HIGH_CRITICAL**: The measured input voltage is critically high, requiring immediate action. |
+| | | `0x0307` | **APP_CURRENT_HIGH_CRITICAL**: The measured current consumption is critically high, indicating an overload or short circuit. |
+| | | `0x0308` | **APP_POWER_MODE_TRANSITION_FAILURE**: The ECU failed to enter or exit a requested power management mode (ON, OFF, Sleep). |
+| | | `0x0309` | **APP_CPU_OVERLOAD_WARNING**: The CPU load has consistently exceeded a predefined threshold, indicating performance issues. |
+| | | `0x030A` | **APP_STACK_OVERFLOW_ERROR**: A FreeRTOS task's stack usage has exceeded its high water mark, indicating a potential crash. |
+| | | `0x030B` | **APP_SYS_MGR_POWER_CONSTRAINT**: `systemMgr` has detected a power constraint (e.g., low voltage) and is overriding normal operation. |
+| | | `0x030C` | **APP_DIAG_TEST_FAILURE**: A specific diagnostic test case failed to pass. |
+
+
+### 6.2. Fault Management and Action (`SystemMonitor`'s Role)
+
+* **Fault Storage**: `SystemMonitor` maintains a list of active faults and a history of past faults.
+* **System Health Monitoring**: `SystemMonitor` continuously monitors global system metrics like CPU load and task stack usage. If these metrics exceed predefined thresholds, `SystemMonitor` itself registers these as system faults.
+* **Corrective Action Requests**: Based on the severity and type of active faults, `SystemMonitor` is responsible for deciding and **requesting `systemMgr` (via RTE services) to take specific corrective actions**. This could include:
+    * Changing operational parameters (e.g., reducing fan speed to prevent overheating).
+    * Initiating a fail-safe state.
+    * Triggering a system reboot (via `Diagnostic`).
+* **Status Aggregation**: `SystemMonitor` aggregates the overall system health status, which can be queried by `Diagnostic`.
+
+### 6.3. Fault Response and Recovery (`Diagnostic`'s Role & System-wide Mechanisms)
+
+* **External Fault Reporting**: `Diagnostic` queries `SystemMonitor` for active and historical faults and exposes this information to external interfaces (BLE, Wi-Fi, Modbus) for remote monitoring and debugging.
+* **Fail-Safe States**:
+    * When `SystemMonitor` requests a fail-safe state, `systemMgr` (the central control logic) transitions the system into a safe, controlled mode. This involves commanding actuators to safe positions (e.g., turning off heaters, activating emergency ventilation, shutting down non-essential components) via RTE services.
+    * Fail-safe actions take precedence over normal operational logic.
+* **System Reboot**: `Diagnostic` can initiate a software reboot of the system, potentially to a specific firmware image (e.g., factory bank) for recovery from unrecoverable errors. This might be triggered by `SystemMonitor` (for critical internal faults) or by an external command (via `Diagnostic`'s interface).
+* **Alarm Indication**: `systemMgr` (or `Diagnostic` directly for specific critical alarms) can activate visual (LEDs via `RTE_Service_LIGHT_INDICATION_On/Off`) or audible alarms (via `RTE_Service_UpdateDisplayAndAlarm`).
+
+### 6.4. Retry Logic
+
+* **Transient Fault Handling**: For transient errors (e.g., a single sensor read failure, a temporary communication glitch), retry mechanisms are implemented at the layer where the error occurs.
+    * **MCAL/HAL/Service Drivers**: Low-level drivers or middleware may have internal retries for bus communication or network operations.
+    * **Application Modules**: Modules like `temperature` or `Bluetooth` might attempt a few retries before reporting a persistent failure to `SystemMonitor`.
+
+### 6.5. Watchdog Timers (WDG)
+
+* **Hardware Watchdog**: A hardware watchdog timer is configured during system initialization (likely within MCAL or HAL setup). This watchdog must be periodically "fed" (reset) by a high-priority task (e.g., `RTE_MainLoopTask` or a dedicated watchdog task). If the watchdog is not fed within a configured timeout, it triggers a system reset, recovering from software deadlocks or infinite loops.
+* **Software Watchdogs (Conceptual)**: For critical tasks, FreeRTOS software timers could be used to monitor if a specific task is executing within its expected timeframe. Failure to "pet" this software watchdog could trigger a fault report to `SystemMonitor` or a system reset.
+
+### 6.6. Power Management Modes
+
+The ECU operates in one of three distinct Power Management Modes, controlled by the `Application/power` component. These modes define hardware behavior and power consumption levels.
+
+#### Power Management Mode Diagram
+
+The diagram below illustrates the high-level ECU power states and their transitions:
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> OFF
+    OFF --> ON : Power Button / External Wakeup
+    ON --> SLEEP : SystemMgr Request / Inactivity
+    SLEEP --> ON : Timer / External Event / User Action
+    ON --> OFF : Shutdown Request / Critical Fault
+    SLEEP --> OFF : Sensor Failure / No Wake Event
+```
+
+#### State Transitions
+
+- **OFF → ON**  
+  - **Condition**: User presses the power button.  
+  - **Action**: `Diagnostic` detects wake-up, notifies `systemMgr`, which requests `power` to transition to ON. A full system reboot and component initialization follow.
+
+- **ON → SLEEP**  
+  - **Condition**: `systemMgr` initiates sleep (inactivity, command, or config).  
+  - **Action**: `power` reduces clocks, disables non-essentials, keeps display and minimal `temp`/`hum` loops. All actuators OFF.
+
+- **ON → OFF**  
+  - **Condition**: User shutdown or critical fault.  
+  - **Action**: `systemMgr` requests shutdown. `power` executes graceful power-off into deep sleep.
+
+- **SLEEP → ON**  
+  - **Conditions**:
+    1. Power button press  
+    2. Diagnostic (e.g., BLE) request  
+    3. OTA update trigger  
+    4. Critical `temp`/`hum` threshold breach  
+  - **Action**: `power` resumes full operation from low-power state.
+
+- **SLEEP → OFF**  
+  - **Condition**: Fatal condition during sleep (e.g., sensor disconnection, timeout without wake event).  
+  - **Action**: Immediate shutdown and transition to OFF.
+
+### 6.7. SW Modes
+
+The application's functional behavior is governed by three SW Modes, managed by the `Application/systemMgr` component. These modes define how actuators are controlled and how the system responds to sensor inputs and user commands. The ECU must be in the **ON** Power Management Mode for these states to be active.
+
+#### SW Mode Diagram
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> AUTOMATIC : On Startup / Default
+    AUTOMATIC --> MANUAL : Diagnostic Command
+    MANUAL --> AUTOMATIC : Diagnostic Command
+    AUTOMATIC --> HYBRID : Diagnostic Command + Manual List
+    MANUAL --> HYBRID : Diagnostic Command + Auto List
+    HYBRID --> AUTOMATIC : Diagnostic Command
+    HYBRID --> MANUAL : Diagnostic Command
+```
+
+#### State Transitions
+
+- **Start → AUTOMATIC**
+  - **Condition**: On ECU power-up.
+  - **Action**: `systemMgr` loads the last known mode or defaults to AUTOMATIC. Internal algorithms control all actuators.
+
+- **AUTOMATIC → MANUAL**
+  - **Condition**: Diagnostic command.
+  - **Action**: Internal control is disabled; user directly controls actuators.
+
+- **MANUAL → AUTOMATIC**
+  - **Condition**: Diagnostic command.
+  - **Action**: Internal algorithms regain full control of actuators.
+
+- **AUTOMATIC → HYBRID**
+  - **Condition**: Diagnostic command + list of actuators to remain automatic.
+  - **Action**: Mixed control – system controls some actuators, user controls others.
+
+- **MANUAL → HYBRID**
+  - **Condition**: Diagnostic command + list of actuators to become automatic.
+  - **Action**: System takes over specified actuators, rest stay manual.
+
+- **HYBRID → AUTOMATIC / MANUAL**
+  - **Condition**: Diagnostic command.
+  - **Action**: `systemMgr` applies logic of selected target mode to all actuators.
+
+
+### 6.8. Interactions Between Power and SW Modes
+
+The Power Management Modes and SW Modes operate at different levels of abstraction but are interconnected:
+
+* **System Mode Requires ON Power Mode**: The "Automatic," "Manual," and "Hybrid" System Modes can only be active when the ECU is in the **ON** Power Management Mode. If the ECU transitions to "Sleep" or "OFF" power modes, the current System Mode becomes inactive, and actuator control is suspended or overridden as per the power mode's definition.
+* **`systemMgr` Orchestrates Power Mode Changes**: `systemMgr` is the primary component that requests transitions between Power Management Modes. These requests can be driven by:
+    * User commands (e.g., "Go to Sleep," "Shut Down") received via `Diagnostic`.
+    * Internal logic (e.g., inactivity timer, specific operational conditions requiring low power).
+    * Critical faults reported by `SystemMonitor` (e.g., unrecoverable error leading to shutdown).
+* **Power Constraints Override System Mode**: The `Application/power` module continuously monitors current, voltage, and calculates power consumption. This data is reported to `systemMgr`.
+    * If the voltage/power falls below or rises above safe operational thresholds, `systemMgr` can **override the current System Mode's actuator control** (even in Manual or Hybrid mode) to protect the hardware or ensure basic functionality. For instance, it might shut down high-power actuators or force a transition to a safer power state.
+    * Critical operations like **OTA updates (initiated by `Diagnostic`) will be prevented by `systemMgr`** if the power module reports insufficient or unstable power, to avoid corrupting the firmware.
+* **Wake-up from OFF/Sleep**: When the ECU transitions from "OFF" (via power button) or "Sleep" to "ON," the `SystemStartup` and `RTE` will re-initialize, and `systemMgr` will load the last configured System Mode (defaulting to Automatic if none is stored).
+
+## 7. Scenarios
+
+### 7.1. Scenario 1: Sensor Reading and Actuator Control
 
 **Description**: This scenario illustrates the core control loop where sensor data is read and actuators are adjusted based on operational parameters.
 
- 1. **Sensor Read (Process View)**: `RTE_SensorReadTask` wakes up (every 20 ms).
-
- 2. **RTE Service Call (Logical View)**: `RTE_SensorReadTask` calls `RTE_Service_ProcessSensorReadings()`.
-
- 3. **Sensor Data Acquisition (Logical View)**: `RTE_Service_ProcessSensorReadings()` internally calls `SYS_MGR_ProcessSensorReadings()`. `SYS_MGR_ProcessSensorReadings()` then calls `TEMP_SENSOR_ReadTemperature()` and `HUMIDITY_SENSOR_ReadHumidity()` (which internally use HAL functions like `HAL_ADC_Read()`).
-
- 4. **State Update (Logical View)**: `SYS_MGR_ProcessSensorReadings()` acquires `sys_mgr_state_mutex`, updates `sys_mgr_state.current_room_temp_c` and `sys_mgr_state.current_room_humidity_p`, and releases the mutex.
-
- 5. **Actuator Control (Process View)**: `RTE_ActuatorControlTask` wakes up (every 100 ms).
-
- 6. **RTE Service Call (Logical View)**: `RTE_ActuatorControlTask` calls `RTE_Service_ControlActuators()`.
-
- 7. **Control Logic (Logical View)**: `RTE_Service_ControlActuators()` internally calls `SYS_MGR_ControlActuators()`. `SYS_MGR_ControlActuators()` acquires `sys_mgr_state_mutex` to read current sensor values and operational parameters.
-
- 8. **Actuator Command (Logical View)**: Based on the control logic (e.g., if `current_room_temp_c` > `operational_temp_max`), `SYS_MGR_ControlActuators()` calls `RTE_Service_FAN_SetSpeed()` or `RTE_Service_HEATER_SetState()`.
-
- 9. **Hardware Control (Logical View)**: The RTE Service (e.g., `RTE_Service_FAN_SetSpeed()`) internally calls `FAN_SetSpeed()`, which then calls `ECUAL_PWM_SetDutyCycle()` to control the physical fan.
-
+1.  **Sensor Read (Process View)**: `RTE_SensorReadTask` wakes up (every 20 ms).
+2.  **RTE Service Call (Logical View)**: `RTE_SensorReadTask` calls `RTE_Service_ProcessSensorReadings()`.
+3.  **Sensor Data Acquisition (Logical View)**: `RTE_Service_ProcessSensorReadings()` internally calls `Application/systemMgr/src/sys_mgr.c::SYS_MGR_ProcessSensorReadings()`. `SYS_MGR_ProcessSensorReadings()` then calls `RTE_Service_TEMP_SENSOR_Read()` and `RTE_Service_HUMIDITY_SENSOR_Read()`. These RTE services, in turn, call `Application/temperature/src/temp_sensor.c::TEMP_SENSOR_ReadTemperature()` and `Application/humadity/src/humidity_sensor.c::HUMIDITY_SENSOR_ReadHumidity()` (which internally use MCAL functions like `Mcal/adc/src/ecual_adc.c::ECUAL_ADC_Read()`).
+    * **Fault Detection Example**: If `TEMP_SENSOR_ReadTemperature()` fails after retries, it calls `RTE_Service_SystemMonitor_ReportFault(FAULT_ID_TEMP_SENSOR_FAILURE, SEVERITY_HIGH, ...)`
+4.  **State Update (Logical View)**: `SYS_MGR_ProcessSensorReadings()` acquires `sys_mgr_state_mutex`, updates `sys_mgr_state.current_room_temp_c` and `sys_mgr_state.current_room_humidity_p`, and releases the mutex.
+5.  **Actuator Control (Process View)**: `RTE_ActuatorControlTask` wakes up (every 100 ms).
+6.  **RTE Service Call (Logical View)**: `RTE_ActuatorControlTask` calls `RTE_Service_ControlActuators()`.
+7.  **Control Logic (Logical View)**: `RTE_Service_ControlActuators()` internally calls `Application/systemMgr/src/sys_mgr.c::SYS_MGR_ControlActuators()`. `SYS_MGR_ControlActuators()` acquires `sys_mgr_state_mutex` to read current sensor values and operational parameters.
+8.  **Actuator Command (Logical View)**: Based on the control logic (e.g., if `current_room_temp_c` > `operational_temp_max`), `SYS_MGR_ControlActuators()` calls `RTE_Service_FAN_SetSpeed()` or `RTE_Service_HEATER_SetState()`.
+9.  **Hardware Control (Logical View)**: The RTE Service (e.g., `RTE_Service_FAN_SetSpeed()`) internally calls `Application/fan/src/fan.c::FAN_SetSpeed()`, which then calls `Mcal/pwm/src/ecual_pwm.c::ECUAL_PWM_SetDutyCycle()` to control the physical fan.
 10. **State Update (Logical View)**: `SYS_MGR_ControlActuators()` updates `sys_mgr_state.current_fan_stage`, `sys_mgr_state.heater_is_working`, etc., and releases the mutex.
 
-### 6.2. Scenario 2: Modbus Command to Change Operational Temperature
+### 7.2. Scenario 2: Modbus Command to Change Operational Temperature
 
 **Description**: An external Modbus master sends a command to update the system's operational temperature range.
 
-1. **Modbus Request Reception (Physical View)**: A Modbus master sends a "Write Multiple Registers" command over UART. The `ecual_uart` driver receives the raw bytes.
+1.  **Modbus Request Reception (Physical View)**: A Modbus master sends a "Write Multiple Registers" command over UART. The `Mcal/uart` driver receives the raw bytes.
+2.  **HAL Protocol Processing (Logical View)**: `Service/ComM/src/comm.c::COMM_Process()` (called by `COMMUNICATION_STACK_MainTask`) detects incoming Modbus data via `HAL/modbus/src/modbus.c::HAL_MODBUS_ProcessInput()`. `HAL_MODBUS_ProcessInput()` parses the Modbus frame, identifies it as a write command for `MODBUS_REG_SET_MIN_OP_TEMP_X100` and `MODBUS_REG_SET_MAX_OP_TEMP_X100`, and updates its internal simulated Modbus register map.
+    * **Fault Detection Example (HAL)**: If `HAL_MODBUS_ProcessInput()` detects a CRC error, it might call `RTE_Service_ComM_ReportError(COMM_PROTOCOL_MODBUS, ERROR_MODBUS_CRC, ...)`
+3.  **Service Layer Data Exchange (Logical View)**: `Service/ComM` then reads these updated registers from `HAL/modbus` (e.g., using `RTE_Service_HAL_MODBUS_ReadHoldingRegister()`). `ComM` then routes this incoming command to the appropriate application module.
+4.  **RTE Service Call (Logical View)**: `Service/ComM` calls `RTE_Service_DIAGNOSTIC_ProcessCommand(COMMAND_SET_OP_TEMP, new_min_temp, new_max_temp)`.
+5.  **Application Logic (Logical View)**: `Application/diagnostic/src/diagnostic.c::DIAGNOSTIC_ProcessCommand()` identifies the command and then calls `RTE_Service_SYS_MGR_SetOperationalTemperature(new_min_temp, new_max_temp)`.
+6.  **System State Update (Logical View)**: The RTE Service `RTE_Service_SetOperationalTemperature()` internally calls `Application/systemMgr/src/sys_mgr.c::SYS_MGR_SetOperationalTemperature()`. `SYS_MGR_SetOperationalTemperature()` acquires `sys_mgr_state_mutex`, updates `sys_mgr_state.operational_temp_min` and `sys_mgr_state.operational_temp_max`, and releases the mutex.
+7.  **Subsequent Control (Process View)**: In the next cycle, `RTE_ActuatorControlTask` will read the *new* operational temperature range from `systemMgr` and adjust actuators accordingly.
 
-2. **Service Processing (Logical View)**: The `COMMUNICATION_STACK_MainTask` wakes up (every 100 ms) and calls `COMMUNICATION_STACK_ProcessModbus()`. This function, in turn, calls `MODBUS_MW_Process()`.
-
-3. **Protocol Interpretation (Logical View)**: `MODBUS_MW_Process()` (within `modbus_middleware.c`) parses the incoming Modbus frame, identifies it as a write command for `MODBUS_REG_SET_MIN_OP_TEMP_X100` and `MODBUS_REG_SET_MAX_OP_TEMP_X100`, and updates its internal simulated Modbus register map.
-
-4. **Data Exchange (Logical View)**: `COMMUNICATION_STACK_ProcessModbus()` then reads these updated registers from `modbus_middleware` (e.g., using `MODBUS_MW_ReadHoldingRegister()`).
-
-5. **RTE Service Call (Logical View)**: `COMMUNICATION_STACK_ProcessModbus()` detects that the new temperature range is different from the current one (by first querying `sys_mgr` via `RTE_Service_GetOperationalTemperature()`). It then calls `RTE_Service_SetOperationalTemperature(new_min_temp, new_max_temp)`.
-
-6. **System State Update (Logical View)**: The RTE Service `RTE_Service_SetOperationalTemperature()` internally calls `SYS_MGR_SetOperationalTemperature()`. `SYS_MGR_SetOperationalTemperature()` acquires `sys_mgr_state_mutex`, updates `sys_mgr_state.operational_temp_min` and `sys_mgr_state.operational_temp_max`, and releases the mutex.
-
-7. **Subsequent Control (Process View)**: In the next cycle, `RTE_ActuatorControlTask` will read the *new* operational temperature range from `sys_mgr` and adjust actuators accordingly.
-
-### 6.3. Scenario 3: Bluetooth Data Broadcast (System Status)
+### 7.3. Scenario 3: Bluetooth Data Broadcast (System Status)
 
 **Description**: The system periodically broadcasts its current sensor readings and actuator statuses via Bluetooth Low Energy (BLE).
 
-1. **Communication Task Wakeup (Process View)**: `COMMUNICATION_STACK_MainTask` wakes up (every 100 ms).
+1.  **Communication Task Wakeup (Process View)**: `COMMUNICATION_STACK_MainTask` wakes up (every 100 ms).
+2.  **Service Layer Processing (Logical View)**: `COMMUNICATION_STACK_MainTask` calls `Service/ComM/src/comm.c::COMM_Process()`. `ComM` determines that it's time to broadcast system status via Bluetooth.
+3.  **Data Acquisition (Logical View)**: `Service/ComM` needs to send the latest system data. It calls various RTE services to get this data from application modules:
+    * `RTE_Service_GetCurrentSensorReadings()` (for temperature, humidity)
+    * `RTE_Service_GetActuatorStates()` (for fan, heater, pump, ventilator status)
+    * `RTE_Service_GetCPULoad()` (for CPU load)
+    * `RTE_Service_LIGHT_GetState()` (for light status)
+4.  **Data Formatting & Security (Logical View)**: `Service/ComM` formats the retrieved data into a suitable payload. If security is enabled, it calls `RTE_Service_SECURITY_EncryptData()` before sending.
+5.  **HAL Transmission (Logical View)**: `Service/ComM` then calls `RTE_Service_HAL_BLUETOOTH_SendData(BT_CHAR_SENSOR_DATA_UUID, formatted_data, data_length)`.
+    * **Fault Detection Example (HAL)**: If `HAL_BLUETOOTH_SendData()` fails (e.g., not connected), it might report an error to `ComM` via `RTE_Service_ComM_ReportError(COMM_PROTOCOL_BLUETOOTH, ERROR_BT_NOT_CONNECTED, ...)`. `ComM` then reports this to `SystemMonitor`.
+6.  **Physical Transmission (Physical View)**: `HAL/Bluetooth/src/bluetooth.c::HAL_BLUETOOTH_SendData()` uses the underlying native Bluetooth APIs to send the data as a GATT notification or indication to connected BLE clients.
 
-2. **Service Processing (Logical View)**: `COMMUNICATION_STACK_MainTask` calls `COMMUNICATION_STACK_ProcessBluetooth()`. This function, in turn, calls `BLUETOOTH_MW_Process()` to handle any internal BLE stack events (e.g., advertising, connection management).
+### 7.4. Scenario 4: External Diagnostic Query and Fail-Safe Activation
 
-3. **Data Acquisition (Logical View)**: `COMMUNICATION_STACK_ProcessBluetooth()` needs to send the latest system data. It calls various RTE services to get this data:
+**Description**: An external diagnostic tool queries the system's fault status, and then commands a fail-safe mode based on a detected fault.
 
-   * `RTE_Service_GetCurrentSensorReadings()` (for temperature, humidity)
+1.  **Diagnostic Query (External)**: An external tool connects via Wi-Fi and sends a "Get Faults" command.
+2.  **Command Reception & Routing (HAL/Service Layers)**: The `HAL/Wifi` module receives the incoming Wi-Fi packet. It passes the raw data to `Service/ComM` via `RTE_Service_ComM_ReceiveData(COMM_PROTOCOL_WIFI, raw_data)`. `Service/ComM` parses the high-level command and, as per its responsibility, routes it to `Application/diagnostic/src/diagnostic.c::DIAGNOSTIC_ProcessCommand(command_data)`.
+3.  **Fault Retrieval (Logical View)**: `DIAGNOSTIC_ProcessCommand()` identifies the "Get Faults" command. It then calls `RTE_Service_SystemMonitor_GetFaultStatus()` to retrieve the current active faults and history from `SystemMonitor`.
+4.  **Fault Reporting (Logical View)**: `Diagnostic` formats the retrieved fault data into a response message. It then calls `RTE_Service_ComM_SendData(COMM_PROTOCOL_WIFI, formatted_response_data)` to send the response. `ComM` handles sending this data via `HAL/Wifi`.
+5.  **Fail-Safe Command (External)**: The external tool, seeing a critical fault (e.g., "Temperature Sensor Failure"), sends a "Activate Fail-Safe" command via Wi-Fi.
+6.  **Command Reception & Routing (HAL/Service Layers)**: Similar to step 2, the command reaches `DIAGNOSTIC_ProcessCommand()` via `ComM`.
+7.  **Fail-Safe Activation Request (Logical View)**: `DIAGNOSTIC_ProcessCommand()` identifies the "Activate Fail-Safe" command. It then calls `RTE_Service_SYS_MGR_SetFailSafeMode(true)` (a new RTE service).
+8.  **System State Change (Logical View)**: `RTE_Service_SYS_MGR_SetFailSafeMode()` internally calls `Application/systemMgr/src/sys_mgr.c::SYS_MGR_SetFailSafeMode(true)`. `systemMgr` acquires its mutex, sets its internal fail-safe flag, and immediately commands all actuators to their safe states (e.g., `RTE_Service_HEATER_SetState(false)`, `RTE_Service_FAN_SetSpeed(100)`).
+9.  **Alarm Indication (Logical View)**: `systemMgr` also triggers appropriate alarms via `RTE_Service_UpdateDisplayAndAlarm()` and `RTE_Service_LIGHT_INDICATION_On(LIGHT_INDICATION_CRITICAL_ALARM)`.
+    
 
-   * `RTE_Service_GetActuatorStates()` (for fan, heater, pump, ventilator status)
+## 8. Future Considerations and Improvements
 
-   * `RTE_Service_GetCPULoad()` (for CPU load)
-
-   * `RTE_Service_LIGHT_GetState()` (for light status)
-
-4. **Data Formatting (Logical View)**: `COMMUNICATION_STACK_ProcessBluetooth()` formats the retrieved data into a suitable payload (e.g., a string or a byte array).
-
-5. **Data Transmission (Logical View)**: `COMMUNICATION_STACK_ProcessBluetooth()` then calls `BLUETOOTH_MW_SendData(BT_CHAR_SENSOR_DATA_UUID, formatted_data, data_length)`.
-
-6. **Physical Transmission (Physical View)**: `BLUETOOTH_MW_SendData()` (within `bluetooth_middleware.c`) uses the underlying native Bluetooth APIs to send the data as a GATT notification or indication to connected BLE clients.
-
-## 7. Future Considerations and Improvements
-
-* **Error Handling and Fault Tolerance**: Implement more sophisticated error handling mechanisms, including retry logic, watchdog timers, and fail-safe states for critical components.
-
-* **Configuration Management**: Implement a persistent storage mechanism (e.g., NVS Flash on ESP32) for operational parameters and schedules, allowing them to persist across reboots.
-
-* **Over-the-Air (OTA) Updates**: Integrate OTA update capabilities to allow firmware upgrades remotely via Wi-Fi or Bluetooth.
-
-* **Power Management**: Implement low-power modes and dynamic power scaling for tasks and peripherals to optimize energy consumption.
-
-* **Event-Driven Communication**: For more complex inter-task communication, consider using FreeRTOS queues or event groups directly within RTE services, especially for asynchronous data flows or command passing.
-
-* **Security**: Implement security measures for communication protocols (e.g., TLS for Wi-Fi, BLE pairing/encryption) to protect data integrity and confidentiality.
-
-* **Testing Framework**: Develop a more comprehensive automated testing framework for unit, integration, and system tests.
-
-* **Command Parsing**: For incoming commands from Modbus/Bluetooth/Wi-Fi, implement a robust command parsing and dispatching mechanism within the `COMMUNICATION_STACK_MainTask` to route commands to the correct RTE services.
-
-
-
-
-
-
+* **Event-Driven Communication**: For more complex inter-task communication, consider using FreeRTOS queues or event groups directly within RTE services, especially for asynchronous data flows or command passing. This would refine the internal RTE implementation without changing its public interface.
+* **Testing Framework**: Develop a more comprehensive automated testing framework for unit, integration, and system tests. This is an external tooling consideration but crucial for development.
