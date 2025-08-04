@@ -1,57 +1,81 @@
-// main/startup.c
-
-// ECUAL Includes (minimal for early logging)
-#include "ecual_uart.h"
-
-// Application Modules Includes (only logger for early logs)
+#include "startup.h"
 #include "logger.h"
-
-// Rte (Runtime Environment) Tasks Includes - now the central point for task creation and init tasks
 #include "Rte.h"
-
-// FreeRTOS Includes
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-
-// Standard C Library Includes
-#include <stdio.h>
-
-static const char *APP_TAG = "STARTUP";
+#include "system_monitor.h"
+#include "hal_uart.h"
+#include "FreeRTOS.h"
+#include "task.h"
 
 /**
- * @brief Main application entry point.
- * This function handles the bare minimum system initialization to get FreeRTOS running
- * and then launches the Rte initialization function which handles all task creation.
+ * @file startup.c
+ * @brief Implementation for the SystemStartup component.
+ *
+ * This file contains the main entry point for the firmware, responsible for
+ * performing initializations and starting the RTOS scheduler.
  */
-void app_main(void) {
-    // --- 1. Basic ECUAL Initialization for Logging ---
-    // Initialize ECUAL UART first, as the Logger depends on it.
-    if (ECUAL_UART_Init() != ECUAL_OK) { 
-        printf("CRITICAL ERROR: UART ECUAL Init failed! System cannot proceed.\r\n");
-        while(1) {} // Halt if critical failure
-    }
-    
-    // Initialize the generic Logger. From this point, use LOGx macros.
-    if (LOGGER_Init() != APP_OK) { 
-        printf("CRITICAL ERROR: Logger Init failed! Serial logging may not work reliably.\r\n"); 
-    }
-    
-    LOGI(APP_TAG, "Minimal system setup complete. Calling RTE_Init to create initial tasks.");
 
-    // --- Call RTE's master initialization function ---
-    // RTE_Init will be responsible for creating the first init task (RTE_HwInitTask).
-    if (RTE_Init() != APP_OK) {
-        LOGE(APP_TAG, "RTE_Init failed! System cannot proceed.");
-        while(1) {} // Halt if critical failure
-    }
+// --- Public Function Implementations ---
 
-    // --- Start the FreeRTOS scheduler ---
-    LOGI(APP_TAG, "Scheduler starting...");
+/**
+ * @brief The main entry function for the application.
+ *
+ * @details This function is the first user-code to run after boot. It
+ * initializes critical services (like logging), triggers the RTE initialization,
+ * and starts the FreeRTOS scheduler to begin multi-tasking.
+ */
+void SystemStartup_Main(void)
+{
+
+    // 1. Minimal early hardware setup for debug logging
+    // This assumes the HAL_UART_Init function is safe to call before the full
+    // system is up.
+    HAL_UART_Init(UART_DEBUG_PORT, BAUD_RATE_115200);
+
+    // 2. Initialize the logger to enable early debug output
+    if (LOGGER_Init() != APP_OK)
+    {
+        // Critical failure: The logger is essential. Halt execution.
+        // We cannot report this fault as the logger is not working.
+        while (1)
+        {
+            // Blink an LED or other hardware-specific indication of a fatal error
+        }
+    }
+    LOGI("SystemStartup", "Logger initialized. Application starting...");
+
+    // 3. Initialize SystemMonitor before other components to enable fault reporting
+    if (SysMon_Init() != APP_OK)
+    {
+        LOGF("SystemStartup", "FATAL: SystemMonitor initialization failed, halting system.");
+        while (1)
+        {
+        }
+    }
+    LOGI("SystemStartup", "SystemMonitor initialized.");
+
+    // 4. Initialize the RTE
+    // This call is expected to create the initial hardware initialization task
+    // and call Init() functions of all other components.
+    if (RTE_Init() != APP_OK)
+    {
+        LOGF("SystemStartup", "FATAL: RTE initialization failed, halting system.");
+        // Report the fault, but then halt.
+        SysMon_ReportFault(FAULT_ID_SYS_INIT_ERROR, SEVERITY_CRITICAL, 0);
+        while (1)
+        {
+        }
+    }
+    LOGI("SystemStartup", "RTE initialized. All components initialized.");
+
+    // 5. Start the FreeRTOS scheduler
+    LOGI("SystemStartup", "Starting FreeRTOS scheduler...");
     vTaskStartScheduler();
 
-    // The code below this line will only be reached if there's an error in the scheduler
-    LOGE(APP_TAG, "Scheduler exited unexpectedly! Entering infinite loop.");
-    while (1) {
-        vTaskDelay(pdMS_TO_TICKS(1000)); 
+    // The scheduler takes control from this point.
+    // The code below should not be reached unless the scheduler fails.
+    LOGF("SystemStartup", "FATAL: Scheduler failed to start!");
+    SysMon_ReportFault(FAULT_ID_SYS_INIT_ERROR, SEVERITY_CRITICAL, 1);
+    while (1)
+    {
     }
 }

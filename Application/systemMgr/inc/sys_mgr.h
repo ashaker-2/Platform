@@ -1,69 +1,105 @@
-// app/inc/sys_mgr.h
-
 #ifndef SYS_MGR_H
 #define SYS_MGR_H
 
+#include "app_common.h"
+#include <stdbool.h>
 #include <stdint.h>
-#include "app_common.h" // For APP_OK/APP_ERROR
+#include <string.h>
+#include "system_monitor.h"
 
 /**
- * @brief Initializes the System Manager component.
- * This function will now create and launch the internal control tasks.
- * @return APP_OK if initialized successfully, APP_ERROR otherwise.
+ * @file sys_mgr.h
+ * @brief Public interface for the SystemMgr (System Manager) component.
+ *
+ * This header defines the public API for the SystemMgr module, which is the
+ * central control logic and state manager for the entire system.
  */
-uint8_t SYS_MGR_Init(void);
 
-// The SYS_MGR_Run() function is removed from the public API as it's now split into internal tasks.
+// --- System/SW/App Modes ---
+typedef enum
+{
+    SYS_MGR_MODE_AUTOMATIC = 0, // Fully automated control based on sensors
+    SYS_MGR_MODE_MANUAL,        // Actuators controlled directly by external commands
+    SYS_MGR_MODE_HYBRID,        // Mixed control (e.g., fans auto, lights manual)
+    SYS_MGR_MODE_FAIL_SAFE,     // Emergency mode, overrides all other control
+    SYS_MGR_MODE_COUNT
+} SYS_MGR_Mode_t;
+
+// --- Actuator State Structure ---
+typedef struct
+{
+    bool heater_is_on;
+    uint8_t fan_speed_percent;
+    bool pump_is_on;
+    bool ventilator_is_on;
+    bool light_is_on;
+} SYS_MGR_ActuatorState_t;
+
+// --- Public Functions ---
 
 /**
- * @brief Sets the desired operational temperature range.
- * @param min_temp_c Minimum desired temperature in Celsius.
- * @param max_temp_c Maximum desired temperature in Celsius.
- * @return APP_OK if successful, APP_ERROR if parameters are invalid (e.g., min > max).
+ * @brief Initializes the System Manager module.
+ * Loads operational parameters from storage and sets initial system mode.
+ * @return APP_OK on success, APP_ERROR on failure.
  */
-uint8_t SYS_MGR_SetOperationalTemperature(float min_temp_c, float max_temp_c);
+APP_Status_t SYS_MGR_Init(void);
 
 /**
- * @brief Sets the desired operational humidity range.
- * Note: Only max_humidity is used for control (pump).
- * @param min_humidity_p Minimum desired humidity in percentage.
- * @param max_humidity_p Maximum desired humidity in percentage.
- * @return APP_OK if successful, APP_ERROR if parameters are invalid (e.g., min > max).
+ * @brief Performs periodic sensor reading, control logic, and state management.
+ * This is the main periodic runnable for the System Manager task.
  */
-uint8_t SYS_MGR_SetOperationalHumidity(float min_humidity_p, float max_humidity_p);
+void SYS_MGR_MainFunction(void);
 
 /**
- * @brief Sets the schedule for the ventilator.
- * The ventilator will be ON between on_hour:on_minute and off_hour:off_minute
- * based on system uptime (simulated 24-hour cycle).
- * @param on_hour Hour (0-23) to turn ventilator ON.
- * @param on_minute Minute (0-59) to turn ventilator ON.
- * @param off_hour Hour (0-23) to turn ventilator OFF.
- * @param off_minute Minute (0-59) to turn ventilator OFF.
- * @return APP_OK if successful, APP_ERROR if parameters are invalid.
+ * @brief Sets the operational temperature range.
+ * @param min_temp The minimum desired temperature in Celsius.
+ * @param max_temp The maximum desired temperature in Celsius.
+ * @return APP_OK on success, APP_ERROR on failure.
  */
-uint8_t SYS_MGR_SetVentilatorSchedule(uint8_t on_hour, uint8_t on_minute,
-                                      uint8_t off_hour, uint8_t off_minute);
+APP_Status_t SYS_MGR_SetOperationalTemperature(float min_temp, float max_temp);
 
 /**
- * @brief Sets the schedule for the main room light.
- * The light will be ON between on_hour:on_minute and off_hour:off_minute
- * based on system uptime (simulated 24-hour cycle).
- * @param on_hour Hour (0-23) to turn light ON.
- * @param on_minute Minute (0-59) to turn light ON.
- * @param off_hour Hour (0-23) to turn light OFF.
- * @param off_minute Minute (0-59) to turn light OFF.
- * @return APP_OK if successful, APP_ERROR if parameters are invalid.
+ * @brief Gets the current operational temperature range.
+ * @param min_temp Pointer to store the minimum desired temperature.
+ * @param max_temp Pointer to store the maximum desired temperature.
+ * @return APP_OK on success, APP_ERROR on failure.
  */
-uint8_t SYS_MGR_SetLightSchedule(uint8_t on_hour, uint8_t on_minute,
-                                 uint8_t off_hour, uint8_t off_minute);
+APP_Status_t SYS_MGR_GetOperationalTemperature(float *min_temp, float *max_temp);
 
 /**
- * @brief Gets the current simulated time (hour and minute based on system uptime).
- * @param hour Pointer to store the current simulated hour (0-23).
- * @param minute Pointer to store the current simulated minute (0-59).
+ * @brief Sets the system's operational mode (Automatic, Manual, Hybrid, Fail-Safe).
+ * @param mode The desired system mode.
+ * @return APP_OK on success, APP_ERROR on failure.
  */
-void SYS_MGR_GetSimulatedTime(uint32_t *hour, uint32_t *minute);
+APP_Status_t SYS_MGR_SetMode(SYS_MGR_Mode_t mode);
 
+/**
+ * @brief Gets the current system's operational mode.
+ * @param mode Pointer to store the current system mode.
+ * @return APP_OK on success, APP_ERROR on failure.
+ */
+APP_Status_t SYS_MGR_GetMode(SYS_MGR_Mode_t *mode);
 
-#endif /* SYS_MGR_H */
+/**
+ * @brief Activates or deactivates the fail-safe mode.
+ * This function is primarily called by SystemMonitor in response to critical faults.
+ * @param enable True to activate fail-safe, false to deactivate.
+ * @return APP_OK on success, APP_ERROR on failure.
+ */
+APP_Status_t SYS_MGR_SetFailSafeMode(bool enable);
+
+/**
+ * @brief Gets the current states of all managed actuators.
+ * @param state Pointer to a SYS_MGR_ActuatorState_t structure to fill.
+ * @return APP_OK on success, APP_ERROR on failure.
+ */
+APP_Status_t SYS_MGR_GetActuatorStates(SYS_MGR_ActuatorState_t *state);
+
+/**
+ * @brief Checks if a critical alarm (e.g., fire) is active.
+ * @param active Pointer to a boolean to store the status.
+ * @return APP_OK on success, APP_ERROR on failure.
+ */
+APP_Status_t SYS_MGR_GetCriticalAlarmStatus(bool *active);
+
+#endif // SYS_MGR_H

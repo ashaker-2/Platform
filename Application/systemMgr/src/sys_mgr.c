@@ -1,608 +1,378 @@
-// app/src/sys_mgr.c
-
 #include "sys_mgr.h"
-#include "sys_mgr_config.h"
-#include "logger.h"             // For logging
-#include "ecual_common.h"       // For ECUAL_GetUptimeMs()
+#include "sys_mgr_cfg.h"
+#include "app_common.h"
+#include "logger.h"
+#include "system_monitor.h"
+#include "Rte.h"
+#include "FreeRTOS.h"
+#include "semphr.h"
+#include <string.h>
 
-// FreeRTOS includes for mutexes (tasks are now in Rte.c)
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h" // For pdMS_TO_TICKS, xTaskGetTickCount
-#include "freertos/semphr.h"
+/**
+ * @file sys_mgr.c
+ * @brief Implementation for the SystemMgr (System Manager) component.
+ *
+ * This file contains the core logic for the central control and state management,
+ * as detailed in the SystemMgr Detailed Design Document.
+ */
 
-// Application module includes
-#include "temp_sensor.h"
-#include "humidity_sensor.h"
-#include "fan.h"
-#include "heater.h"
-#include "pump.h"
-#include "ventilator.h"
-#include "character_display.h"
-#include "light_control.h"
-#include "light_indication.h"
-
-#include <stdio.h> // For snprintf
-#include <string.h> // For strlen
-
-static const char *TAG = "SYS_MGR";
-
-// Internal state of the System Manager
-typedef struct {
-    float operational_temp_min;
-    float operational_temp_max;
-    float operational_humidity_min;
-    float operational_humidity_max;
-
-    uint8_t vent_on_hour;
-    uint8_t vent_on_minute;
-    uint8_t vent_off_hour;
-    uint8_t vent_off_minute;
-
-    uint8_t light_on_hour;
-    uint8_t light_on_minute;
-    uint8_t light_off_hour;
-    uint8_t light_off_minute;
-
-    // Runtime measured values (updated by sensor logic, read by control/display logic)
+// --- Internal State Variables ---
+typedef struct
+{
+    SYS_MGR_Mode_t current_mode;
+    bool is_fail_safe_active;
     float current_room_temp_c;
     float current_room_humidity_p;
-    float current_heatsink_temp_c;
+    SYS_MGR_ActuatorState_t actuator_states;
+    bool critical_alarm_active;
+    // Persisted operational parameters
+    SystemOperationalParams_t operational_params;
+} SYS_MGR_State_t;
 
-    // Runtime actuator states (updated by control logic, read by display/alarm logic)
-    uint8_t current_fan_stage; // 0: All OFF, 1: Fan1 ON, 2: Fan1+2 ON, 3: Fan1+2+3 ON
-    uint64_t last_fan_stage_time_ms; // Uptime when fan stage was last changed or started
-    bool heater_is_working;
-    bool pump_is_working;
-    bool ventilator_is_working;
-    bool fan_any_active; // True if any room fan is running
+static SYS_MGR_State_t sys_mgr_state;
+static SemaphoreHandle_t sys_mgr_state_mutex;
+static bool s_is_initialized = false;
 
-    // Fire Alarm state variables
-    bool temp_alarm_condition_active;
-    uint64_t temp_alarm_start_time_ms;
-    bool hum_alarm_condition_active;
-    uint64_t hum_alarm_start_time_ms;
-    bool fire_alarm_triggered;
+// --- Private Helper Function Prototypes ---
+static void SYS_MGR_ApplyAutomaticControl(void);
+static void SYS_MGR_ApplyFailSafeControl(void);
+static void SYS_MGR_UpdateSensorReadings(void);
+static void SYS_MGR_UpdateDisplayAndAlarm(void);
 
-} sys_mgr_state_t;
+// --- Public Function Implementations ---
 
-static sys_mgr_state_t sys_mgr_state;
-static bool is_initialized_internal = false; // Internal flag for SYS_MGR's own init
-static SemaphoreHandle_t sys_mgr_state_mutex; // Mutex to protect sys_mgr_state_t
-
-// Helper function to check if a simulated time is within a schedule
-static bool is_time_between(uint32_t current_hour, uint32_t current_minute,
-                            uint8_t on_hour, uint8_t on_minute,
-                            uint8_t off_hour, uint8_t off_minute);
-
-// --- Internal Logic Functions (called by RTE tasks) ---
-// These are not in sys_mgr.h because they are internal to SYS_MGR's operation,
-// but they need to be exposed to Rte.c.
-// They are declared 'extern' in Rte.c to allow calling them.
-void SYS_MGR_ProcessSensorReadings(void);
-void SYS_MGR_ControlActuators(void);
-void SYS_MGR_UpdateDisplayAndAlarm(void);
-
-
-// Helper to get current simulated time based on uptime
-void SYS_MGR_GetSimulatedTime(uint32_t *hour, uint32_t *minute) {
-    uint64_t uptime_ms = ECUAL_GetUptimeMs();
-    // Simulate a 24-hour cycle where 1 second of real time = 1 minute of simulated time.
-    // So, 60 seconds real time = 1 hour simulated time.
-    // 24 * 60 seconds = 1440 seconds real time for a full simulated day.
-    uint64_t simulated_minutes_total = uptime_ms / 1000; // 1 real second = 1 simulated minute
-    
-    *hour = (simulated_minutes_total / 60) % 24;
-    *minute = simulated_minutes_total % 60;
-}
-
-static bool is_time_between(uint32_t current_hour, uint32_t current_minute,
-                            uint8_t on_hour, uint8_t on_minute,
-                            uint8_t off_hour, uint8_t off_minute) {
-    uint32_t current_total_minutes = current_hour * 60 + current_minute;
-    uint32_t on_total_minutes = on_hour * 60 + on_minute;
-    uint32_t off_total_minutes = off_hour * 60 + off_minute;
-
-    if (on_total_minutes < off_total_minutes) {
-        // Normal schedule within the same day (e.g., 10:00 to 18:00)
-        return (current_total_minutes >= on_total_minutes && current_total_minutes < off_total_minutes);
-    } else if (on_total_minutes > off_total_minutes) {
-        // Overnight schedule (e.g., 22:00 to 06:00)
-        return (current_total_minutes >= on_total_minutes || current_total_minutes < off_total_minutes);
-    } else {
-        // on_total_minutes == off_total_minutes
-        return false; // Assumes 0-hour duration if start and end are identical
-    }
-}
-
-uint8_t SYS_MGR_Init(void) {
-    if (is_initialized_internal) {
-        LOGW(TAG, "System Manager already initialized internally.");
+APP_Status_t SYS_MGR_Init(void)
+{
+    if (s_is_initialized)
+    {
         return APP_OK;
     }
 
     sys_mgr_state_mutex = xSemaphoreCreateMutex();
-    if (sys_mgr_state_mutex == NULL) {
-        LOGE(TAG, "Failed to create sys_mgr_state_mutex!");
+    if (sys_mgr_state_mutex == NULL)
+    {
+        LOGF("SystemMgr", "Failed to create state mutex.");
         return APP_ERROR;
     }
 
-    xSemaphoreTake(sys_mgr_state_mutex, portMAX_DELAY); // Acquire mutex for initialization
+    xSemaphoreTake(sys_mgr_state_mutex, portMAX_DELAY);
 
-    // Set initial operational parameters from config defaults
-    sys_mgr_state.operational_temp_min = SYS_MGR_DEFAULT_MIN_TEMP_C;
-    sys_mgr_state.operational_temp_max = SYS_MGR_DEFAULT_MAX_TEMP_C;
-    sys_mgr_state.operational_humidity_min = SYS_MGR_DEFAULT_MIN_HUMIDITY_P;
-    sys_mgr_state.operational_humidity_max = SYS_MGR_DEFAULT_MAX_HUMIDITY_P;
+    // Initialize state with default values
+    memset(&sys_mgr_state, 0, sizeof(SYS_MGR_State_t));
+    sys_mgr_state.current_mode = SYS_MGR_MODE_AUTOMATIC;
+    sys_mgr_state.operational_params.operational_temp_min_c = SYS_MGR_DEFAULT_TEMP_MIN_C;
+    sys_mgr_state.operational_params.operational_temp_max_c = SYS_MGR_DEFAULT_TEMP_MAX_C;
+    sys_mgr_state.operational_params.operational_humidity_min_p = SYS_MGR_DEFAULT_HUMIDITY_MIN_P;
+    sys_mgr_state.operational_params.operational_humidity_max_p = SYS_MGR_DEFAULT_HUMIDITY_MAX_P;
+    memcpy(sys_mgr_state.operational_params.fan_stage_threshold_temp_c, SYS_MGR_FAN_STAGE_THRESHOLDS_C, sizeof(SYS_MGR_FAN_STAGE_THRESHOLDS_C));
 
-    sys_mgr_state.vent_on_hour = SYS_MGR_DEFAULT_VENT_ON_HOUR;
-    sys_mgr_state.vent_on_minute = SYS_MGR_DEFAULT_VENT_ON_MINUTE;
-    sys_mgr_state.vent_off_hour = SYS_MGR_DEFAULT_VENT_OFF_HOUR;
-    sys_mgr_state.vent_off_minute = SYS_MGR_DEFAULT_VENT_OFF_MINUTE;
+    // Try to load operational parameters from storage
+    APP_Status_t status = RTE_Service_STORAGE_ReadConfig(STORAGE_CONFIG_ID_SYSTEM_OPERATIONAL_PARAMS,
+                                                         &sys_mgr_state.operational_params,
+                                                         sizeof(SystemOperationalParams_t));
 
-    sys_mgr_state.light_on_hour = SYS_MGR_DEFAULT_LIGHT_ON_HOUR;
-    sys_mgr_state.light_on_minute = SYS_MGR_DEFAULT_LIGHT_ON_MINUTE;
-    sys_mgr_state.light_off_hour = SYS_MGR_DEFAULT_LIGHT_OFF_HOUR;
-    sys_mgr_state.light_off_minute = SYS_MGR_DEFAULT_LIGHT_OFF_MINUTE;
+    if (status != APP_OK)
+    {
+        LOGW("SystemMgr", "Failed to load operational parameters from storage. Using defaults.");
+        SysMon_ReportFault(FAULT_ID_NVM_READ_FAILURE, SEVERITY_MEDIUM, 0);
+    }
 
-    sys_mgr_state.current_fan_stage = 0;
-    sys_mgr_state.last_fan_stage_time_ms = 0;
-    sys_mgr_state.heater_is_working = false;
-    sys_mgr_state.pump_is_working = false;
-    sys_mgr_state.ventilator_is_working = false;
-    sys_mgr_state.fan_any_active = false;
-
-    sys_mgr_state.temp_alarm_condition_active = false;
-    sys_mgr_state.temp_alarm_start_time_ms = 0;
-    sys_mgr_state.hum_alarm_condition_active = false;
-    sys_mgr_state.hum_alarm_start_time_ms = 0;
-    sys_mgr_state.fire_alarm_triggered = false;
-
-    sys_mgr_state.current_room_temp_c = 0.0f;
-    sys_mgr_state.current_room_humidity_p = 0.0f;
-    sys_mgr_state.current_heatsink_temp_c = 0.0f;
-
-
-    xSemaphoreGive(sys_mgr_state_mutex); // Release mutex
-
-    is_initialized_internal = true;
-    LOGI(TAG, "System Manager internal state initialized.");
-    // Initial parameter logs are now handled by startup.c after SYS_MGR_Init returns.
-
+    xSemaphoreGive(sys_mgr_state_mutex);
+    s_is_initialized = true;
+    LOGI("SystemMgr", "Module initialized successfully.");
     return APP_OK;
 }
 
-uint8_t SYS_MGR_SetOperationalTemperature(float min_temp_c, float max_temp_c) {
-    if (min_temp_c >= max_temp_c) {
-        LOGE(TAG, "Invalid temperature range: Min (%.1fC) must be less than Max (%.1fC).", min_temp_c, max_temp_c);
+void SYS_MGR_MainFunction(void)
+{
+    if (!s_is_initialized)
+    {
+        return;
+    }
+
+    xSemaphoreTake(sys_mgr_state_mutex, portMAX_DELAY);
+
+    SYS_MGR_UpdateSensorReadings();
+
+    if (sys_mgr_state.is_fail_safe_active || sys_mgr_state.critical_alarm_active)
+    {
+        SYS_MGR_ApplyFailSafeControl();
+    }
+    else
+    {
+        switch (sys_mgr_state.current_mode)
+        {
+        case SYS_MGR_MODE_AUTOMATIC:
+            SYS_MGR_ApplyAutomaticControl();
+            break;
+        case SYS_MGR_MODE_MANUAL:
+            // No automatic control logic in manual mode
+            break;
+        case SYS_MGR_MODE_HYBRID:
+            // Hybrid control logic would go here
+            break;
+        default:
+            break;
+        }
+    }
+
+    SYS_MGR_UpdateDisplayAndAlarm();
+
+    xSemaphoreGive(sys_mgr_state_mutex);
+}
+
+APP_Status_t SYS_MGR_SetOperationalTemperature(float min_temp, float max_temp)
+{
+    if (!s_is_initialized)
+    {
         return APP_ERROR;
     }
-    if (xSemaphoreTake(sys_mgr_state_mutex, portMAX_DELAY) == pdTRUE) {
-        sys_mgr_state.operational_temp_min = min_temp_c;
-        sys_mgr_state.operational_temp_max = max_temp_c;
-        xSemaphoreGive(sys_mgr_state_mutex);
-        LOGI(TAG, "Operational Temperature set to: %.1fC - %.1fC", min_temp_c, max_temp_c);
-        return APP_OK;
-    }
-    LOGE(TAG, "Failed to acquire mutex for setting temperature.");
-    return APP_ERROR;
-}
+    xSemaphoreTake(sys_mgr_state_mutex, portMAX_DELAY);
 
-uint8_t SYS_MGR_SetOperationalHumidity(float min_humidity_p, float max_humidity_p) {
-    if (min_humidity_p >= max_humidity_p || min_humidity_p < 0 || max_humidity_p > 100) {
-        LOGE(TAG, "Invalid humidity range: Min (%.1f%%) must be less than Max (%.1f%%) and within 0-100%%.", min_humidity_p, max_humidity_p);
+    if (min_temp > max_temp || min_temp < -50.0f || max_temp > 100.0f)
+    {
+        LOGE("SystemMgr", "Invalid operational temperature range provided.");
+        SysMon_ReportFault(FAULT_ID_SYS_INIT_ERROR, SEVERITY_MEDIUM, 0);
+        xSemaphoreGive(sys_mgr_state_mutex);
         return APP_ERROR;
     }
-    if (xSemaphoreTake(sys_mgr_state_mutex, portMAX_DELAY) == pdTRUE) {
-        sys_mgr_state.operational_humidity_min = min_humidity_p;
-        sys_mgr_state.operational_humidity_max = max_humidity_p;
-        xSemaphoreGive(sys_mgr_state_mutex);
-        LOGI(TAG, "Operational Humidity set to: %.1f%% - %.1f%%", min_humidity_p, max_humidity_p);
-        return APP_OK;
+
+    sys_mgr_state.operational_params.operational_temp_min_c = min_temp;
+    sys_mgr_state.operational_params.operational_temp_max_c = max_temp;
+
+    APP_Status_t status = RTE_Service_STORAGE_WriteConfig(STORAGE_CONFIG_ID_SYSTEM_OPERATIONAL_PARAMS,
+                                                          &sys_mgr_state.operational_params,
+                                                          sizeof(SystemOperationalParams_t));
+    if (status != APP_OK)
+    {
+        SysMon_ReportFault(FAULT_ID_NVM_WRITE_FAILURE, SEVERITY_MEDIUM, 0);
     }
-    LOGE(TAG, "Failed to acquire mutex for setting humidity.");
-    return APP_ERROR;
+
+    xSemaphoreGive(sys_mgr_state_mutex);
+    return status;
 }
 
-uint8_t SYS_MGR_SetVentilatorSchedule(uint8_t on_hour, uint8_t on_minute,
-                                      uint8_t off_hour, uint8_t off_minute) {
-    if (on_hour > 23 || on_minute > 59 || off_hour > 23 || off_minute > 59) {
-        LOGE(TAG, "Invalid ventilator schedule time. Hours (0-23), Minutes (0-59).");
+APP_Status_t SYS_MGR_GetOperationalTemperature(float *min_temp, float *max_temp)
+{
+    if (min_temp == NULL || max_temp == NULL || !s_is_initialized)
+    {
         return APP_ERROR;
     }
-    if (xSemaphoreTake(sys_mgr_state_mutex, portMAX_DELAY) == pdTRUE) {
-        sys_mgr_state.vent_on_hour = on_hour;
-        sys_mgr_state.vent_on_minute = on_minute;
-        sys_mgr_state.vent_off_hour = off_hour;
-        sys_mgr_state.vent_off_minute = off_minute;
-        xSemaphoreGive(sys_mgr_state_mutex);
-        LOGI(TAG, "Ventilator Schedule set to: %02u:%02u - %02u:%02u (simulated time)",
-             on_hour, on_minute, off_hour, off_minute);
-        return APP_OK;
-    }
-    LOGE(TAG, "Failed to acquire mutex for setting ventilator schedule.");
-    return APP_ERROR;
+    xSemaphoreTake(sys_mgr_state_mutex, portMAX_DELAY);
+    *min_temp = sys_mgr_state.operational_params.operational_temp_min_c;
+    *max_temp = sys_mgr_state.operational_params.operational_temp_max_c;
+    xSemaphoreGive(sys_mgr_state_mutex);
+    return APP_OK;
 }
 
-uint8_t SYS_MGR_SetLightSchedule(uint8_t on_hour, uint8_t on_minute,
-                                 uint8_t off_hour, uint8_t off_minute) {
-    if (on_hour > 23 || on_minute > 59 || off_hour > 23 || off_minute > 59) {
-        LOGE(TAG, "Invalid light schedule time. Hours (0-23), Minutes (0-59).");
+APP_Status_t SYS_MGR_SetMode(SYS_MGR_Mode_t mode)
+{
+    if (!s_is_initialized)
+    {
         return APP_ERROR;
     }
-    if (xSemaphoreTake(sys_mgr_state_mutex, portMAX_DELAY) == pdTRUE) {
-        sys_mgr_state.light_on_hour = on_hour;
-        sys_mgr_state.light_on_minute = on_minute;
-        sys_mgr_state.light_off_hour = off_hour;
-        sys_mgr_state.light_off_minute = off_minute;
-        xSemaphoreGive(sys_mgr_state_mutex);
-        LOGI(TAG, "Light Schedule set to: %02u:%02u - %02u:%02u (simulated time)",
-             on_hour, on_minute, off_hour, off_minute);
-        return APP_OK;
+    if (mode >= SYS_MGR_MODE_COUNT)
+    {
+        return APP_ERROR;
     }
-    LOGE(TAG, "Failed to acquire mutex for setting light schedule.");
-    return APP_ERROR;
+
+    xSemaphoreTake(sys_mgr_state_mutex, portMAX_DELAY);
+    sys_mgr_state.current_mode = mode;
+    xSemaphoreGive(sys_mgr_state_mutex);
+    LOGI("SystemMgr", "System mode set to %u", mode);
+    return APP_OK;
 }
 
-
-// --- INTERNAL LOGIC FUNCTIONS (CALLED BY RTE TASKS) ---
-
-void SYS_MGR_ProcessSensorReadings(void) {
-    float room_temp, room_humidity, heatsink_temp;
-
-    // Read sensor data
-    if (TEMP_SENSOR_ReadTemperature(TEMP_SENSOR_ROOM, &room_temp) != APP_OK) {
-        LOGW(TAG, "Failed to read room temperature.");
-        room_temp = 0.0f; 
+APP_Status_t SYS_MGR_GetMode(SYS_MGR_Mode_t *mode)
+{
+    if (mode == NULL || !s_is_initialized)
+    {
+        return APP_ERROR;
     }
-    if (HUMIDITY_SENSOR_ReadHumidity(HUMIDITY_SENSOR_ROOM, &room_humidity) != APP_OK) {
-        LOGW(TAG, "Failed to read room humidity.");
-        room_humidity = 0.0f;
-    }
-    if (TEMP_SENSOR_ReadTemperature(TEMP_SENSOR_HEATSINK, &heatsink_temp) != APP_OK) {
-        LOGW(TAG, "Failed to read heatsink temperature.");
-        heatsink_temp = 0.0f;
-    }
-
-    // Update shared state
-    if (xSemaphoreTake(sys_mgr_state_mutex, portMAX_DELAY) == pdTRUE) {
-        sys_mgr_state.current_room_temp_c = room_temp;
-        sys_mgr_state.current_room_humidity_p = room_humidity;
-        sys_mgr_state.current_heatsink_temp_c = heatsink_temp;
-        xSemaphoreGive(sys_mgr_state_mutex);
-    } else {
-        LOGE(TAG, "ProcessSensorReadings failed to acquire mutex!");
-    }
+    xSemaphoreTake(sys_mgr_state_mutex, portMAX_DELAY);
+    *mode = sys_mgr_state.current_mode;
+    xSemaphoreGive(sys_mgr_state_mutex);
+    return APP_OK;
 }
 
-void SYS_MGR_ControlActuators(void) {
-    // Local copies of state variables for consistent logic within this iteration
-    float local_room_temp_c, local_room_humidity_p, local_heatsink_temp_c;
-    float op_temp_min, op_temp_max, op_hum_min, op_hum_max;
-    uint8_t vent_on_h, vent_on_m, vent_off_h, vent_off_m;
-    uint8_t light_on_h, light_on_m, light_off_h, light_off_m;
-    uint8_t local_current_fan_stage;
-    uint64_t local_last_fan_stage_time_ms;
-    
-    // Acquire mutex, copy necessary data, then release.
-    if (xSemaphoreTake(sys_mgr_state_mutex, portMAX_DELAY) == pdTRUE) {
-        local_room_temp_c = sys_mgr_state.current_room_temp_c;
-        local_room_humidity_p = sys_mgr_state.current_room_humidity_p;
-        local_heatsink_temp_c = sys_mgr_state.current_heatsink_temp_c;
-
-        op_temp_min = sys_mgr_state.operational_temp_min;
-        op_temp_max = sys_mgr_state.operational_temp_max;
-        op_hum_min = sys_mgr_state.operational_humidity_min;
-        op_hum_max = sys_mgr_state.operational_humidity_max;
-
-        vent_on_h = sys_mgr_state.vent_on_hour;
-        vent_on_m = sys_mgr_state.vent_on_minute;
-        vent_off_h = sys_mgr_state.vent_off_hour;
-        vent_off_m = sys_mgr_state.vent_off_minute;
-
-        light_on_h = sys_mgr_state.light_on_hour;
-        light_on_m = sys_mgr_state.light_on_minute;
-        light_off_h = sys_mgr_state.light_off_hour;
-        light_off_m = sys_mgr_state.light_off_minute;
-        
-        local_current_fan_stage = sys_mgr_state.current_fan_stage;
-        local_last_fan_stage_time_ms = sys_mgr_state.last_fan_stage_time_ms;
-        // Do NOT read heater_is_working, pump_is_working etc. from sys_mgr_state here.
-        // These are *outputs* of this logic and will be updated at the end.
-        xSemaphoreGive(sys_mgr_state_mutex);
-    } else {
-        LOGE(TAG, "ControlActuators failed to acquire mutex for reading state!");
-        return; // Skip this iteration if mutex not acquired
+APP_Status_t SYS_MGR_SetFailSafeMode(bool enable)
+{
+    if (!s_is_initialized)
+    {
+        return APP_ERROR;
     }
-
-    uint64_t current_time_ms = ECUAL_GetUptimeMs();
-    uint32_t current_simulated_hour, current_simulated_minute;
-    SYS_MGR_GetSimulatedTime(&current_simulated_hour, &current_simulated_minute);
-
-    bool heater_commanded_on = false;
-    bool heater_is_working = false;
-    HEATER_GetCommandedState(HEATER_ROOM, &heater_commanded_on);
-
-    // --- Heater Control (Priority 1) ---
-    if (local_room_temp_c < op_temp_min) {
-        if (!heater_commanded_on) {
-            HEATER_On(HEATER_ROOM);
-            LOGI(TAG, "Temp %.2fC below min %.1fC. Commanding Heater ON.", local_room_temp_c, op_temp_min);
-        }
-    } else if (local_room_temp_c >= (op_temp_min + TEMP_HEATER_HYSTERESIS_C)) {
-        if (heater_commanded_on) {
-            HEATER_Off(HEATER_ROOM);
-            LOGI(TAG, "Temp %.2fC back to range. Commanding Heater OFF.", local_room_temp_c);
-        }
+    xSemaphoreTake(sys_mgr_state_mutex, portMAX_DELAY);
+    sys_mgr_state.is_fail_safe_active = enable;
+    if (enable)
+    {
+        LOGW("SystemMgr", "FAIL-SAFE mode activated by SystemMonitor.");
+        SYS_MGR_ApplyFailSafeControl();
     }
-    HEATER_GetFeedbackState(HEATER_ROOM, &heater_is_working); // Update actual feedback state
-
-    // --- Fan Control (Priority 2: Fans only if Heater is OFF) ---
-    bool fan_main_active = false; // For LED indication
-    if (heater_is_working) {
-        if (local_current_fan_stage > 0) {
-            FAN_Stop(FAN_MOTOR_1);
-            FAN_Stop(FAN_MOTOR_2);
-            FAN_Stop(FAN_MOTOR_3);
-            local_current_fan_stage = 0;
-            LOGI(TAG, "Heater active. All room fans forced OFF.");
-        }
-        local_last_fan_stage_time_ms = current_time_ms; // Reset timer for future use
-    } else {
-        // Fan staging logic
-        if (local_room_temp_c > op_temp_max) {
-            if (local_current_fan_stage == 0) {
-                FAN_SetSpeed(FAN_MOTOR_1, 50);
-                local_current_fan_stage = 1;
-                local_last_fan_stage_time_ms = current_time_ms;
-                LOGI(TAG, "Temp %.2fC above max %.1fC. Fan Stage 1 (FAN_MOTOR_1 ON).", local_room_temp_c, op_temp_max);
-            } else if (local_current_fan_stage == 1 && (current_time_ms - local_last_fan_stage_time_ms) >= FAN_STAGE_DELAY_MS) {
-                FAN_SetSpeed(FAN_MOTOR_2, 75);
-                local_current_fan_stage = 2;
-                local_last_fan_stage_time_ms = current_time_ms;
-                LOGI(TAG, "Temp still high. Fan Stage 2 (FAN_MOTOR_2 ON).", local_room_temp_c);
-            } else if (local_current_fan_stage == 2 && (current_time_ms - local_last_fan_stage_time_ms) >= FAN_STAGE_DELAY_MS) {
-                FAN_SetSpeed(FAN_MOTOR_3, 100);
-                local_current_fan_stage = 3;
-                local_last_fan_stage_time_ms = current_time_ms;
-                LOGI(TAG, "Temp still high. Fan Stage 3 (FAN_MOTOR_3 ON).", local_room_temp_c);
-            }
-        } else if (local_room_temp_c <= (op_temp_max - TEMP_FAN_OFF_HYSTERESIS_C)) {
-            if (local_current_fan_stage > 0) {
-                FAN_Stop(FAN_MOTOR_1);
-                FAN_Stop(FAN_MOTOR_2);
-                FAN_Stop(FAN_MOTOR_3);
-                local_current_fan_stage = 0;
-                LOGI(TAG, "Temp %.2fC back to range. All room fans OFF.", local_room_temp_c);
-            }
-        }
+    else
+    {
+        LOGI("SystemMgr", "FAIL-SAFE mode deactivated.");
     }
-    fan_main_active = (local_current_fan_stage > 0); // Determine state for LED
+    xSemaphoreGive(sys_mgr_state_mutex);
+    return APP_OK;
+}
 
-    // Handle Cooling Fan (Heatsink)
-    if (local_heatsink_temp_c > 60.0f) { FAN_Start(FAN_COOLING_FAN); }
-    else if (local_heatsink_temp_c < 55.0f) { FAN_Stop(FAN_COOLING_FAN); }
-
-    // --- Pump Control ---
-    bool pump_commanded_on = false;
-    bool pump_is_working = false;
-    PUMP_GetCommandedState(PUMP_WATER_CIRCULATION, &pump_commanded_on);
-
-    if (local_room_humidity_p > op_hum_max) {
-        if (!pump_commanded_on) {
-            PUMP_On(PUMP_WATER_CIRCULATION);
-            LOGI(TAG, "Humidity %.2f%% above max %.1f%%. Pump ON.", local_room_humidity_p, op_hum_max);
-        }
-    } else if (local_room_humidity_p <= (op_hum_max - HUMIDITY_PUMP_OFF_HYSTERESIS_P)) {
-        if (pump_commanded_on) {
-            PUMP_Off(PUMP_WATER_CIRCULATION);
-            LOGI(TAG, "Humidity %.2f%% back to range. Pump OFF.", local_room_humidity_p);
-        }
+APP_Status_t SYS_MGR_GetActuatorStates(SYS_MGR_ActuatorState_t *state)
+{
+    if (state == NULL || !s_is_initialized)
+    {
+        return APP_ERROR;
     }
-    PUMP_GetFeedbackState(PUMP_WATER_CIRCULATION, &pump_is_working); // Update actual feedback state
+    xSemaphoreTake(sys_mgr_state_mutex, portMAX_DELAY);
+    memcpy(state, &sys_mgr_state.actuator_states, sizeof(SYS_MGR_ActuatorState_t));
+    xSemaphoreGive(sys_mgr_state_mutex);
+    return APP_OK;
+}
 
-
-    // --- Ventilator Control ---
-    bool ventilator_scheduled_on = is_time_between(current_simulated_hour, current_simulated_minute,
-                                                  vent_on_h, vent_on_m,
-                                                  vent_off_h, vent_off_m);
-
-    bool ventilator_forced_on_by_conditions = false;
-    if (local_room_temp_c > (op_temp_max + VENT_TEMP_OVERRIDE_OFFSET_C) ||
-        local_room_humidity_p > (op_hum_max + VENT_HUM_OVERRIDE_OFFSET_P)) {
-        ventilator_forced_on_by_conditions = true;
-        LOGW(TAG, "Ventilator override: Room Temp %.2fC (thr %.1fC) or Humidity %.2f%% (thr %.1f%%) too high!",
-             local_room_temp_c, (op_temp_max + VENT_TEMP_OVERRIDE_OFFSET_C),
-             local_room_humidity_p, (op_hum_max + VENT_HUM_OVERRIDE_OFFSET_P));
+APP_Status_t SYS_MGR_GetCriticalAlarmStatus(bool *active)
+{
+    if (active == NULL || !s_is_initialized)
+    {
+        return APP_ERROR;
     }
+    xSemaphoreTake(sys_mgr_state_mutex, portMAX_DELAY);
+    *active = sys_mgr_state.critical_alarm_active;
+    xSemaphoreGive(sys_mgr_state_mutex);
+    return APP_OK;
+}
 
-    bool ventilator_commanded_on = false;
-    bool ventilator_is_working = false;
-    VENTILATOR_GetState(VENTILATOR_EXHAUST_FAN, &ventilator_commanded_on);
+// --- Private Helper Function Implementations ---
 
-    if (ventilator_scheduled_on || ventilator_forced_on_by_conditions) {
-        if (!ventilator_commanded_on) {
-            VENTILATOR_On(VENTILATOR_EXHAUST_FAN);
-            LOGI(TAG, "Ventilator ON (Scheduled: %s, Forced: %s)",
-                 ventilator_scheduled_on ? "Yes" : "No", ventilator_forced_on_by_conditions ? "Yes" : "No");
-        }
-    } else {
-        if (ventilator_commanded_on) {
-            VENTILATOR_Off(VENTILATOR_EXHAUST_FAN);
-            LOGI(TAG, "Ventilator OFF (Scheduled: %s, Forced: %s)",
-                 ventilator_scheduled_on ? "Yes" : "No", ventilator_forced_on_by_conditions ? "Yes" : "No");
-        }
+static void SYS_MGR_UpdateSensorReadings(void)
+{
+    // Reading multiple sensors (assuming a single instance for now for simplicity)
+    RTE_Service_TEMP_SENSOR_Read(TEMP_SENSOR_ID_ROOM, &sys_mgr_state.current_room_temp_c);
+    RTE_Service_HUMIDITY_SENSOR_Read(HUMIDITY_SENSOR_ID_ROOM, &sys_mgr_state.current_room_humidity_p);
+
+    // Check for critical alarm condition
+    if (sys_mgr_state.current_room_temp_c >= SYS_MGR_FIRE_TEMP_THRESHOLD_C)
+    {
+        sys_mgr_state.critical_alarm_active = true;
+        LOGW("SystemMgr", "Fire alarm triggered! Temperature: %.2fC", sys_mgr_state.current_room_temp_c);
+        SysMon_ReportFault(FAULT_ID_SYS_MGR_FIRE_ALARM, SEVERITY_CRITICAL, (uint32_t)(sys_mgr_state.current_room_temp_c * 100));
     }
-    VENTILATOR_GetState(VENTILATOR_EXHAUST_FAN, &ventilator_is_working); // Update actual state
-
-
-    // --- Light Control ---
-    bool light_scheduled_on = is_time_between(current_simulated_hour, current_simulated_minute,
-                                              light_on_h, light_on_m,
-                                              light_off_h, light_off_m);
-
-    bool light_living_room_is_on = false;
-    LIGHT_GetCommandedState(LIGHT_LIVING_ROOM, &light_living_room_is_on);
-
-    if (light_scheduled_on) {
-        if (!light_living_room_is_on) {
-            LIGHT_On(LIGHT_LIVING_ROOM);
-            LOGI(TAG, "Living Room Light ON (Scheduled).");
-        }
-    } else {
-        if (light_living_room_is_on) {
-            LIGHT_Off(LIGHT_LIVING_ROOM);
-            LOGI(TAG, "Living Room Light OFF (Scheduled).");
-        }
-    }
-
-    // --- LED Indications for Actuators ---
-    if (heater_is_working) { LIGHT_INDICATION_On(LIGHT_INDICATION_HEATER_ACTIVE); } else { LIGHT_INDICATION_Off(LIGHT_INDICATION_HEATER_ACTIVE); }
-    if (fan_main_active)        { LIGHT_INDICATION_On(LIGHT_INDICATION_FAN_ACTIVE); } else { LIGHT_INDICATION_Off(LIGHT_INDICATION_FAN_ACTIVE); }
-    if (pump_is_working)  { LIGHT_INDICATION_On(LIGHT_INDICATION_PUMP_ACTIVE); } else { LIGHT_INDICATION_Off(LIGHT_INDICATION_PUMP_ACTIVE); }
-    if (ventilator_is_working) { LIGHT_INDICATION_On(LIGHT_INDICATION_VENTILATOR_ACTIVE); } else { LIGHT_INDICATION_Off(LIGHT_INDICATION_VENTILATOR_ACTIVE); }
-
-
-    // --- Update shared state with current actuator statuses ---
-    if (xSemaphoreTake(sys_mgr_state_mutex, portMAX_DELAY) == pdTRUE) {
-        sys_mgr_state.current_fan_stage = local_current_fan_stage;
-        sys_mgr_state.last_fan_stage_time_ms = local_last_fan_stage_time_ms;
-        sys_mgr_state.heater_is_working = heater_is_working;
-        sys_mgr_state.pump_is_working = pump_is_working;
-        sys_mgr_state.ventilator_is_working = ventilator_is_working;
-        sys_mgr_state.fan_any_active = fan_main_active; // The combined fan status
-        xSemaphoreGive(sys_mgr_state_mutex);
-    } else {
-        LOGE(TAG, "ControlActuators failed to acquire mutex for updating state!");
+    else
+    {
+        sys_mgr_state.critical_alarm_active = false;
     }
 }
 
-void SYS_MGR_UpdateDisplayAndAlarm(void) {
-    // Local copies of state variables
-    float local_room_temp_c, local_room_humidity_p;
-    float op_temp_min, op_temp_max, op_hum_min, op_hum_max;
-    bool local_heater_is_working, local_pump_is_working, local_ventilator_is_working, local_fan_any_active;
-    bool local_temp_alarm_condition_active, local_hum_alarm_condition_active;
-    uint64_t local_temp_alarm_start_time_ms, local_hum_alarm_start_time_ms;
-    bool local_fire_alarm_triggered;
+static void SYS_MGR_ApplyAutomaticControl(void)
+{
+    // Temperature Control (Fan/Heater)
+    float temp_c = sys_mgr_state.current_room_temp_c;
+    float min_temp = sys_mgr_state.operational_params.operational_temp_min_c;
+    float max_temp = sys_mgr_state.operational_params.operational_temp_max_c;
 
-    if (xSemaphoreTake(sys_mgr_state_mutex, portMAX_DELAY) == pdTRUE) {
-        local_room_temp_c = sys_mgr_state.current_room_temp_c;
-        local_room_humidity_p = sys_mgr_state.current_room_humidity_p;
-        op_temp_min = sys_mgr_state.operational_temp_min;
-        op_temp_max = sys_mgr_state.operational_temp_max;
-        op_hum_min = sys_mgr_state.operational_humidity_min;
-        op_hum_max = sys_mgr_state.operational_humidity_max;
-        local_heater_is_working = sys_mgr_state.heater_is_working;
-        local_pump_is_working = sys_mgr_state.pump_is_working;
-        local_ventilator_is_working = sys_mgr_state.ventilator_is_working;
-        local_fan_any_active = sys_mgr_state.fan_any_active;
-        local_temp_alarm_condition_active = sys_mgr_state.temp_alarm_condition_active;
-        local_temp_alarm_start_time_ms = sys_mgr_state.temp_alarm_start_time_ms;
-        local_hum_alarm_condition_active = sys_mgr_state.hum_alarm_condition_active;
-        local_hum_alarm_start_time_ms = sys_mgr_state.hum_alarm_start_time_ms;
-        local_fire_alarm_triggered = sys_mgr_state.fire_alarm_triggered;
-        xSemaphoreGive(sys_mgr_state_mutex);
-    } else {
-        LOGE(TAG, "UpdateDisplayAndAlarm failed to acquire mutex for reading state!");
-        return; // Skip this iteration
+    if (temp_c > max_temp)
+    {
+        // Activate fan
+        uint8_t fan_speed = 0;
+        if (temp_c > sys_mgr_state.operational_params.fan_stage_threshold_temp_c[2])
+        {
+            fan_speed = 100;
+        }
+        else if (temp_c > sys_mgr_state.operational_params.fan_stage_threshold_temp_c[1])
+        {
+            fan_speed = 75;
+        }
+        else if (temp_c > sys_mgr_state.operational_params.fan_stage_threshold_temp_c[0])
+        {
+            fan_speed = 50;
+        }
+        RTE_Service_FAN_SetSpeed(FAN_ID_ROOM, fan_speed);
+        RTE_Service_HEATER_SetState(HEATER_ID_ROOM, false);
+        sys_mgr_state.actuator_states.fan_speed_percent = fan_speed;
+        sys_mgr_state.actuator_states.heater_is_on = false;
+    }
+    else if (temp_c < min_temp)
+    {
+        // Activate heater
+        RTE_Service_HEATER_SetState(HEATER_ID_ROOM, true);
+        RTE_Service_FAN_SetSpeed(FAN_ID_ROOM, 0);
+        sys_mgr_state.actuator_states.heater_is_on = true;
+        sys_mgr_state.actuator_states.fan_speed_percent = 0;
+    }
+    else
+    {
+        // Within range, turn off both
+        RTE_Service_HEATER_SetState(HEATER_ID_ROOM, false);
+        RTE_Service_FAN_SetSpeed(FAN_ID_ROOM, 0);
+        sys_mgr_state.actuator_states.heater_is_on = false;
+        sys_mgr_state.actuator_states.fan_speed_percent = 0;
     }
 
-    uint64_t current_time_ms = ECUAL_GetUptimeMs();
+    // Humidity Control (Pump/Ventilator)
+    float humidity_p = sys_mgr_state.current_room_humidity_p;
+    float min_humidity = sys_mgr_state.operational_params.operational_humidity_min_p;
+    float max_humidity = sys_mgr_state.operational_params.operational_humidity_max_p;
 
-    // --- Fire Alarm Logic ---
-    bool current_temp_out_of_range = (local_room_temp_c < op_temp_min) || (local_room_temp_c > op_temp_max);
-    bool current_hum_out_of_range = (local_room_humidity_p < op_hum_min) || (local_room_humidity_p > op_hum_max);
-
-    // Update shared alarm state variables inside mutex
-    if (xSemaphoreTake(sys_mgr_state_mutex, portMAX_DELAY) == pdTRUE) {
-        // Temperature Alarm Check
-        if (current_temp_out_of_range && (sys_mgr_state.heater_is_working || sys_mgr_state.fan_any_active || sys_mgr_state.ventilator_is_working)) {
-            if (!sys_mgr_state.temp_alarm_condition_active) {
-                sys_mgr_state.temp_alarm_condition_active = true;
-                sys_mgr_state.temp_alarm_start_time_ms = current_time_ms;
-                LOGW(TAG, "Temp alarm condition started (%.2fC out of range). Actuator working.", local_room_temp_c);
-            } else if ((current_time_ms - sys_mgr_state.temp_alarm_start_time_ms) >= FIRE_ALARM_DELAY_MS) {
-                if (!sys_mgr_state.fire_alarm_triggered) {
-                    sys_mgr_state.fire_alarm_triggered = true;
-                    LOGE(TAG, "FIRE ALARM! Temp (%.2fC) critical for >2 min! Actuator(s) working: Heater(%s) Fan(%s) Vent(%s)",
-                             local_room_temp_c, sys_mgr_state.heater_is_working?"ON":"OFF", sys_mgr_state.fan_any_active?"ON":"OFF", sys_mgr_state.ventilator_is_working?"ON":"OFF");
-                    LIGHT_INDICATION_On(LIGHT_INDICATION_ERROR);
-                }
-            }
-        } else {
-            if (sys_mgr_state.temp_alarm_condition_active) {
-                LOGI(TAG, "Temp alarm condition cleared. (%.2fC in range or no actuator working).", local_room_temp_c);
-            }
-            sys_mgr_state.temp_alarm_condition_active = false;
-            sys_mgr_state.temp_alarm_start_time_ms = 0;
-        }
-
-        // Humidity Alarm Check
-        if (current_hum_out_of_range && (sys_mgr_state.pump_is_working || sys_mgr_state.ventilator_is_working)) {
-            if (!sys_mgr_state.hum_alarm_condition_active) {
-                sys_mgr_state.hum_alarm_condition_active = true;
-                sys_mgr_state.hum_alarm_start_time_ms = current_time_ms;
-                LOGW(TAG, "Hum alarm condition started (%.2f%% out of range). Actuator working.", local_room_humidity_p);
-            } else if ((current_time_ms - sys_mgr_state.hum_alarm_start_time_ms) >= FIRE_ALARM_DELAY_MS) {
-                if (!sys_mgr_state.fire_alarm_triggered) {
-                    sys_mgr_state.fire_alarm_triggered = true;
-                    LOGE(TAG, "FIRE ALARM! Humidity (%.2f%%) critical for >2 min! Actuator(s) working: Pump(%s) Vent(%s)",
-                             local_room_humidity_p, sys_mgr_state.pump_is_working?"ON":"OFF", sys_mgr_state.ventilator_is_working?"ON":"OFF");
-                    LIGHT_INDICATION_On(LIGHT_INDICATION_ERROR);
-                }
-            }
-        } else {
-            if (sys_mgr_state.hum_alarm_condition_active) {
-                LOGI(TAG, "Hum alarm condition cleared. (%.2f%% in range or no actuator working).", local_room_humidity_p);
-            }
-            sys_mgr_state.hum_alarm_condition_active = false;
-            sys_mgr_state.hum_alarm_start_time_ms = 0;
-        }
-
-        // If both alarm conditions clear, and previously triggered, clear the main alarm LED
-        if (!sys_mgr_state.temp_alarm_condition_active && !sys_mgr_state.hum_alarm_condition_active && sys_mgr_state.fire_alarm_triggered) {
-            sys_mgr_state.fire_alarm_triggered = false;
-            LIGHT_INDICATION_Off(LIGHT_INDICATION_ERROR);
-            LOGI(TAG, "Fire Alarm cleared.");
-        }
-        // Re-fetch current alarm status for display
-        local_fire_alarm_triggered = sys_mgr_state.fire_alarm_triggered;
-        xSemaphoreGive(sys_mgr_state_mutex);
-    } else {
-        LOGE(TAG, "UpdateDisplayAndAlarm failed to acquire mutex for alarm update!");
+    if (humidity_p > max_humidity)
+    {
+        RTE_Service_PUMP_SetState(PUMP_ID_DEHUMIDIFIER, true);
+        RTE_Service_VENTILATOR_SetState(VENTILATOR_ID_ROOM, true);
+        sys_mgr_state.actuator_states.pump_is_on = true;
+        sys_mgr_state.actuator_states.ventilator_is_on = true;
+    }
+    else if (humidity_p < min_humidity)
+    {
+        RTE_Service_PUMP_SetState(PUMP_ID_DEHUMIDIFIER, false);
+        RTE_Service_VENTILATOR_SetState(VENTILATOR_ID_ROOM, false);
+        sys_mgr_state.actuator_states.pump_is_on = false;
+        sys_mgr_state.actuator_states.ventilator_is_on = false;
+    }
+    else
+    {
+        RTE_Service_PUMP_SetState(PUMP_ID_DEHUMIDIFIER, false);
+        RTE_Service_VENTILATOR_SetState(VENTILATOR_ID_ROOM, false);
+        sys_mgr_state.actuator_states.pump_is_on = false;
+        sys_mgr_state.actuator_states.ventilator_is_on = false;
     }
 
+    // Light Control (placeholder for automatic logic)
+    // For now, we will just turn it off in automatic mode.
+    RTE_Service_LIGHT_SetState(LIGHT_ID_ROOM, false);
+    sys_mgr_state.actuator_states.light_is_on = false;
+}
 
-    // --- Display Temperature and Humidity on Character Screen ---
-    char display_buffer[32]; // Max 16 chars per line for typical 16x2 LCD
-    CHARACTER_DISPLAY_Clear(CHARACTER_DISPLAY_MAIN_STATUS);
-    
-    // Line 1: Temperature
-    snprintf(display_buffer, sizeof(display_buffer), "Temp:%.1fC", local_room_temp_c);
-    CHARACTER_DISPLAY_PrintString(CHARACTER_DISPLAY_MAIN_STATUS, display_buffer);
-    CHARACTER_DISPLAY_SetCursor(CHARACTER_DISPLAY_MAIN_STATUS, 0, 1); // Move to second line
-    snprintf(display_buffer, sizeof(display_buffer), " Hum:%.1f%%", local_room_humidity_p);
-    CHARACTER_DISPLAY_PrintString(CHARACTER_DISPLAY_MAIN_STATUS, display_buffer);
+static void SYS_MGR_ApplyFailSafeControl(void)
+{
+    LOGW("SystemMgr", "Applying fail-safe control logic.");
+    RTE_Service_HEATER_SetState(HEATER_ID_ROOM, false);
+    RTE_Service_FAN_SetSpeed(FAN_ID_ROOM, 100);
+    RTE_Service_PUMP_SetState(PUMP_ID_DEHUMIDIFIER, true);
+    RTE_Service_VENTILATOR_SetState(VENTILATOR_ID_ROOM, true);
+    RTE_Service_LIGHT_SetState(LIGHT_ID_ROOM, true);
+    RTE_Service_LIGHT_INDICATION_On(LIGHT_INDICATION_ID_CRITICAL_ALARM);
 
-    // Update Alarm Panel display with System Status (Alarm, Actuators)
-    CHARACTER_DISPLAY_Clear(CHARACTER_DISPLAY_ALARM_PANEL);
-    
-    // Line 1: Alarm Status
-    if (local_fire_alarm_triggered) {
-        CHARACTER_DISPLAY_PrintString(CHARACTER_DISPLAY_ALARM_PANEL, "!!! FIRE ALARM !!!");
-    } else {
-        CHARACTER_DISPLAY_PrintString(CHARACTER_DISPLAY_ALARM_PANEL, "STATUS: NORMAL");
+    // Update internal state to reflect fail-safe actions
+    sys_mgr_state.actuator_states.heater_is_on = false;
+    sys_mgr_state.actuator_states.fan_speed_percent = 100;
+    sys_mgr_state.actuator_states.pump_is_on = true;
+    sys_mgr_state.actuator_states.ventilator_is_on = true;
+    sys_mgr_state.actuator_states.light_is_on = true;
+}
+
+static void SYS_MGR_UpdateDisplayAndAlarm(void)
+{
+    char temp_str[16], humidity_str[16];
+
+    snprintf(temp_str, sizeof(temp_str), "Temp: %.1f C", sys_mgr_state.current_room_temp_c);
+    snprintf(humidity_str, sizeof(humidity_str), "Humidity: %.1f %%", sys_mgr_state.current_room_humidity_p);
+
+    RTE_Service_DISPLAY_UpdateLine(0, temp_str);
+    RTE_Service_DISPLAY_UpdateLine(1, humidity_str);
+
+    if (sys_mgr_state.critical_alarm_active)
+    {
+        RTE_Service_LIGHT_INDICATION_On(LIGHT_INDICATION_ID_CRITICAL_ALARM);
     }
-
-    // Line 2: Actuator Status (Heater/Fan/Pump/Vent)
-    CHARACTER_DISPLAY_SetCursor(CHARACTER_DISPLAY_ALARM_PANEL, 0, 1);
-    char actuator_status[17]; // 16 chars + null
-    snprintf(actuator_status, sizeof(actuator_status), "H%s F%s P%s V%s",
-             local_heater_is_working ? "ON" : "OF",
-             local_fan_any_active ? "ON" : "OF", // Displaying "OF" for "OFF" to fit
-             local_pump_is_working ? "ON" : "OF",
-             local_ventilator_is_working ? "ON" : "OF");
-    CHARACTER_DISPLAY_PrintString(CHARACTER_DISPLAY_ALARM_PANEL, actuator_status);
-
-    LOGD(TAG, "SYS_MGR Display/Alarm Logic complete.");
+    else
+    {
+        RTE_Service_LIGHT_INDICATION_Off(LIGHT_INDICATION_ID_CRITICAL_ALARM);
+    }
 }
