@@ -1,2 +1,2 @@
-# SmartF_Demo
-Layered Architecture + FreeRtos
+# SCP
+Smart Control Platform 
