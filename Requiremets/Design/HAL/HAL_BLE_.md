@@ -1,263 +1,332 @@
-# **Detailed Design Document: HAL_BLE Component**
+# **Detailed Design Document: HAL_Bluetooth Component**
 
 ## **1. Introduction**
 
 ### **1.1. Purpose**
 
-This document details the design of the HAL_BLE component, which provides a hardware abstraction layer for Bluetooth Low Energy (BLE) functionalities. Its primary purpose is to offer a standardized, microcontroller-independent interface for managing BLE advertising, connections, GATT services, and characteristic operations, abstracting the complexities of the underlying Bluetooth stack and specific MCU details from the ComM module in the Service Layer.
+This document details the design of the HAL_Bluetooth component. Its primary purpose is to provide a **hardware abstraction layer for Bluetooth Low Energy (BLE) functionalities**, specifically managing the BLE stack (GAP, GATT), advertising, connections, and characteristic read/write/notify operations. It abstracts the complexities of the native Bluetooth SDK/drivers from the higher ComM service layer. This fulfills requirements like SRS-05-02-01 (BLE 4.0 or higher) and SRS-05-02-02 (expose GATT-based services to ComM).
 
 ### **1.2. Scope**
 
-The scope of this document covers the HAL_BLE module's architecture, functional behavior, interfaces, dependencies, and resource considerations. It details how the HAL layer interacts with the native Bluetooth stack (which might be part of the MCAL or a vendor-provided SDK).
+The scope of this document covers the HAL_Bluetooth module's architecture, functional behavior, interfaces, dependencies, and resource considerations. It details how HAL_Bluetooth interacts with the underlying native Bluetooth drivers (often part of the MCAL or a vendor SDK) and provides an interface for the ComM module to manage BLE connections and exchange data.
 
 ### **1.3. References**
 
-* Software Architecture Document (SAD) - Smart Device Firmware (Final Version)  
+* Software Architecture Document (SAD) - Environmental Monitoring & Control System (Final Version)  
+* System Requirements Specification (SyRS) - Environmental Monitoring & Control System (Updated)  
+* Software Requirements Specification (SRS) - Environmental Monitoring & Control System (Updated)  
+* Detailed Design Document: RTE  
+* Detailed Design Document: ComM  
+* Detailed Design Document: SystemMonitor  
+* Detailed Design Document: SECURITY  
 * Bluetooth Core Specification (BLE portions)  
-* MCU Bluetooth Stack Documentation (e.g., ESP-IDF Bluetooth APIs)
+* Native Bluetooth SDK Documentation (e.g., ESP-IDF Bluetooth APIs)
 
 ## **2. Functional Description**
 
-The HAL_BLE component provides the following core functionalities:
+The HAL_Bluetooth component provides the following core functionalities:
 
-1. **BLE Stack Initialization**: Initialize the native Bluetooth Low Energy stack, including controller and host layers, GAP, and GATT.  
-2. **GAP (Generic Access Profile) Management**: Start/stop BLE advertising, manage connection parameters, and handle pairing/bonding.  
-3. **GATT (Generic Attribute Profile) Server**: Define and register custom GATT services and characteristics. Handle read/write requests from clients and send notifications/indications.  
-4. **Data Transmission**: Send data to connected BLE clients via GATT notifications or indications.  
-5. **Data Reception**: Receive data from connected BLE clients via GATT write requests.  
-6. **Event Handling**: Provide a mechanism to register callbacks for key BLE events (e.g., connection established/lost, characteristic write, pairing complete).  
-7. **Error Reporting**: Report any failures during BLE operations (e.g., stack initialization failure, advertising failure, connection error, GATT operation error) to the SystemMonitor via RTE_Service_SystemMonitor_ReportFault().
+1. **Initialization (HAL_BLUETOOTH_Init)**: Initialize the native Bluetooth stack (controller, host, GAP, GATT server) and configure basic BLE parameters (e.g., device name, advertising parameters).  
+2. **GATT Service/Characteristic Management**: Define and register custom GATT services and characteristics as required by the application (e.g., for sensor data, actuator control, configuration, OTA).  
+3. **Advertising Control (HAL_BLUETOOTH_StartAdvertising, HAL_BLUETOOTH_StopAdvertising)**: Start and stop BLE advertising to allow other devices to discover and connect to the smart device.  
+4. **Connection Management**: Handle BLE connection events (connection established, disconnected) and manage multiple connections if supported.  
+5. **Data Transmission (HAL_BLUETOOTH_SendNotification, HAL_BLUETOOTH_SendIndication)**: Send data to connected BLE clients via GATT notifications or indications.  
+6. **Data Reception (Callbacks)**: Process incoming GATT write requests from connected clients. This typically involves a callback mechanism where the native Bluetooth stack invokes a HAL_Bluetooth internal function, which then processes the data and potentially passes it to ComM.  
+7. **Connection State Reporting**: Report changes in connection status to ComM.  
+8. **Error Reporting**: Detect and report any failures during Bluetooth operations (e.g., stack initialization failure, advertising error, connection error, GATT operation failure) to the SystemMonitor via RTE_Service_SystemMonitor_ReportFault().
 
 ## **3. Non-Functional Requirements**
 
 ### **3.1. Performance**
 
-* **Connection Speed**: Establish BLE connections quickly.  
-* **Throughput**: Support data transfer rates adequate for system status updates and configuration.  
-* **Responsiveness**: Respond to BLE client requests within acceptable latency.
+* **Latency**: BLE advertising and connection establishment shall be responsive. Data exchange (notifications/indications) should have minimal latency.  
+* **Throughput**: Capable of handling the expected data rates for sensor data updates and OTA firmware transfer over BLE.
 
 ### **3.2. Memory**
 
-* **Minimal Footprint**: The HAL_BLE code and data shall have a minimal memory footprint, considering the embedded constraints.  
-* **Buffer Management**: Efficiently manage internal buffers for advertising data, GATT operations, and received/transmitted data.
+* **Minimal Footprint**: The HAL_Bluetooth code and data shall have a minimal memory footprint, considering the BLE stack's own memory requirements.  
+* **Buffer Management**: Efficient use of transmit/receive buffers for GATT operations.
 
 ### **3.3. Reliability**
 
-* **Robustness**: The module shall handle BLE stack errors, connection drops, and invalid GATT operations gracefully.  
-* **Fault Isolation**: Failures in BLE communication should be isolated and reported without crashing the system.  
-* **Security**: Support BLE pairing and encryption as per security requirements (SRS-07-01-01).
+* **Robustness**: The module shall be robust against connection drops, invalid GATT operations, or native stack errors, preventing system crashes.  
+* **Connection Stability**: Maintain stable BLE connections under various environmental conditions.  
+* **Protocol Conformance**: Strictly adhere to BLE 4.0 (or higher) specification for GAP and GATT.
 
 ## **4. Architectural Context**
 
-As per the SAD (Section 3.1.2, HAL Layer), HAL_BLE resides in the Hardware Abstraction Layer. It acts as an intermediary between the Service/ComM module and the native Bluetooth stack (which is often provided by the MCU vendor and might sit conceptually below MCAL or be integrated with it). HAL_BLE translates generic BLE requests from ComM into native stack API calls.
+As per the SAD (Section 3.1.2, HAL Layer), HAL_Bluetooth resides in the Hardware Abstraction Layer. It provides the low-level BLE stack management and GATT interaction for the ComM service layer. ComM will call HAL_BLUETOOTH_StartAdvertising to enable discovery, HAL_BLUETOOTH_SendNotification to send data, and will receive incoming data via callbacks registered with HAL_Bluetooth. HAL_Bluetooth interacts directly with the native Bluetooth SDK/drivers provided by the MCU vendor.
 
 ## **5. Design Details**
 
 ### **5.1. Module Structure**
 
-The HAL_BLE component will consist of the following files:
+The HAL_Bluetooth component will consist of the following files:
 
-* HAL/inc/hal_ble.h: Public header file containing function prototypes, data types, and error codes.  
-* HAL/src/hal_ble.c: Source file containing the implementation of the HAL_BLE functions.  
-* HAL/cfg/hal_ble_cfg.h: Configuration header for static BLE parameters (e.g., device name, advertising intervals, GATT service/characteristic UUIDs).
+* HAL/Bluetooth/inc/hal_bluetooth.h: Public header file containing function prototypes, data types (e.g., characteristic UUIDs), and error codes.  
+* HAL/Bluetooth/src/hal_bluetooth.c: Source file containing the implementation of BLE stack initialization, GATT server logic, and event handling.  
+* HAL/Bluetooth/cfg/hal_bluetooth_cfg.h: Configuration header for device name, advertising parameters, and GATT service/characteristic definitions.
 
 ### **5.2. Public Interface (API)**
+
+// In HAL/Bluetooth/inc/hal_bluetooth.h
 ```c
-// In HAL/inc/hal_ble.h
+#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include <stdint.h>   // For uint32_t, uint8_t  
+#include <stdbool.h>  // For bool
 
-// Enum for BLE status/error codes  
-typedef enum {  
-    HAL_BLE_OK = 0,  
-    HAL_BLE_ERROR_INIT_FAILED,  
-    HAL_BLE_ERROR_ADV_FAILED,  
-    HAL_BLE_ERROR_GATT_FAILED,  
-    HAL_BLE_ERROR_INVALID_PARAM,  
-    HAL_BLE_ERROR_NOT_CONNECTED,  
-    HAL_BLE_ERROR_SECURITY_FAILED,  
-    // Add more specific errors as needed  
-} HAL_BLE_Status_t;
+// Define common UUIDs for services and characteristics (example)  
+#define HAL_BLUETOOTH_SERVICE_UUID_ENV_MONITORING   0x181A // Example: Environmental Sensing Service  
+#define HAL_BLUETOOTH_CHAR_UUID_TEMPERATURE         0x2A6E // Example: Temperature Characteristic  
+#define HAL_BLUETOOTH_CHAR_UUID_HUMIDITY            0x2A6F // Example: Humidity Characteristic  
+#define HAL_BLUETOOTH_SERVICE_UUID_OTA              0x1234 // Custom OTA Service  
+#define HAL_BLUETOOTH_CHAR_UUID_OTA_DATA            0x5678 // Custom OTA Data Characteristic  
+#define HAL_BLUETOOTH_CHAR_UUID_CONFIG              0xABCD // Custom Config Characteristic
 
-// Enum for BLE connection state  
-typedef enum {  
-    HAL_BLE_STATE_DISCONNECTED,  
-    HAL_BLE_STATE_ADVERTISING,  
-    HAL_BLE_STATE_CONNECTED  
-} HAL_BLE_ConnectionState_t;
+// Function pointer for incoming GATT write callback (to be registered by ComM)  
+typedef void (*HAL_BLUETOOTH_RxCallback_t)(uint16_t characteristic_uuid, const uint8_t *data, uint16_t len);
 
-// Function pointer for BLE connection state changes  
-typedef void (*HAL_BLE_ConnectionStateCallback_t)(HAL_BLE_ConnectionState_t state);
-
-// Function pointer for GATT characteristic write events  
-typedef void (*HAL_BLE_CharacteristicWriteCallback_t)(uint16_t char_handle, const uint8_t *data, uint16_t len);
-
-// Function pointer for BLE pairing/security events  
-typedef void (*HAL_BLE_SecurityCallback_t)(bool success);
+// Function pointer for connection state change callback (to be registered by ComM)  
+typedef void (*HAL_BLUETOOTH_ConnectionCallback_t)(bool connected);
 
 /**  
- * @brief Initializes the HAL_BLE module and the underlying BLE stack.  
+ * @brief Initializes the HAL_Bluetooth module and the native BLE stack.  
  * This function should be called once during system initialization.  
- * @param conn_state_cb Callback for connection state changes.  
- * @param char_write_cb Callback for characteristic write events.  
- * @param security_cb Callback for security/pairing events.  
- * @return HAL_BLE_OK on success, an error code on failure.  
+ * @return APP_OK on success, APP_ERROR on failure.  
  */  
-HAL_BLE_Status_t HAL_BLE_Init(HAL_BLE_ConnectionStateCallback_t conn_state_cb,  
-                              HAL_BLE_CharacteristicWriteCallback_t char_write_cb,  
-                              HAL_BLE_SecurityCallback_t security_cb);
+APP_Status_t HAL_BLUETOOTH_Init(void);
 
 /**  
- * @brief Starts BLE advertising.  
- * @return HAL_BLE_OK on success, an error code on failure.  
+ * @brief Registers callback functions for incoming data and connection state changes.  
+ * @param rx_callback Function to call when data is received on a characteristic.  
+ * @param conn_callback Function to call when connection state changes.  
+ * @return APP_OK on success, APP_ERROR on failure.  
  */  
-HAL_BLE_Status_t HAL_BLE_StartAdvertising(void);
+APP_Status_t HAL_BLUETOOTH_RegisterCallbacks(HAL_BLUETOOTH_RxCallback_t rx_callback,  
+                                             HAL_BLUETOOTH_ConnectionCallback_t conn_callback);
+
+/**  
+ * @brief Starts BLE advertising to make the device discoverable.  
+ * @return APP_OK on success, APP_ERROR on failure.  
+ */  
+APP_Status_t HAL_BLUETOOTH_StartAdvertising(void);
 
 /**  
  * @brief Stops BLE advertising.  
- * @return HAL_BLE_OK on success, an error code on failure.  
+ * @return APP_OK on success, APP_ERROR on failure.  
  */  
-HAL_BLE_Status_t HAL_BLE_StopAdvertising(void);
+APP_Status_t HAL_BLUETOOTH_StopAdvertising(void);
 
 /**  
- * @brief Sends data to a connected BLE client via a GATT characteristic notification/indication.  
- * @param char_handle The GATT characteristic handle to send data from.  
+ * @brief Sends a GATT notification to all connected clients for a specific characteristic.  
+ * @param characteristic_uuid The UUID of the characteristic to notify.  
  * @param data Pointer to the data to send.  
  * @param len Length of the data.  
- * @return HAL_BLE_OK on success, an error code on failure.  
+ * @return APP_OK on successful transmission, APP_ERROR on failure.  
  */  
-HAL_BLE_Status_t HAL_BLE_SendData(uint16_t char_handle, const uint8_t *data, uint16_t len);
+APP_Status_t HAL_BLUETOOTH_SendNotification(uint16_t characteristic_uuid, const uint8_t *data, uint16_t len);
 
 /**  
- * @brief Disconnects the current BLE connection (if any).  
- * @return HAL_BLE_OK on success, an error code on failure.  
+ * @brief Sends a GATT indication to all connected clients for a specific characteristic.  
+ * Indications require a confirmation from the client.  
+ * @param characteristic_uuid The UUID of the characteristic to indicate.  
+ * @param data Pointer to the data to send.  
+ * @param len Length of the data.  
+ * @return APP_OK on successful transmission, APP_ERROR on failure.  
  */  
-HAL_BLE_Status_t HAL_BLE_Disconnect(void);
-```
+APP_Status_t HAL_BLUETOOTH_SendIndication(uint16_t characteristic_uuid, const uint8_t *data, uint16_t len);
 
+/**  
+ * @brief Processes internal Bluetooth stack events and manages connections.  
+ * This function should be called periodically (e.g., by ComM's main function).  
+ * It might trigger internal callbacks or update connection states.  
+ */  
+void HAL_BLUETOOTH_Process(void);
+
+/**  
+ * @brief Gets the current connection status of the Bluetooth module.  
+ * @return True if at least one client is connected, false otherwise.  
+ */  
+bool HAL_BLUETOOTH_IsConnected(void);
+```
 ### **5.3. Internal Design**
 
-The HAL_BLE module will wrap the native Bluetooth stack APIs. It will handle the registration of GATT services and characteristics, manage advertising parameters, and act as the central point for dispatching BLE events to the registered callbacks.
+The HAL_Bluetooth module will wrap the native Bluetooth SDK's APIs. It will manage the GATT server, handle various BLE events (GAP, GATT), and invoke the registered callbacks for ComM.
 
-1. **Initialization (HAL_BLE_Init)**:  
-   * Validate input callback pointers.  
-   * Store the provided callbacks internally.  
-   * Call native BLE stack initialization functions (e.g., esp_bt_controller_init(), esp_bluedroid_init(), esp_ble_gap_register_callback(), esp_ble_gatts_register_callback()).  
-   * Define and register GATT services and characteristics as per hal_ble_cfg.h. This involves calling native GATT API functions (e.g., esp_ble_gatts_create_service(), esp_ble_gatts_add_char()).  
-   * Configure GAP parameters (e.g., device name, advertising data).  
-   * If any native BLE API call fails, report HAL_BLE_ERROR_INIT_FAILED to SystemMonitor.  
-   * Implement internal native BLE event handlers (e.g., gap_event_handler, gatts_event_handler). These handlers will process raw BLE events and then call the appropriate HAL_BLE registered callbacks.  
-2. **Advertising Control (HAL_BLE_StartAdvertising, HAL_BLE_StopAdvertising)**:  
-   * Call native BLE advertising functions (e.g., esp_ble_gap_start_advertising(), esp_ble_gap_stop_advertising()).  
-   * Report HAL_BLE_ERROR_ADV_FAILED if native calls fail.  
-3. **Data Transmission (HAL_BLE_SendData)**:  
-   * Validate char_handle, data, and len.  
-   * Ensure a BLE connection is active.  
-   * Call native GATT notification/indication functions (e.g., esp_ble_gatts_send_indicate(), esp_ble_gatts_send_notify()).  
-   * Report HAL_BLE_ERROR_GATT_FAILED or HAL_BLE_ERROR_NOT_CONNECTED if native calls fail or no connection.  
-4. **Disconnect (HAL_BLE_Disconnect)**:  
-   * Call native BLE disconnect function (e.g., esp_ble_gap_disconnect()).  
-   * Report HAL_BLE_ERROR_NOT_CONNECTED if no active connection.  
-5. **Internal Event Handling**:  
-   * The HAL_BLE module will have internal static functions that act as the direct callbacks for the native BLE stack's events (e.g., esp_gap_cb, esp_gatts_cb for ESP-IDF).  
-   * These internal handlers will:  
-     * Process the native event data.  
-     * Update internal HAL_BLE state (e.g., connection status).  
-     * Translate native event data into HAL_BLE specific formats.  
-     * Call the HAL_BLE_ConnectionStateCallback_t, HAL_BLE_CharacteristicWriteCallback_t, or HAL_BLE_SecurityCallback_t registered by ComM.  
-     * Report any unexpected native errors to SystemMonitor.
+1. **Internal State Variables**:  
+   static HAL_BLUETOOTH_RxCallback_t s_rx_callback = NULL;  
+   static HAL_BLUETOOTH_ConnectionCallback_t s_conn_callback = NULL;  
+   static bool s_is_initialized = false;  
+   static bool s_is_advertising = false;  
+   static uint16_t s_connected_client_count = 0; // Number of currently connected clients  
+   // Native SDK specific handles/pointers (e.g., esp_gatt_if_t, esp_ble_adv_params_t, etc.)
 
-**Sequence Diagram (Example: BLE Client Writes to Characteristic):**
+2. **Initialization (HAL_BLUETOOTH_Init)**:  
+   * Initialize the native Bluetooth controller and host stack (e.g., esp_bt_controller_init(), esp_bluedroid_init(), esp_bluedroid_enable()).  
+   * Register GAP and GATT callbacks with the native SDK (e.g., esp_ble_gap_register_callback(hal_bluetooth_gap_event_handler), esp_ble_gatts_register_callback(hal_bluetooth_gatts_event_handler)). These hal_bluetooth_..._event_handler functions will be internal static functions in hal_bluetooth.c.  
+   * Configure and create GATT services and characteristics as defined in hal_bluetooth_cfg.h (e.g., esp_ble_gatts_create_service(), esp_ble_gatts_add_char()).  
+   * If any step fails, report FAULT_ID_HAL_BLUETOOTH_INIT_FAILURE to SystemMonitor and return APP_ERROR.  
+   * Set s_is_initialized = true;.  
+   * Log LOGI("HAL_Bluetooth: Initialized successfully.");.  
+   * Return APP_OK.  
+3. **Register Callbacks (HAL_BLUETOOTH_RegisterCallbacks)**:  
+   * Validate rx_callback and conn_callback are not NULL.  
+   * s_rx_callback = rx_callback;  
+   * s_conn_callback = conn_callback;  
+   * Return APP_OK.  
+4. **Advertising Control (HAL_BLUETOOTH_StartAdvertising, HAL_BLUETOOTH_StopAdvertising)**:  
+   * Validate s_is_initialized.  
+   * Configure advertising parameters (e.g., esp_ble_adv_params_t) and advertising data (e.g., esp_ble_adv_data_t) as defined in hal_bluetooth_cfg.h.  
+   * Call native SDK advertising start/stop functions (e.g., esp_ble_gap_start_advertising(), esp_ble_gap_stop_advertising()).  
+   * Update s_is_advertising state.  
+   * Report FAULT_ID_HAL_BLUETOOTH_ADV_FAILURE on error.  
+5. **Data Transmission (HAL_BLUETOOTH_SendNotification, HAL_BLUETOOTH_SendIndication)**:  
+   * Validate s_is_initialized, characteristic_uuid, data, len.  
+   * Check if any clients are connected (s_connected_client_count > 0). If not, log debug and return APP_OK (no one to send to).  
+   * Retrieve the GATT handle for the given characteristic_uuid.  
+   * Call native SDK functions (e.g., esp_ble_gatts_send_indicate(), esp_ble_gatts_send_notify()).  
+   * Report FAULT_ID_HAL_BLUETOOTH_TX_FAILURE on error.  
+6. **Process (HAL_BLUETOOTH_Process)**:  
+   * If !s_is_initialized, return immediately.  
+   * This function primarily serves as a periodic trigger for any internal polling or state machine updates within the native Bluetooth stack that are not purely event-driven. For many modern BLE SDKs (like ESP-IDF), most operations are asynchronous and handled by event handlers, so this function might primarily serve to ensure the stack's internal tasks are running or to check for internal timeouts.  
+   * It's crucial that native Bluetooth event handlers (e.g., hal_bluetooth_gatts_event_handler) are properly implemented to:  
+     * **Handle ESP_GATTS_WRITE_EVT**: When a client writes to a characteristic, this event handler will be triggered.  
+       * Extract characteristic_uuid, data, len.  
+       * Call s_rx_callback(characteristic_uuid, data, len) to pass data to ComM.  
+       * Handle write response if required.  
+     * **Handle ESP_GATTS_CONNECT_EVT / ESP_GATTS_DISCONNECT_EVT**:  
+       * Update s_connected_client_count.  
+       * Call s_conn_callback(true/false) to inform ComM about connection state changes.  
+     * **Handle ESP_GATTS_CREATE_EVT / ESP_GATTS_ADD_CHAR_EVT**: Store GATT handles for future use.  
+     * **Handle ESP_GAP_BLE_ADV_START_COMPLETE_EVT**: Update s_is_advertising.  
+7. **Is Connected (HAL_BLUETOOTH_IsConnected)**:  
+   * Returns s_connected_client_count > 0.
+
+**Sequence Diagram (Example: BLE Data Reception - Client Write):**
 ```mermaid
 sequenceDiagram  
     participant BLE_Client as External BLE Client  
-    participant Native_BLE_Stack as Native BLE Stack (MCU)  
-    participant HAL_BLE as HAL/BLE  
+    participant Native_BLE_Stack as Native BLE Stack (e.g., ESP-IDF)  
+    participant HAL_BLUETOOTH as HAL/Bluetooth  
     participant ComM as Service/ComM  
+    participant Security as Service/security  
     participant SystemMonitor as Application/SystemMonitor
 
-    BLE_Client->>Native_BLE_Stack: GATT Write Request (char_handle, data)  
-    Native_BLE_Stack->>HAL_BLE: Internal GATT Write Event (raw_event_data)  
-    HAL_BLE->>HAL_BLE: Process native event, validate, extract data  
-    HAL_BLE->>HAL_BLE: Call char_write_cb (registered by ComM)  
-    HAL_BLE->>ComM: HAL_BLE_CharacteristicWriteCallback_t(char_handle, data, len)  
-    ComM->>ComM: Process received data, route to Application via RTE  
-    alt Failure in HAL_BLE processing  
-        HAL_BLE->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_BLE_GATT_FAILED, SEVERITY_LOW, ...)  
-    end
+    BLE_Client->>Native_BLE_Stack: GATT Write Request (e.g., to Config Characteristic)  
+    Native_BLE_Stack->>HAL_BLUETOOTH: hal_bluetooth_gatts_event_handler(ESP_GATTS_WRITE_EVT, ...)  
+    HAL_BLUETOOTH->>HAL_BLUETOOTH: Extract characteristic_uuid, data, len  
+    HAL_BLUETOOTH->>ComM: s_rx_callback(characteristic_uuid, data, len)  
+    ComM->>ComM: Check if data is sensitive (e.g., config data)  
+    alt If sensitive data and security enabled  
+        ComM->>Security: RTE_Service_SECURITY_AuthenticateAndDecrypt(data, len, &decrypted_data, &decrypted_len)  
+        Security-->>ComM: Return APP_OK/APP_ERROR  
+        alt Authentication/Decryption fails  
+            ComM->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_COMM_SECURITY_FAILURE, ...)  
+            ComM->>ComM: Discard data, return  
+        end  
+    end  
+    ComM->>ComM: Route decrypted command to diagnostic/systemMgr via RTE  
+    ComM-->>HAL_BLUETOOTH: Return  
+    HAL_BLUETOOTH->>Native_BLE_Stack: Send GATT Write Response (if required)  
+    Native_BLE_Stack-->>BLE_Client: GATT Write Response
 ```
 ### **5.4. Dependencies**
 
-* **Native Bluetooth Stack Headers**: Specific to the MCU/SDK (e.g., esp_bt.h, esp_gap_ble_api.h, esp_gatts_api.h for ESP-IDF). These are considered part of the MCAL or an integrated vendor driver.  
-* **Application/logger/inc/logger.h**: For internal logging.  
-* **Rte/inc/Rte.h**: For calling RTE_Service_SystemMonitor_ReportFault().  
-* **Application/common/inc/app_common.h**: For APP_Status_t (though HAL_BLE_Status_t is more specific).  
-* **HAL/cfg/hal_ble_cfg.h**: For BLE advertising, GATT service/characteristic definitions, and security parameters.
+* **Native Bluetooth SDK Headers**: (e.g., esp_bt.h, esp_gap_ble_api.h, esp_gatts_api.h for ESP-IDF). These are the direct interface to the MCU's Bluetooth capabilities.  
+* Application/logger/inc/logger.h: For internal logging.  
+* Rte/inc/Rte.h: For calling RTE_Service_SystemMonitor_ReportFault().  
+* Application/common/inc/app_common.h: For APP_Status_t, APP_OK/APP_ERROR.  
+* HAL/Bluetooth/cfg/hal_bluetooth_cfg.h: For configuration parameters.  
+* Service/ComM/inc/comm.h: For ComM's callback types (though HAL_BLUETOOTH defines its own function pointer types).
 
 ### **5.5. Error Handling**
 
-* **Input Validation**: All public API functions will validate input parameters.  
-* **Native Stack Error Propagation**: Errors returned by native BLE stack APIs will be caught by HAL_BLE.  
-* **Fault Reporting**: Upon detection of an error (invalid input, native stack failure, BLE protocol error), HAL_BLE will report a specific fault ID (e.g., HAL_BLE_ERROR_INIT_FAILED, HAL_BLE_ERROR_ADV_FAILED, HAL_BLE_ERROR_GATT_FAILED, HAL_BLE_ERROR_SECURITY_FAILED) to SystemMonitor via the RTE service.  
-* **Return Status**: All public API functions will return HAL_BLE_Status_t indicating success or specific error.
+* **Native SDK Error Codes**: Errors returned by native Bluetooth SDK functions will be caught by HAL_Bluetooth.  
+* **Fault Reporting**: Upon detection of an error (e.g., stack initialization failure, advertising start failure, GATT operation error), HAL_Bluetooth will report a specific fault ID (e.g., FAULT_ID_HAL_BLUETOOTH_INIT_FAILURE, FAULT_ID_HAL_BLUETOOTH_ADV_FAILURE, FAULT_ID_HAL_BLUETOOTH_TX_FAILURE) to SystemMonitor via the RTE service.  
+* **Input Validation**: Public API functions will validate input parameters.  
+* **Return Status**: All public API functions will return APP_ERROR on failure.
 
 ### **5.6. Configuration**
 
-The HAL/cfg/hal_ble_cfg.h file will contain:
+The HAL/Bluetooth/cfg/hal_bluetooth_cfg.h file will contain:
 
-* BLE device name.  
-* Advertising parameters (interval, type).  
-* Definition of GATT services (UUIDs) and characteristics (UUIDs, properties, permissions).  
-* Security parameters (e.g., I/O capabilities for pairing, bonding requirements).
+* HAL_BLUETOOTH_DEVICE_NAME: The name advertised by the device.  
+* HAL_BLUETOOTH_ADV_INTERVAL_MS: Advertising interval.  
+* Definitions for all custom GATT services and characteristics (UUIDs, properties, permissions).  
+* HAL_BLUETOOTH_MAX_MTU_SIZE: Maximum Transmission Unit for GATT.
 ```c
-// Example: HAL/cfg/hal_ble_cfg.h  
-#define BLE_DEVICE_NAME             "SmartDevice_EnvMon"  
-#define BLE_ADV_INTERVAL_MIN_MS     100  
-#define BLE_ADV_INTERVAL_MAX_MS     200
+// Example: HAL/Bluetooth/cfg/hal_bluetooth_cfg.h  
+#ifndef HAL_BLUETOOTH_CFG_H  
+#define HAL_BLUETOOTH_CFG_H
 
-// Service and Characteristic UUIDs (example)  
-#define BLE_SVC_ENVIRONMENT_UUID    0xFF01  
-#define BLE_CHAR_TEMPERATURE_UUID   0xFF02  
-#define BLE_CHAR_HUMIDITY_UUID      0xFF03  
-#define BLE_CHAR_CONTROL_UUID       0xFF04
+#define HAL_BLUETOOTH_DEVICE_NAME           "SmartEnvMonitor"  
+#define HAL_BLUETOOTH_ADV_INTERVAL_MS       1000 // 1 second advertising interval
 
-// Security settings  
-#define BLE_SECURITY_IO_CAP         BLE_IO_CAP_NO_INPUT_NO_OUTPUT // Example: Just Works pairing  
-#define BLE_SECURITY_BONDING_REQ    true
+// --- GATT Service and Characteristic Definitions ---  
+// Define your custom services and characteristics here.  
+// These are examples and would need to be properly defined with UUIDs and properties.  
+// The actual GATT table setup would be done in hal_bluetooth.c using native SDK calls.
+
+// Service UUIDs  
+#define HAL_BLUETOOTH_SERVICE_UUID_ENV_MONITORING   0x181A // Standard BLE Environmental Sensing Service  
+#define HAL_BLUETOOTH_SERVICE_UUID_CONTROL          0xA001 // Custom Control Service  
+#define HAL_BLUETOOTH_SERVICE_UUID_OTA              0xA002 // Custom OTA Service
+
+// Characteristic UUIDs for Environmental Monitoring Service  
+#define HAL_BLUETOOTH_CHAR_UUID_TEMPERATURE         0x2A6E // Standard Temperature Characteristic  
+#define HAL_BLUETOOTH_CHAR_UUID_HUMIDITY            0x2A6F // Standard Humidity Characteristic
+
+// Characteristic UUIDs for Control Service  
+#define HAL_BLUETOOTH_CHAR_UUID_FAN_SPEED_SET       0xB001 // Write: Set fan speed  
+#define HAL_BLUETOOTH_CHAR_UUID_HEATER_STATE_SET    0xB002 // Write: Set heater state  
+#define HAL_BLUETOOTH_CHAR_UUID_SYSTEM_MODE_SET     0xB003 // Write: Set system mode (Auto/Manual/Hybrid)
+
+// Characteristic UUIDs for OTA Service  
+#define HAL_BLUETOOTH_CHAR_UUID_OTA_CONTROL         0xC001 // Write: Start/Stop OTA, Get status  
+#define HAL_BLUETOOTH_CHAR_UUID_OTA_DATA            0xC002 // Write: OTA firmware data chunks
+
+// Max MTU size for GATT (adjust based on platform capabilities and performance needs)  
+#define HAL_BLUETOOTH_MAX_MTU_SIZE          256 // Example: 256 bytes
+
+#endif // HAL_BLUETOOTH_CFG_H
 ```
 ### **5.7. Resource Usage**
 
-* **Flash**: Moderate to high, depending on the complexity of the BLE stack and GATT profile.  
-* **RAM**: Moderate to high, as the BLE stack often requires significant RAM for buffers, connection contexts, and internal state.  
-* **CPU**: Moderate, especially during connection establishment, data transfer, and security operations.
+* **Flash**: High, as it includes the BLE stack code (controller and host).  
+* **RAM**: High, due to the BLE stack's internal buffers, connection contexts, and GATT database.  
+* **CPU**: Moderate to High, depending on the activity (advertising, active connections, data transfer rates). Hardware acceleration for crypto (if used by BLE stack) can reduce CPU load.
 
 ## **6. Test Considerations**
 
 ### **6.1. Unit Testing**
 
-* **Mock Native BLE Stack**: Unit tests for HAL_BLE will mock the native BLE stack APIs to isolate HAL_BLE's logic.  
+* **Mock Native Bluetooth SDK**: Unit tests for HAL_Bluetooth will heavily mock the native Bluetooth SDK APIs to isolate HAL_Bluetooth's logic. This includes mocking esp_bt_controller_init(), esp_ble_gap_register_callback(), esp_ble_gatts_create_service(), esp_ble_gap_start_advertising(), esp_ble_gatts_send_notify(), and simulating incoming events via the registered internal event handlers.  
 * **Test Cases**:  
-  * HAL_BLE_Init: Test valid/invalid callback registrations. Verify native stack initialization calls and GATT service/characteristic registration. Test error propagation.  
-  * HAL_BLE_StartAdvertising/StopAdvertising: Verify native advertising calls.  
-  * HAL_BLE_SendData: Test valid/invalid characteristic handles, data. Verify native send calls. Test behavior when not connected.  
-  * HAL_BLE_Disconnect: Verify native disconnect calls.  
-  * Internal Event Handlers: Simulate native BLE events (e.g., connection, disconnection, write request) and verify that the correct HAL_BLE callbacks are invoked with the correct data.  
-  * Security: Test simulated pairing success/failure and verify HAL_BLE_SecurityCallback_t is called.  
+  * HAL_BLUETOOTH_Init: Test successful initialization and mocked native SDK failures (verify APP_ERROR and fault reporting).  
+  * HAL_BLUETOOTH_RegisterCallbacks: Test valid/invalid callbacks.  
+  * HAL_BLUETOOTH_StartAdvertising/StopAdvertising: Test starting/stopping advertising. Verify native SDK calls. Test mocked failures.  
+  * HAL_BLUETOOTH_SendNotification/SendIndication: Test sending data with valid/invalid UUIDs, data, and lengths. Test when no clients are connected. Test mocked native SDK failures.  
+  * HAL_BLUETOOTH_Process: Verify it runs without issues. (Primary testing for this module is via event handlers).  
+  * **Event Handling (simulated)**:  
+    * Simulate ESP_GATTS_CONNECT_EVT/DISCONNECT_EVT: Verify s_connected_client_count updates and s_conn_callback is called correctly.  
+    * Simulate ESP_GATTS_WRITE_EVT: Verify s_rx_callback is called with correct characteristic UUID, data, and length.  
+    * Simulate ESP_GATTS_READ_EVT: Verify correct response is prepared (if HAL_Bluetooth handles read requests directly).  
   * Error reporting: Verify that RTE_Service_SystemMonitor_ReportFault() is called with the correct fault ID on various error conditions.
 
 ### **6.2. Integration Testing**
 
-* **HAL-Native Stack Integration**: Verify that HAL_BLE correctly interfaces with the actual native Bluetooth stack.  
-* **BLE Client Interaction**: Use a generic BLE client app (e.g., nRF Connect, LightBlue) or a custom test script to:  
-  * Discover the device and its services/characteristics.  
-  * Connect/disconnect.  
-  * Read/write characteristics.  
-  * Enable/disable notifications/indications and verify data reception.  
-  * Test pairing and bonding procedures.  
-* **Stress Testing**: Test rapid connection/disconnection, high-frequency data transfer, and long-term stability.  
-* **Fault Reporting**: Trigger native BLE stack errors (e.g., by disabling Bluetooth on the MCU, or causing resource exhaustion) and verify that HAL_BLE reports faults to SystemMonitor.
+* **HAL-Native SDK Integration**: Verify that HAL_Bluetooth correctly interfaces with the actual native Bluetooth SDK on the target hardware.  
+* **Device Discovery**: Use a mobile phone or another BLE device to discover the SmartEnvMonitor device.  
+* **Connection/Disconnection**: Establish and break BLE connections. Verify connection callbacks are triggered.  
+* **GATT Service/Characteristic Access**: Use a BLE client app to browse GATT services, read characteristics (if readable), write to characteristics (e.g., config), and subscribe to notifications/indications (e.g., sensor data).  
+* **Data Exchange**: Send sensor data notifications from the device and verify reception on the client. Send commands from the client and verify they are received by ComM via HAL_Bluetooth.  
+* **OTA Data Transfer**: If OTA is integrated, test transferring firmware chunks over BLE.  
+* **Security (Pairing/Encryption)**: Test BLE pairing and encrypted communication if enabled by the underlying stack and SECURITY module.  
+* **Error Injection**: Introduce BLE communication errors (e.g., move out of range, interfere with radio) and verify HAL_Bluetooth reports faults to SystemMonitor.
 
 ### **6.3. System Testing**
 
-* **End-to-End Communication**: Verify that the entire BLE communication path (e.g., mobile app -> HAL_BLE -> ComM -> systemMgr and back) functions correctly.  
-* **Security Compliance**: Verify that BLE pairing and encryption work as specified in the security requirements.  
-* **Coexistence**: If other wireless protocols (Wi-Fi) are active, verify that BLE performance is not significantly degraded.  
-* **Power Modes**: Ensure BLE behaves correctly during power mode transitions (e.g., low-power advertising, quick wake-up on connection).
+* **End-to-End BLE Communication**: Verify that the entire BLE communication path (from external client through ComM and HAL_Bluetooth to application logic) functions correctly for monitoring, control, and OTA.  
+* **Concurrent Operations**: Test BLE communication while other system functions (e.g., sensor reading, actuator control, Modbus communication) are active.  
+* **Stress Testing**: Maintain multiple simultaneous BLE connections (if supported) and high data rates for extended periods to ensure stability.  
+* **Power Modes**: Ensure BLE behaves correctly during power mode transitions (e.g., advertising/connection in low-power modes).

@@ -1,274 +1,317 @@
-# **Detailed Design Document: DiagnosticMgr Component**
+# **Detailed Design Document: Diag (Diagnostic) Component**
 
 ## **1. Introduction**
 
 ### **1.1. Purpose**
 
-This document details the design of the DiagnosticMgr component. Its primary purpose is to provide the **external interface for system diagnostics and maintenance**. It is responsible for retrieving fault information from SystemMonitor, exposing it to external interfaces (BLE, Wi-Fi, Modbus), handling external configuration commands, initiating OTA updates, running specific test cases, and managing system reboots. It includes logic for parsing incoming commands.
+This document details the design of the Diag component. Its primary purpose is to provide the **external interface for system diagnostics and maintenance**. It is responsible for retrieving fault information from SystemMonitor, exposing it to external interfaces (Bluetooth, Wi-Fi, Modbus), handling external configuration commands, initiating OTA updates, running specific test cases, and managing system reboots. It includes logic for parsing incoming commands.
 
 ### **1.2. Scope**
 
-The scope of this document covers the diagnostic module's architecture, functional behavior, interfaces, dependencies, and resource considerations. It details how diagnostic interacts with SystemMonitor, systemMgr, Service/ComM, and Service/OTA via RTE services to provide comprehensive diagnostic capabilities.
+The scope of this document covers the Diag module's architecture, functional behavior, interfaces, dependencies, and resource considerations. It details how Diag interacts with SystemMonitor for fault data, systemMgr for configuration and control, and ComM for external communication.
 
 ### **1.3. References**
 
-* Software Architecture Document (SAD) - Smart Device Firmware (Final Version)  
+* Software Architecture Document (SAD) - Environmental Monitoring & Control System (Final Version)  
 * Detailed Design Document: RTE  
-* Detailed Design Document: Application/SystemMonitor  
-* Detailed Design Document: Application/systemMgr  
-* Detailed Design Document: Service_ComM  
-* Detailed Design Document: Service_OTA
+* Detailed Design Document: SystemMonitor  
+* Detailed Design Document: systemMgr  
+* Detailed Design Document: ComM  
+* Detailed Design Document: OTA (conceptual, as it's a Service Layer module)  
+* Detailed Design Document: Power (conceptual, as it's an Application Layer module)
 
 ## **2. Functional Description**
 
-The DiagnosticMgr component provides the following core functionalities:
+The Diag component provides the following core functionalities:
 
-1. **Initialization**: Initialize internal command handlers and prepare for diagnostic operations.  
-2. **Command Parsing**: Parses incoming diagnostic and configuration commands received from the communication stack.  
-3. **Fault Retrieval and Reporting**: Queries SystemMonitor for active and historical faults and formats this information for external reporting via communication interfaces.  
-4. **Configuration Management Interface**: Provides the interface for external entities to set system configurations (e.g., operational temperature ranges, schedules).  
-5. **OTA Update Initiation**: Receives commands to initiate Over-the-Air (OTA) firmware updates, after checking power readiness with systemMgr.  
-6. **Self-Test Execution**: Receives commands to run specific diagnostic test cases to verify system functionality (e.g., "test fan motor," "check sensor calibration").  
-7. **System Reboot/Bank Selection**: Receives commands to trigger a system reboot, potentially to a specific firmware bank (e.g., factory bank for recovery).  
-8. **Response Generation**: Formats and sends appropriate responses back to the external diagnostic tool via the communication stack.  
-9. **Logging**: Logs all diagnostic activities and command processing using the logger module.
+1. **Initialization (Diag_Init)**: Initialize internal data structures, command handlers, and prepare for receiving diagnostic requests.  
+2. **Process Incoming Commands (DIAG_ProcessCommand)**: This is the central function for handling diagnostic and configuration commands received from external interfaces (via ComM). It parses the command, validates it, and dispatches it to the appropriate internal handler function.  
+3. **Fault Retrieval and Reporting**: Query SystemMonitor for active and historical faults and format this information for external reporting via ComM.  
+4. **Configuration Management Interface**: Act as the gateway for external entities to set system configurations (e.g., operational temperature ranges, schedules). These commands are then routed to systemMgr via RTE services.  
+5. **OTA Update Initiation**: Receive commands to initiate Over-the-Air (OTA) firmware updates. It will check power readiness with systemMgr (which queries power module) before initiating the OTA service.  
+6. **Self-Test Execution**: Receive commands to run specific diagnostic test cases to verify system functionality (e.g., "test fan motor," "check sensor calibration"). These tests might involve calling other application modules via RTE services.  
+7. **System Reboot/Bank Selection**: Receive commands to trigger a system reboot, potentially to a specific firmware bank (e.g., factory bank for recovery).  
+8. **Response Generation**: Generate appropriate responses to incoming commands, indicating success, failure, or returning requested data.
 
 ## **3. Non-Functional Requirements**
 
 ### **3.1. Performance**
 
-* **Responsiveness**: Respond to diagnostic queries and commands within acceptable latency.  
-* **Efficiency**: Command parsing and response generation should be efficient.
+* **Responsiveness**: Command processing shall be highly responsive, with minimal latency for critical diagnostic operations.  
+* **Throughput**: Capable of handling a reasonable rate of incoming diagnostic commands without degrading system performance.
 
 ### **3.2. Memory**
 
-* **Minimal Footprint**: The diagnostic module shall have a minimal memory footprint.  
-* **Buffer Management**: Efficiently manage buffers for incoming commands and outgoing responses.
+* **Minimal Footprint**: The Diag module shall have a minimal memory footprint for its internal command tables and temporary data buffers.  
+* **Command Buffer**: Sufficient buffer space for parsing incoming commands.
 
 ### **3.3. Reliability**
 
-* **Robustness**: The module must be robust against malformed commands or communication errors.  
-* **Security**: Ensure that diagnostic commands (especially those affecting system state or initiating updates) are properly authenticated and authorized (e.g., via Service_Security or Service_ComM's secure channels). This design assumes Service_Security handles underlying authentication.  
-* **Safety**: Prevent unintended system behavior from diagnostic commands.
+* **Robustness**: The module shall be robust against malformed commands or unexpected data, preventing crashes or unintended behavior.  
+* **Security**: Must enforce security measures (e.g., authentication, authorization) for sensitive commands (covered by Security module and ComM integration).  
+* **Fail-Safe Integration**: Must ensure that commands related to system state changes (e.g., reboot, OTA) are handled safely, especially considering power constraints.
 
 ## **4. Architectural Context**
 
-As per the SAD (Section 3.1.2, Application Layer), diagnostic resides in the Application Layer. It is the external interface for diagnostics. It receives commands from Service/ComM (via COMMUNICATION_STACK_MainTask and an RTE service). It queries SystemMonitor for fault status, commands systemMgr for configuration changes or fail-safe modes, and initiates Service/OTA updates, all via RTE services.
+As per the SAD (Section 3.1.2, Application Layer), Diag resides in the Application Layer. It acts as the external diagnostics interface, interacting with SystemMonitor for fault data, systemMgr for configuration and control, and ComM for communication. It does not run its own periodic task but is invoked by ComM (via RTE) when a diagnostic command is received.
 
 ## **5. Design Details**
 
 ### **5.1. Module Structure**
 
-The DiagnosticMgr component will consist of the following files:
+The Diag component will consist of the following files:
 
-* DiagnosticMgr/inc/diagnostic.h: Public header file containing function prototypes, command ID definitions, and response structure definitions.  
-* DiagnosticMgr/src/diagnostic.c: Source file containing the implementation of command parsing, handling, and response generation.  
-* DiagnosticMgr/cfg/diagnostic_cfg.h: Configuration header for command definitions, self-test mappings, and response formats.
+* Application/diagnostic/inc/diagnostic.h: Public header file containing function prototypes, data types for commands, and responses.  
+* Application/diagnostic/src/diagnostic.c: Source file containing the implementation of Diag functions, command parsing, and dispatch logic.  
+* Application/diagnostic/cfg/diagnostic_cfg.h: Configuration header for supported commands, test cases, and related parameters.
 
 ### **5.2. Public Interface (API)**
 
-// In DiagnosticMgr/inc/diagnostic.h
+// In Application/diagnostic/inc/diagnostic.h
 ```c
 #include "Application/common/inc/app_common.h" // For APP_Status_t  
-#include "Application/SystemMonitor/inc/system_monitor.h" // For SystemMonitor_Fault_t
+#include <stdint.h>   // For uint32_t, uint8_t  
+#include <stdbool.h>  // For bool
 
 // --- Diagnostic Command IDs ---  
 typedef enum {  
-    DIAG_CMD_GET_STATUS = 0x01,  
-    DIAG_CMD_GET_FAULTS = 0x02,  
-    DIAG_CMD_CLEAR_FAULTS = 0x03,  
-    DIAG_CMD_SET_TEMP_RANGE = 0x10,  
-    DIAG_CMD_ACTIVATE_FAIL_SAFE = 0x20,  
-    DIAG_CMD_INITIATE_OTA = 0x30,  
-    DIAG_CMD_RUN_SELF_TEST = 0x40,  
-    DIAG_CMD_REBOOT = 0x50,  
+    DIAG_CMD_GET_FAULT_STATUS = 0x01,  
+    DIAG_CMD_CLEAR_FAULT_HISTORY = 0x02,  
+    DIAG_CMD_SET_OP_TEMP_RANGE = 0x03,  
+    DIAG_CMD_INITIATE_OTA = 0x04,  
+    DIAG_CMD_RUN_SELF_TEST = 0x05,  
+    DIAG_CMD_REBOOT_SYSTEM = 0x06,  
+    DIAG_CMD_GET_SYSTEM_INFO = 0x07,  
     // Add more commands as needed  
-} Diagnostic_CommandId_t;
+    DIAG_CMD_MAX_ID  
+} Diag_CommandId_t;
 
 // --- Diagnostic Response Codes ---  
 typedef enum {  
     DIAG_RESP_OK = 0x00,  
     DIAG_RESP_INVALID_COMMAND = 0x01,  
     DIAG_RESP_INVALID_PARAM = 0x02,  
-    DIAG_RESP_OPERATION_FAILED = 0x03,  
-    DIAG_RESP_NOT_AUTHORIZED = 0x04,  
-    DIAG_RESP_OTA_POWER_LOW = 0x05, // Specific for OTA  
-    // Add more as needed  
-} Diagnostic_ResponseCode_t;
+    DIAG_RESP_NOT_ALLOWED_IN_MODE = 0x03,  
+    DIAG_RESP_POWER_INSUFFICIENT = 0x04,  
+    DIAG_RESP_INTERNAL_ERROR = 0x05,  
+    // Add more response codes  
+} Diag_ResponseCode_t;
 
-// --- Public Functions ---
+// Structure for a generic diagnostic command  
+typedef struct {  
+    Diag_CommandId_t command_id;  
+    uint8_t          payload_len;  
+    uint8_t          payload[DIAG_MAX_COMMAND_PAYLOAD_SIZE]; // Max size defined in config  
+} Diag_Command_t;
+
+// Structure for a generic diagnostic response  
+typedef struct {  
+    Diag_CommandId_t  command_id; // Echo back the command ID  
+    Diag_ResponseCode_t response_code;  
+    uint8_t           data_len;  
+    uint8_t           data[DIAG_MAX_RESPONSE_DATA_SIZE]; // Max size defined in config  
+} Diag_Response_t;
 
 /**  
- * @brief Initializes the Diagnostic module.  
- * This function should be called once during application initialization.  
+ * @brief Initializes the Diag module.  
  * @return APP_OK on success, APP_ERROR on failure.  
  */  
-APP_Status_t Diagnostic_Init(void);
+APP_Status_t Diag_Init(void);
 
 /**  
- * @brief Processes an incoming diagnostic/configuration command.  
- * This function is typically called by COMMUNICATION_STACK_MainTask (via RTE_Service_DIAGNOSTIC_ProcessCommand).  
- * It parses the command, executes the requested action, and generates a response.  
- * @param command Pointer to the incoming command data.  
- * @param len Length of the command data.  
- * @param response_buffer Pointer to a buffer to store the response.  
- * @param response_buffer_len Size of the response buffer.  
- * @param actual_response_len Pointer to store the actual length of the generated response.  
- * @return APP_OK on successful command processing, APP_ERROR if command parsing or execution fails.  
+ * @brief Processes an incoming diagnostic command.  
+ * This function is called by ComM (via RTE) when a diagnostic command is received.  
+ * It parses the command, dispatches it, and generates a response.  
+ * @param command Pointer to the received command structure.  
+ * @param response Pointer to the response structure to fill.  
+ * @return APP_OK on successful processing, APP_ERROR if processing fails.  
  */  
-APP_Status_t Diagnostic_ProcessCommand(const uint8_t *command, uint16_t len,  
-                                       uint8_t *response_buffer, uint16_t response_buffer_len,  
-                                       uint16_t *actual_response_len);
-```
+APP_Status_t DIAG_ProcessCommand(const Diag_Command_t *command, Diag_Response_t *response);
 
+// --- Internal Helper Function Prototypes (for clarity, not strictly public API) ---  
+// These would be static functions in diagnostic.c, but listed here for design clarity.  
+static APP_Status_t DiagMgr_get_fault_status(Diag_Response_t *response);  
+static APP_Status_t DiagMgr_clear_fault_history(Diag_Response_t *response);  
+static APP_Status_t DiagMgr_set_op_temp_range(const uint8_t *payload, uint8_t payload_len, Diag_Response_t *response);  
+static APP_Status_t DiagMgr_initiate_ota(Diag_Response_t *response);  
+static APP_Status_t DiagMgr_run_self_test(const uint8_t *payload, uint8_t payload_len, Diag_Response_t *response);  
+static APP_Status_t DiagMgr_reboot_system(Diag_Response_t *response);  
+static APP_Status_t DiagMgr_get_system_info(Diag_Response_t *response);
+```
 ### **5.3. Internal Design**
 
-The DiagnosticMgr module will implement a command dispatch table to handle various incoming commands. It will rely heavily on RTE services to interact with other modules and the communication stack.
+The Diag module will implement a command dispatch table or a series of if-else if statements to process incoming commands. It will rely heavily on RTE services to interact with other modules.
 
-1. **Initialization (Diagnostic_Init)**:  
-   * Initialize any internal state variables.  
+1. **Initialization (Diag_Init)**:  
+   ```c
+   * Initialize any internal state (e.g., command counters, test flags).  
+   * s_is_initialized = true;.  
    * Return APP_OK.  
-2. **Command Processing (Diagnostic_ProcessCommand)**:  
-   * Called by COMMUNICATION_STACK_MainTask (via RTE_Service_DIAGNOSTIC_ProcessCommand).  
-   * **Input Validation**: Validate command, len, response_buffer, response_buffer_len.  
-   * **Command Parsing**:  
-     * Extract Diagnostic_CommandId_t from the command data.  
-     * Extract any command-specific parameters.  
-   * **Authentication/Authorization (Conceptual)**: If security is enabled, this is where Service_Security might be used to verify the command's authenticity or the user's authorization. If not authorized, generate DIAG_RESP_NOT_AUTHORIZED.  
-   * **Command Dispatch**: Use a switch statement or a function pointer table based on command_id:  
-     * **DIAG_CMD_GET_STATUS**:  
-       * Call RTE_Service_SystemMonitor_GetCPULoad(), RTE_Service_SystemMonitor_GetTotalMinFreeStack().  
-       * Format system status into response_buffer.  
-     * **DIAG_CMD_GET_FAULTS**:  
-       * Call RTE_Service_SystemMonitor_GetFaultStatus() to retrieve active faults and history.  
-       * Format fault data into response_buffer.  
-     * **DIAG_CMD_CLEAR_FAULTS**:  
-       * Extract fault_id parameter.  
-       * Call RTE_Service_SystemMonitor_ClearFault(fault_id).  
-       * Generate DIAG_RESP_OK or DIAG_RESP_OPERATION_FAILED.  
-     * **DIAG_CMD_SET_TEMP_RANGE**:  
-       * Extract min_temp, max_temp parameters.  
-       * Call RTE_Service_SYS_MGR_SetOperationalTemperature(min_temp, max_temp).  
-       * Generate DIAG_RESP_OK or DIAG_RESP_INVALID_PARAM.  
-     * **DIAG_CMD_ACTIVATE_FAIL_SAFE**:  
-       * Extract enable parameter.  
-       * Call RTE_Service_SYS_MGR_SetFailSafeMode(enable).  
-       * Generate DIAG_RESP_OK.  
-     * **DIAG_CMD_INITIATE_OTA**:  
-       * Extract download_url parameter.  
-       * **Power Readiness Check**: Call RTE_Service_SYS_MGR_CheckPowerReadinessForOTA(&ready).  
-       * If ready is false, generate DIAG_RESP_OTA_POWER_LOW and return.  
-       * Call RTE_Service_OTA_StartUpdate(download_url).  
-       * Generate DIAG_RESP_OK or DIAG_RESP_OPERATION_FAILED.  
-     * **DIAG_CMD_RUN_SELF_TEST**:  
-       * Extract test_id parameter.  
-       * Call specific RTE services for self-tests (e.g., RTE_Service_FAN_RunSelfTest(), RTE_Service_TEMP_SENSOR_RunSelfTest()).  
-       * Aggregate results and generate response.  
-     * **DIAG_CMD_REBOOT**:  
-       * Call RTE_Service_DIAGNOSTIC_RequestReboot(). (This RTE service would likely just trigger an internal flag for the main loop task or a direct MCU reset call).  
-       * Generate DIAG_RESP_OK.  
-     * **Default**: If command ID is unknown, generate DIAG_RESP_INVALID_COMMAND.  
-   * **Response Generation**: Populate response_buffer with the response code and any results. Set *actual_response_len.  
-   * Log the command and response using logger.  
-   * Return APP_OK on successful processing, APP_ERROR if a fundamental issue occurred (e.g., buffer too small).
+   ```
+2. **Process Incoming Commands (DIAG_ProcessCommand)**:  
+   * If !s_is_initialized, return APP_ERROR.  
+   * Validate command and response pointers.  
+   * Populate response->command_id = command->command_id;.  
+   * Use a switch statement on command->command_id:  
+     * **DIAG_CMD_GET_FAULT_STATUS**: Call DiagMgr_get_fault_status(response).  
+     * **DIAG_CMD_CLEAR_FAULT_HISTORY**: Call DiagMgr_clear_fault_history(response).  
+     * **DIAG_CMD_SET_OP_TEMP_RANGE**: Call DiagMgr_set_op_temp_range(command->payload, command->payload_len, response).  
+     * **DIAG_CMD_INITIATE_OTA**: Call DiagMgr_initiate_ota(response).  
+     * **DIAG_CMD_RUN_SELF_TEST**: Call DiagMgr_run_self_test(command->payload, command->payload_len, response).  
+     * **DIAG_CMD_REBOOT_SYSTEM**: Call DiagMgr_reboot_system(response).  
+     * **DIAG_CMD_GET_SYSTEM_INFO**: Call DiagMgr_get_system_info(response).  
+     * **Default**: Set response->response_code = DIAG_RESP_INVALID_COMMAND; and log a warning.  
+   * Return APP_OK (or APP_ERROR if the command processing itself failed critically).  
+3. **Command Handlers (Internal Static Functions)**:  
+   * **DiagMgr_get_fault_status(Diag_Response_t *response)**:  
+     * Declare SystemMonitor_FaultStatus_t fault_status;.  
+     * Call RTE_Service_SystemMonitor_GetFaultStatus(&fault_status);.  
+     * Format fault_status data into response->data.  
+     * Set response->response_code = DIAG_RESP_OK;.  
+     * Log LOGD("Diag: Get fault status request processed.");.  
+   * **DiagMgr_clear_fault_history(Diag_Response_t *response)**:  
+     * Call RTE_Service_SystemMonitor_ClearFaultHistory(); (assuming SystemMonitor provides this).  
+     * Set response->response_code = DIAG_RESP_OK;.  
+     * Log LOGI("Diag: Fault history cleared.");.  
+   * **DiagMgr_set_op_temp_range(const uint8_t *payload, uint8_t payload_len, Diag_Response_t *response)**:  
+     * Validate payload_len and parse min_temp and max_temp from payload.  
+     * Call RTE_Service_SYS_MGR_SetOperationalTemperature(min_temp, max_temp);.  
+     * Set response->response_code = DIAG_RESP_OK; or DIAG_RESP_INVALID_PARAM if validation fails.  
+     * Log LOGD("Diag: Set operational temp range to %d-%d.", min_temp, max_temp);.  
+   * **DiagMgr_initiate_ota(Diag_Response_t *response)**:  
+     * **Check Power Readiness**: Call RTE_Service_SYS_MGR_GetPowerStatus(&power_status); (assuming systemMgr exposes this from power module).  
+     * If power_status indicates insufficient power (e.g., POWER_STATUS_LOW_BATTERY or POWER_STATUS_UNSTABLE):  
+       * Set response->response_code = DIAG_RESP_POWER_INSUFFICIENT;.  
+       * Log LOGW("Diag: OTA initiation blocked due to insufficient power.");.  
+     * Else:  
+       * Call RTE_Service_OTA_InitiateUpdate();.  
+       * Set response->response_code = DIAG_RESP_OK;.  
+       * Log LOGI("Diag: OTA update initiated.");.  
+   * **DiagMgr_run_self_test(const uint8_t *payload, uint8_t payload_len, Diag_Response_t *response)**:  
+     * Parse test_id from payload.  
+     * Use a switch statement on test_id:  
+       * **Test Fan**: Call RTE_Service_FAN_RunSelfTest(); (assuming FanCtrl provides this).  
+       * **Test Humidity Sensor**: Call RTE_Service_HUMIDITY_RunSelfTest();.  
+       * **Default**: Set response->response_code = DIAG_RESP_INVALID_PARAM;.  
+     * Set response->response_code = DIAG_RESP_OK; if test initiated successfully.  
+     * Log LOGD("Diag: Self-test %d initiated.", test_id);.  
+   * **DiagMgr_reboot_system(Diag_Response_t *response)**:  
+     * Call RTE_Service_OS_Reboot(REBOOT_MODE_NORMAL); (assuming os module provides this).  
+     * Set response->response_code = DIAG_RESP_OK; (though system will reboot before response is sent).  
+     * Log LOGW("Diag: System reboot initiated by diagnostic command.");.  
+   * **DiagMgr_get_system_info(Diag_Response_t *response)**:  
+     * Retrieve system version, build date, uptime, etc., from systemMgr or common utilities via RTE services.  
+     * Format data into response->data.  
+     * Set response->response_code = DIAG_RESP_OK;.  
+     * Log LOGD("Diag: System info requested.");.
 
-**Sequence Diagram (Example: External Tool Requests Faults):**
+**Sequence Diagram (Example: External Tool requests Fault Status):**
 ```mermaid
 sequenceDiagram  
     participant ExternalTool as External Diagnostic Tool  
-    participant Service_ComM as Service/ComM  
+    participant ComM as Service/ComM  
     participant RTE as Runtime Environment  
-    participant Diagnostic as DiagnosticMgr  
+    participant Diag as Application/diagnostic  
     participant SystemMonitor as Application/SystemMonitor  
     participant Logger as Application/logger
 
-    ExternalTool->>Service_ComM: Send "Get Faults" Command (via Wi-Fi/BLE/Modbus)  
-    Service_ComM->>RTE: RTE_Service_DIAGNOSTIC_ProcessCommand(cmd_data, len, resp_buf, resp_len, &actual_len)  
-    RTE->>Diagnostic: Diagnostic_ProcessCommand(cmd_data, len, resp_buf, resp_len, &actual_len)  
-    Diagnostic->>Diagnostic: Parse command (DIAG_CMD_GET_FAULTS)  
-    Diagnostic->>Logger: LOGD("Received DIAG_CMD_GET_FAULTS")  
-    Diagnostic->>RTE: RTE_Service_SystemMonitor_GetFaultStatus(&active_bitmap, &hist_count, hist_buf, hist_buf_len)  
-    RTE->>SystemMonitor: SystemMonitor_GetFaultStatus(...)  
-    SystemMonitor-->>RTE: Return APP_OK (fault data)  
-    RTE-->>Diagnostic: Return APP_OK (fault data)  
-    Diagnostic->>Diagnostic: Format fault data into response_buffer  
-    Diagnostic->>Logger: LOGD("Sent DIAG_RESP_OK with fault data")  
-    Diagnostic-->>RTE: Return APP_OK (response generated)  
-    RTE-->>Service_ComM: Return APP_OK (response generated)  
-    Service_ComM->>ExternalTool: Send Response (via Wi-Fi/BLE/Modbus)
+    ExternalTool->>ComM: Send "Get Fault Status" Command (via Bluetooth/Modbus/Wi-Fi)  
+    ComM->>RTE: RTE_Service_ComM_ReceiveDiagCommand(raw_command_data)  
+    RTE->>Diag: DIAG_ProcessCommand(parsed_command, &response)  
+    Diag->>Diag: Identify command as DIAG_CMD_GET_FAULT_STATUS  
+    Diag->>RTE: RTE_Service_SystemMonitor_GetFaultStatus(&fault_status)  
+    RTE->>SystemMonitor: SYSTEMMONITOR_GetFaultStatus(&fault_status)  
+    SystemMonitor-->>RTE: Return APP_OK (with fault_status data)  
+    RTE-->>Diag: Return APP_OK (with fault_status data)  
+    Diag->>Diag: Format fault_status into response.data  
+    Diag->>Logger: LOGD("Diag: Get fault status request processed.")  
+    Diag-->>RTE: Return APP_OK (with filled response)  
+    RTE->>ComM: RTE_Service_ComM_SendDiagResponse(response)  
+    ComM->>ExternalTool: Send formatted response (via Bluetooth/Modbus/Wi-Fi)
 ```
 ### **5.4. Dependencies**
 
-* **Application/common/inc/app_common.h**: For APP_Status_t.  
-* **Application/logger/inc/logger.h**: For logging diagnostic activities.  
-* **Application/SystemMonitor/inc/system_monitor.h**: For SystemMonitor_Fault_t and fault IDs.  
-* **Rte/inc/Rte.h**: For calling all necessary RTE services to interact with SystemMonitor, systemMgr, Service/OTA, and Service/ComM.
+* Application/common/inc/app_common.h: For APP_Status_t.  
+* Application/logger/inc/logger.h: For logging diagnostic activities.  
+* Rte/inc/Rte.h: For all necessary RTE services to interact with SystemMonitor, systemMgr, OTA, OS, and other application modules (e.g., fan, temperature) for self-tests.  
+* Application/SystemMonitor/inc/system_monitor.h: For SystemMonitor_FaultStatus_t and fault IDs.  
+* Application/systemMgr/inc/sys_mgr.h: For systemMgr's operational parameters and power status.  
+* Service/ota/inc/ota.h: For OTA_InitiateUpdate() (via RTE service).  
+* Service/os/inc/os.h: For OS_Reboot() (via RTE service).
 
 ### **5.5. Error Handling**
 
-* **Command Validation**: Diagnostic_ProcessCommand will validate incoming command format and parameters. Invalid commands will result in DIAG_RESP_INVALID_COMMAND or DIAG_RESP_INVALID_PARAM responses.  
-* **Underlying Service Failures**: If an RTE service call to SystemMonitor, systemMgr, or Service/OTA returns APP_ERROR, Diagnostic will generate an appropriate DIAG_RESP_OPERATION_FAILED response.  
-* **Power Check for OTA**: Explicitly checks systemMgr for power readiness before initiating OTA.  
-* **Logging**: All command processing, successes, and failures will be logged.
+* **Input Validation**: DIAG_ProcessCommand will validate the incoming command structure and its payload_len. Individual command handlers will validate their specific payload parameters.  
+* **Response Codes**: All responses will include a Diag_ResponseCode_t to indicate success or specific types of failure (e.g., INVALID_COMMAND, INVALID_PARAM, POWER_INSUFFICIENT).  
+* **RTE Error Propagation**: Errors returned by RTE services (e.g., from SystemMonitor, systemMgr) will be checked, and Diag will return an appropriate APP_ERROR or Diag_ResponseCode_t to the caller.  
+* **Security**: While Diag acts as the interface, the actual authentication and authorization for commands will be handled by the ComM and Security layers, ensuring that DIAG_ProcessCommand is only called with authenticated requests. Diag might still return DIAG_RESP_NOT_ALLOWED_IN_MODE if a command is valid but not permitted in the current system mode (e.g., manual mode prevents certain auto-config commands).  
+* **Power Check for OTA**: Explicitly checks with systemMgr (which gets info from power) for sufficient power before initiating an OTA update, preventing bricking.
 
 ### **5.6. Configuration**
 
-The DiagnosticMgr/cfg/diagnostic_cfg.h file will contain:
-
-* **Command ID Definitions**: Macros for Diagnostic_CommandId_t.  
-* **Response Code Definitions**: Macros for Diagnostic_ResponseCode_t.  
-* **Self-Test Mappings**: (Optional) Configuration table mapping test_id to the RTE services that execute the actual self-test logic in other application modules.  
-* **Max Command/Response Lengths**: DIAG_MAX_COMMAND_LEN, DIAG_MAX_RESPONSE_LEN.
-
-// Example: DiagnosticMgr/cfg/diagnostic_cfg.h
+The Application/diagnostic/cfg/diagnostic_cfg.h file will contain:
 ```c
-#define DIAG_MAX_COMMAND_LEN            64  // Max bytes for an incoming command  
-#define DIAG_MAX_RESPONSE_LEN           256 // Max bytes for an outgoing response
+/* DIAG_MAX_COMMAND_PAYLOAD_SIZE: Maximum size of the payload for a diagnostic command.  
+* DIAG_MAX_RESPONSE_DATA_SIZE: Maximum size of the data field in a diagnostic response.  
+* DIAG_SUPPORTED_SELF_TESTS_COUNT: Number of self-test functions available.  
+* DIAG_SELF_TEST_ID_FAN, DIAG_SELF_TEST_ID_HUMIDITY_SENSOR, etc.: Enums or macros for specific self-test IDs.*/
 
-// Define specific test IDs and their corresponding RTE calls (conceptual)  
-// typedef struct {  
-//     uint32_t test_id;  
-//     APP_Status_t (*test_function)(void); // Function pointer to an RTE service  
-// } Diagnostic_SelfTest_t;  
-// extern const Diagnostic_SelfTest_t diagnostic_self_tests[];
+// Example: Application/diagnostic/cfg/diagnostic_cfg.h  
+#ifndef DIAGNOSTIC_CFG_H  
+#define DIAGNOSTIC_CFG_H
+
+// Max payload and response data sizes for diagnostic commands/responses  
+#define DIAG_MAX_COMMAND_PAYLOAD_SIZE   64  
+#define DIAG_MAX_RESPONSE_DATA_SIZE     128
+
+// Self-test IDs  
+typedef enum {  
+    DIAG_SELF_TEST_ID_NONE = 0,  
+    DIAG_SELF_TEST_ID_FAN,  
+    DIAG_SELF_TEST_ID_HEATER,  
+    DIAG_SELF_TEST_ID_TEMP_SENSOR,  
+    DIAG_SELF_TEST_ID_HUMIDITY_SENSOR,  
+    // Add more self-test IDs as needed  
+    DIAG_SUPPORTED_SELF_TESTS_COUNT  
+} Diag_SelfTestId_t;
+
+#endif // DIAGNOSTIC_CFG_H
 ```
-
 ### **5.7. Resource Usage**
 
-* **Flash**: Moderate, for command parsing logic, dispatch table, and response formatting.  
-* **RAM**: Moderate, for command and response buffers (DIAG_MAX_COMMAND_LEN, DIAG_MAX_RESPONSE_LEN).  
-* **CPU**: Low to moderate, depending on the complexity of command parsing and the number of RTE service calls required for each command.
+* **Flash**: Moderate, for command parsing logic, dispatch table, and individual command handlers.  
+* **RAM**: Low, for command/response buffers and internal state.  
+* **CPU**: Low for basic command processing. Can be higher during self-test execution, depending on the complexity of the tests.
 
 ## **6. Test Considerations**
 
 ### **6.1. Unit Testing**
 
-* **Mock Dependencies**: Unit tests for diagnostic will mock RTE_Service_SystemMonitor_GetFaultStatus(), RTE_Service_SystemMonitor_ClearFault(), RTE_Service_SYS_MGR_SetOperationalTemperature(), RTE_Service_SYS_MGR_SetFailSafeMode(), RTE_Service_SYS_MGR_CheckPowerReadinessForOTA(), RTE_Service_OTA_StartUpdate(), RTE_Service_DIAGNOSTIC_RequestReboot(), and logger.  
+* **Mock Dependencies**: Unit tests for Diag will mock all RTE service calls (RTE_Service_SystemMonitor_GetFaultStatus(), RTE_Service_SYS_MGR_SetOperationalTemperature(), etc.), LOGGER_Log().  
 * **Test Cases**:  
-  * Diagnostic_Init: Verify basic initialization.  
-  * Diagnostic_ProcessCommand:  
-    * Test with valid commands (e.g., DIAG_CMD_GET_STATUS, DIAG_CMD_GET_FAULTS, DIAG_CMD_SET_TEMP_RANGE, DIAG_CMD_INITIATE_OTA). Verify correct RTE service calls and expected responses (DIAG_RESP_OK).  
+  * Diag_Init: Verify basic initialization.  
+  * DIAG_ProcessCommand:  
+    * Test with valid commands and payloads for all supported command IDs. Verify correct internal handler calls and response_code = DIAG_RESP_OK.  
     * Test with invalid command IDs (verify DIAG_RESP_INVALID_COMMAND).  
-    * Test with valid command ID but invalid parameters (verify DIAG_RESP_INVALID_PARAM).  
-    * Test scenarios where underlying RTE service calls return APP_ERROR (verify DIAG_RESP_OPERATION_FAILED).  
-    * Test DIAG_CMD_INITIATE_OTA when RTE_Service_SYS_MGR_CheckPowerReadinessForOTA() returns false (verify DIAG_RESP_OTA_POWER_LOW).  
-    * Test DIAG_CMD_CLEAR_FAULTS with FAULT_ID_NONE and specific IDs.  
-    * Verify logging for all scenarios.  
-  * Response Buffer Handling: Test with response_buffer_len being too small (verify APP_ERROR return from Diagnostic_ProcessCommand).
+    * Test with valid command IDs but invalid/malformed payloads (verify DIAG_RESP_INVALID_PARAM).  
+    * Test DIAG_CMD_INITIATE_OTA when systemMgr (mocked) reports insufficient power (verify DIAG_RESP_POWER_INSUFFICIENT).  
+    * Test DIAG_CMD_REBOOT_SYSTEM (verify RTE_Service_OS_Reboot() is called).  
+    * Test DIAG_CMD_RUN_SELF_TEST for various test_ids, verifying calls to appropriate RTE services for other modules.  
+    * Verify logging for different scenarios.  
+  * Individual DiagMgr_... functions: Test their specific logic in isolation, including parameter validation and interaction with mocked RTE services.
 
 ### **6.2. Integration Testing**
 
-* **Diagnostic-ComM Integration**: Verify that Diagnostic correctly receives commands from Service/ComM (via COMMUNICATION_STACK_MainTask and RTE) and sends responses back.  
-* **Diagnostic-SystemMonitor Integration**: Verify that Diagnostic can accurately query and clear faults from SystemMonitor.  
-* **Diagnostic-SystemMgr Integration**: Verify that Diagnostic can correctly change systemMgr's operational parameters and trigger fail-safe modes.  
-* **Diagnostic-OTA Integration**: Verify that Diagnostic can successfully initiate OTA updates, including the power readiness check.  
-* **Self-Test Integration**: If self-tests are implemented, verify that Diagnostic can trigger them and receive their results.  
-* **Security Testing**: If authentication/authorization is implemented, verify that unauthorized commands are rejected.
+* **Diag-ComM Integration**: Verify that ComM correctly receives external diagnostic commands and passes them to Diag via RTE, and that Diag's responses are correctly sent back via ComM.  
+* **Diag-SystemMonitor Integration**: Verify Diag can correctly query and retrieve fault status from SystemMonitor.  
+* **Diag-systemMgr Integration**: Verify Diag can correctly send configuration commands to systemMgr and that systemMgr responds as expected.  
+* **Diag-OTA Integration**: Verify Diag can initiate OTA updates, including the power readiness check.  
+* **Self-Test Execution**: Trigger self-tests and verify that the target modules (e.g., fan, temperature) execute their test routines.  
+* **Fault Injection**: Introduce faults (e.g., mock SystemMonitor to return an error) and verify Diag's error handling and response generation.
 
 ### **6.3. System Testing**
 
-* **End-to-End Diagnostics**: Use an external diagnostic tool to comprehensively test all diagnostic commands and verify their functionality and responses in a real-world environment.  
-* **Fault Injection and Verification**: Introduce faults into the system (e.g., unplugging a sensor, causing a communication error) and verify that Diagnostic can retrieve and report these faults correctly.  
-* **OTA Process**: Perform a full OTA update initiated via Diagnostic and verify successful firmware upgrade.  
-* **System Reboot**: Test remote reboot commands.  
-* **Robustness**: Stress test the diagnostic interface with high command rates or malformed commands to ensure stability.
+* **End-to-End Diagnostic Flow**: Use an external diagnostic tool (e.g., a custom PC application, Modbus master, BLE client) to send various commands and verify the system's response, including fault retrieval, configuration changes, and self-test execution.  
+* **OTA Process**: Perform a full OTA update initiated via Diag's interface, verifying successful update and system reboot into the new firmware.  
+* **Reboot Functionality**: Test system reboots triggered by Diag commands.  
+* **Security Integration**: Verify that unauthorized diagnostic commands are rejected by the ComM/Security layers before reaching Diag.

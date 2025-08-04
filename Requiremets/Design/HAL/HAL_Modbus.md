@@ -1,319 +1,292 @@
-# Detailed Design Document: HAL_Modbus Component
+# **Detailed Design Document: HAL_Modbus Component**
 
-## 1. Introduction
+## **1. Introduction**
 
-### 1.1. Purpose
-This document details the design of the HAL_Modbus component, which provides a hardware abstraction layer for the Modbus RTU serial communication protocol. Its primary purpose is to offer a standardized interface for sending and receiving Modbus frames over UART, abstracting the low-level UART operations and Modbus frame handling details from the higher layers (specifically the ComM module in the Service Layer).
+### **1.1. Purpose**
 
-### 1.2. Scope
-The scope of this document covers the HAL_Modbus module's architecture, functional behavior, interfaces, dependencies, and resource considerations. It details how the HAL layer interacts with the underlying Microcontroller Abstraction Layer (MCAL) for UART operations and provides Modbus frame-level services to the ComM module.
+This document details the design of the HAL_Modbus component. Its primary purpose is to provide a **hardware abstraction layer for the Modbus RTU protocol**, specifically handling the low-level UART communication, frame assembly/disassembly, and CRC calculation. It abstracts the complexities of direct UART interaction and Modbus frame handling from the higher ComM service layer. This fulfills requirements like SRS-05-03-01 (Modbus RTU over UART), SRS-05-03-04 (supported function codes), and SRS-05-03-02 (master/slave roles).
 
-### 1.3. References
-- Software Architecture Document (SAD) - Smart Device Firmware (Final Version)  
-- Modbus RTU Specification  
-- MCAL UART Driver Specification (Conceptual, as it's the lower layer)  
-- MCU Datasheet / Reference Manual (for specific UART capabilities)  
+### **1.2. Scope**
 
----
+The scope of this document covers the HAL_Modbus module's architecture, functional behavior, interfaces, dependencies, and resource considerations. It details how HAL_Modbus interacts with the underlying MCAL_UART driver for serial communication and provides an interface for the ComM module to send and receive Modbus frames.
 
-## 2. Functional Description
+### **1.3. References**
+
+* Software Architecture Document (SAD) - Environmental Monitoring & Control System (Final Version)  
+* System Requirements Specification (SyRS) - Environmental Monitoring & Control System (Updated)  
+* Software Requirements Specification (SRS) - Environmental Monitoring & Control System (Updated)  
+* Detailed Design Document: RTE  
+* Detailed Design Document: ComM  
+* Detailed Design Document: MCAL_UART  
+* Modbus RTU Specification (Official Document)
+
+## **2. Functional Description**
+
 The HAL_Modbus component provides the following core functionalities:
 
-- **Initialization:** Initialize the underlying UART peripheral and configure Modbus-specific parameters (e.g., baud rate, parity, stop bits).
-- **Frame Transmission:** Send a complete Modbus RTU frame over UART. This includes calculating and appending the CRC.
-- **Frame Reception:** Receive a complete Modbus RTU frame from UART, including CRC validation and timeout handling.
-- **Bus Arbitration:** Manage the RS-485 bus direction (transmit/receive enable) to prevent bus contention.
-- **Error Reporting:** Report any failures during Modbus operations (e.g., UART initialization failure, CRC error, timeout, bus contention) to the SystemMonitor via `RTE_Service_SystemMonitor_ReportFault()`.
+1. **Initialization (HAL_MODBUS_Init)**: Initialize the underlying MCAL_UART peripheral with Modbus-specific settings (baud rate, parity, stop bits) and set up internal buffers.  
+2. **Modbus Frame Transmission (HAL_MODBUS_TransmitFrame)**: Accepts a complete Modbus RTU frame (including address, function code, data, and CRC) and transmits it over the configured UART interface.  
+3. **Modbus Frame Reception (HAL_MODBUS_ProcessRx)**: Continuously monitors the UART for incoming bytes, assembles them into a Modbus frame, validates the frame (e.g., length, CRC), and, if valid, passes the complete frame to a registered callback. This function is typically called periodically by ComM.  
+4. **CRC Calculation**: Implements the Modbus RTU CRC-16 calculation algorithm.  
+5. **Timeout Management**: Handles inter-character and frame timeouts as per Modbus RTU specification (e.g., 3.5 character times).  
+6. **Error Reporting**: Detect and report any failures during Modbus operations (e.g., UART error, CRC mismatch, frame timeout) to the SystemMonitor via RTE_Service_SystemMonitor_ReportFault().
 
----
+## **3. Non-Functional Requirements**
 
-## 3. Non-Functional Requirements
+### **3.1. Performance**
 
-### 3.1. Performance
-- **Throughput:** Support Modbus communication at specified baud rates (e.g., 9600, 19200, 38400 bps).
-- **Latency:** Minimize the latency between receiving a request and sending a response.
-- **Reliability:** Ensure robust frame transmission and reception, minimizing data corruption.
+* **Latency**: Modbus frame processing (Rx and Tx) shall be efficient to minimize communication latency.  
+* **Throughput**: Capable of handling Modbus communication at specified baud rates without dropping frames.
 
-### 3.2. Memory
-- **Minimal Footprint:** The HAL_Modbus code and data shall have a minimal memory footprint.
-- **Buffer Management:** Efficiently manage transmit and receive buffers for Modbus frames.
+### **3.2. Memory**
 
-### 3.3. Reliability
-- **Robustness:** The module shall handle communication errors (e.g., noise, incomplete frames, CRC mismatches) gracefully.
-- **Fault Isolation:** Failures in Modbus communication should be isolated and reported without crashing the system.
-- **Timeout Handling:** Implement timeouts for frame reception to prevent indefinite waiting.
+* **Minimal Footprint**: The HAL_Modbus code and data shall have a minimal memory footprint.  
+* **Buffer Management**: Efficient use of transmit/receive buffers for Modbus frames.
 
----
+### **3.3. Reliability**
 
-## 4. Architectural Context
-As per the SAD (Section 3.1.2, HAL Layer), HAL_Modbus resides in the Hardware Abstraction Layer. It acts as a driver for the Modbus protocol, utilizing the MCAL_UART module for serial communication. It provides its services to the ComM module in the Service Layer, which then orchestrates overall communication.
+* **Robustness**: The module shall be robust against noisy lines, incomplete frames, or invalid data, preventing system crashes.  
+* **Data Integrity**: Must correctly calculate and verify Modbus CRC-16 to ensure data integrity.  
+* **Protocol Conformance**: Strictly adhere to the Modbus RTU specification for timing and frame structure.
 
----
+## **4. Architectural Context**
 
-## 5. Design Details
+As per the SAD (Section 3.1.2, HAL Layer), HAL_Modbus resides in the Hardware Abstraction Layer. It provides the low-level Modbus RTU framing and UART interaction for the ComM service layer. ComM will call HAL_MODBUS_TransmitFrame to send data and periodically call HAL_MODBUS_ProcessRx to check for incoming frames. HAL_Modbus interacts directly with MCAL_UART.
 
-### 5.1. Module Structure
+## **5. Design Details**
+
+### **5.1. Module Structure**
+
 The HAL_Modbus component will consist of the following files:
 
-- `HAL/inc/hal_modbus.h`: Public header file containing function prototypes, data types, and error codes.
-- `HAL/src/hal_modbus.c`: Source file containing the implementation of the HAL_Modbus functions.
-- `HAL/cfg/hal_modbus_cfg.h`: Configuration header for static Modbus parameters (e.g., UART port, baud rate, default slave ID).
+* HAL/Modbus/inc/hal_modbus.h: Public header file containing function prototypes, data types, and error codes.  
+* HAL/Modbus/src/hal_modbus.c: Source file containing the implementation of Modbus RTU logic.  
+* HAL/Modbus/cfg/hal_modbus_cfg.h: Configuration header for UART settings, buffer sizes, and timeouts.
 
-### 5.2. Public Interface (API)
+### **5.2. Public Interface (API)**
 ```c
-// In HAL/inc/hal_modbus.h
+// In HAL/Modbus/inc/hal_modbus.h
 
-#define HAL_MODBUS_MAX_FRAME_SIZE 256 // Example max frame size
+#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include <stdint.h>   // For uint32_t, uint8_t  
+#include <stdbool.h>  // For bool
 
-// Enum for Modbus errors
-typedef enum {
-    HAL_MODBUS_OK = 0,
-    HAL_MODBUS_ERROR_INIT_FAILED,
-    HAL_MODBUS_ERROR_TX_FAILED,
-    HAL_MODBUS_ERROR_RX_TIMEOUT,
-    HAL_MODBUS_ERROR_RX_CRC_MISMATCH,
-    HAL_MODBUS_ERROR_INVALID_PARAM,
-    HAL_MODBUS_ERROR_BUS_BUSY,
-    // Add more specific errors as needed
-} HAL_Modbus_Status_t;
+// Max Modbus frame size (e.g., 256 bytes including address, function, data, CRC)  
+#define HAL_MODBUS_MAX_FRAME_SIZE       256
 
-// Enum for UART parity
-typedef enum {
-    HAL_MODBUS_PARITY_NONE,
-    HAL_MODBUS_PARITY_EVEN,
-    HAL_MODBUS_PARITY_ODD
-} HAL_Modbus_Parity_t;
+// Function pointer for Modbus frame received callback (to be registered by ComM)  
+typedef void (*HAL_MODBUS_RxCallback_t)(const uint8_t *frame_data, uint16_t frame_len);
 
-// Structure for Modbus configuration
-typedef struct {
-    uint8_t uart_port_id;      // MCAL_UART port ID
-    uint32_t baud_rate;
-    HAL_Modbus_Parity_t parity;
-    uint8_t stop_bits;
-    uint8_t data_bits;
-    uint32_t rx_timeout_ms;    // Receive timeout in milliseconds
-    uint8_t rs485_tx_en_gpio;  // GPIO pin for RS-485 Transmit Enable (if applicable)
-} HAL_Modbus_Config_t;
+/**  
+ * @brief Initializes the HAL_Modbus module and the underlying MCAL_UART.  
+ * This function should be called once during system initialization.  
+ * @return APP_OK on success, APP_ERROR on failure.  
+ */  
+APP_Status_t HAL_MODBUS_Init(void);
 
-/**
- * @brief Initializes the HAL_Modbus module and its underlying UART peripheral.
- * This function should be called once during system initialization.
- * @param config Pointer to the Modbus configuration structure.
- * @return HAL_MODBUS_OK on success, an error code on failure.
- */
-HAL_Modbus_Status_t HAL_Modbus_Init(const HAL_Modbus_Config_t *config);
+/**  
+ * @brief Registers a callback function to be invoked when a complete, valid Modbus frame is received.  
+ * @param callback The function pointer to the callback.  
+ * @return APP_OK on success, APP_ERROR on failure.  
+ */  
+APP_Status_t HAL_MODBUS_RegisterRxCallback(HAL_MODBUS_RxCallback_t callback);
 
-/**
- * @brief Transmits a Modbus RTU frame.
- * This function calculates and appends the CRC to the frame before transmission.
- * @param frame_data Pointer to the raw frame data (excluding CRC).
- * @param frame_length Length of the raw frame data.
- * @return HAL_MODBUS_OK on success, an error code on failure.
- */
-HAL_Modbus_Status_t HAL_Modbus_TransmitFrame(const uint8_t *frame_data, uint16_t frame_length);
+/**  
+ * @brief Transmits a complete Modbus RTU frame over UART.  
+ * The frame_data must include address, function code, data, and CRC.  
+ * @param frame_data Pointer to the Modbus frame data.  
+ * @param frame_len Length of the Modbus frame.  
+ * @return APP_OK on successful transmission, APP_ERROR on failure.  
+ */  
+APP_Status_t HAL_MODBUS_TransmitFrame(const uint8_t *frame_data, uint16_t frame_len);
 
-/**
- * @brief Receives a Modbus RTU frame.
- * This function handles reception, timeout, and CRC validation.
- * @param rx_buffer Pointer to the buffer to store the received frame.
- * @param buffer_size Size of the receive buffer.
- * @param received_length Pointer to store the actual length of the received frame.
- * @return HAL_MODBUS_OK on successful reception and CRC validation, an error code on failure.
- */
-HAL_Modbus_Status_t HAL_Modbus_ReceiveFrame(uint8_t *rx_buffer, uint16_t buffer_size, uint16_t *received_length);
-
-/**
- * @brief Sets the RS-485 bus direction (Transmit Enable).
- * @param enable True to enable transmit, false to enable receive.
- * @return HAL_MODBUS_OK on success, an error code on failure.
- */
-HAL_Modbus_Status_t HAL_Modbus_SetTxEnable(bool enable);
-
+/**  
+ * @brief Processes incoming UART data to assemble Modbus RTU frames.  
+ * This function should be called periodically (e.g., by ComM's main function).  
+ * It handles byte reception, timeout detection, and frame validation.  
+ */  
+void HAL_MODBUS_ProcessRx(void);
 ```
+### **5.3. Internal Design**
 
-### 5.3. Internal Design
-The HAL_Modbus module will manage the Modbus RTU frame structure, CRC calculation, and interact with MCAL_UART for byte-level transmission and reception. It will also handle the RS-485 Transmit Enable (TX_EN) pin if required by the hardware.
+The HAL_Modbus module will manage the UART communication, internal receive buffer, and state machine for Modbus frame reception.
 
-#### Initialization (`HAL_Modbus_Init`):
-- Validate the input config pointer and parameters.
-- Store the configuration internally.
-- Call `MCAL_UART_Init(config->uart_port_id, config->baud_rate, config->parity, config->stop_bits, config->data_bits)`. If this fails, report `HAL_MODBUS_ERROR_INIT_FAILED` to SystemMonitor and return `APP_ERROR`.
-- If `config->rs485_tx_en_gpio` is valid, initialize this GPIO pin as an output using `HAL_GPIO_Init()` and set it to a default receive state (e.g., low). If this fails, report `HAL_MODBUS_ERROR_INIT_FAILED`.
-- Return `HAL_MODBUS_OK` on success.
+1. **Internal State Variables**:  
+   ```c
+   static uint8_t s_rx_buffer[HAL_MODBUS_MAX_FRAME_SIZE];  
+   static uint16_t s_rx_buffer_idx = 0;  
+   static uint32_t s_last_byte_time_us = 0; // Microseconds for inter-character timeout  
+   static HAL_MODBUS_RxCallback_t s_rx_callback = NULL;  
+   static bool s_is_initialized = false;
+   ```
+2. **Initialization (HAL_MODBUS_Init)**:  
+   * Initialize s_rx_buffer_idx = 0;, s_last_byte_time_us = 0;.  
+   * Call MCAL_UART_Init(HAL_MODBUS_UART_PORT, HAL_MODBUS_BAUD_RATE, HAL_MODBUS_PARITY, HAL_MODBUS_STOP_BITS). If this fails, report FAULT_ID_HAL_MODBUS_UART_INIT_FAILURE to SystemMonitor and return APP_ERROR.  
+   * Set s_is_initialized = true;.  
+   * Return APP_OK.  
+3. **Register Rx Callback (HAL_MODBUS_RegisterRxCallback)**:  
+   * Validate callback is not NULL.  
+   * s_rx_callback = callback;  
+   * Return APP_OK.  
+4. **Transmit Frame (HAL_MODBUS_TransmitFrame)**:  
+   * If !s_is_initialized, return APP_ERROR.  
+   * Validate frame_data and frame_len (e.g., frame_len <= HAL_MODBUS_MAX_FRAME_SIZE).  
+   * Call MCAL_UART_Transmit(HAL_MODBUS_UART_PORT, frame_data, frame_len).  
+   * If MCAL_UART_Transmit returns an error, report FAULT_ID_HAL_MODBUS_TX_FAILURE to SystemMonitor.  
+   * Return APP_OK or APP_ERROR based on MCAL_UART_Transmit result.  
+5. **Process Rx (HAL_MODBUS_ProcessRx)**:  
+   * If !s_is_initialized, return immediately.  
+   * Get current time: uint32_t current_time_us = APP_COMMON_GetUptimeUs(); (assuming APP_COMMON provides microsecond uptime).  
+   * **Read Bytes from UART**:  
+     * Loop while MCAL_UART_ReadByte(HAL_MODBUS_UART_PORT, &received_byte) returns APP_OK:  
+       * Reset timeout timer: s_last_byte_time_us = current_time_us;  
+       * Add byte to buffer: s_rx_buffer[s_rx_buffer_idx++] = received_byte;  
+       * Check for buffer overflow: If s_rx_buffer_idx >= HAL_MODBUS_MAX_FRAME_SIZE, report FAULT_ID_HAL_MODBUS_RX_OVERFLOW, reset s_rx_buffer_idx = 0;, and discard current frame.  
+       * **Check for complete frame (end of frame timeout)**: Modbus RTU frames are delimited by a silent interval of at least 3.5 character times. This is the primary frame detection mechanism.  
+         * If s_rx_buffer_idx > 0 and (current_time_us - s_last_byte_time_us) > HAL_MODBUS_FRAME_TIMEOUT_US:  
+           * **Validate CRC**: Calculate CRC-16 for s_rx_buffer (excluding the last two CRC bytes). Compare with the received CRC.  
+           * If CRC matches:  
+             * If s_rx_callback != NULL, call s_rx_callback(s_rx_buffer, s_rx_buffer_idx).  
+             * Log LOGD("HAL_Modbus: Rx frame valid, len %d", s_rx_buffer_idx);.  
+           * Else (CRC mismatch):  
+             * Report FAULT_ID_HAL_MODBUS_CRC_ERROR to SystemMonitor.  
+             * Log LOGW("HAL_Modbus: Rx frame CRC error, len %d", s_rx_buffer_idx);.  
+           * Reset for next frame: s_rx_buffer_idx = 0;  
+           * s_last_byte_time_us = current_time_us; // Reset to avoid immediate re-trigger  
+   * **Handle Incomplete Frame Timeout**: If no new bytes are received for a prolonged period (s_rx_buffer_idx > 0 and (current_time_us - s_last_byte_time_us) > HAL_MODBUS_FRAME_TIMEOUT_US but no new byte came in this cycle):  
+     * This indicates an incomplete frame or a very long silent interval.  
+     * Report FAULT_ID_HAL_MODBUS_FRAME_TIMEOUT (if s_rx_buffer_idx > 0).  
+     * Reset s_rx_buffer_idx = 0;  
+     * s_last_byte_time_us = current_time_us;  
+6. **CRC Calculation (hal_modbus_calculate_crc16)**:  
+   * Internal static helper function.  
+   * Implements the standard Modbus RTU CRC-16 algorithm.
 
-#### Frame Transmission (`HAL_Modbus_TransmitFrame`):
-- Validate `frame_data` and `frame_length`. Ensure `frame_length + 2` (for CRC) does not exceed `HAL_MODBUS_MAX_FRAME_SIZE`.
-- Calculate the 16-bit Modbus RTU CRC for `frame_data`.
-- Allocate a temporary buffer to hold the complete frame (data + CRC).
-- Copy `frame_data` to the temporary buffer, then append the calculated CRC.
-- If `rs485_tx_en_gpio` is configured, call `HAL_Modbus_SetTxEnable(true)` to enable transmit mode.
-- Call `MCAL_UART_Transmit(uart_port_id, complete_frame_buffer, complete_frame_length)`.
-- After transmission, if `rs485_tx_en_gpio` is configured, add a short delay (e.g., 3.5 character times as per Modbus spec) to ensure the last byte is sent, then call `HAL_Modbus_SetTxEnable(false)` to switch back to receive mode.
-- If `MCAL_UART_Transmit` fails, report `HAL_MODBUS_ERROR_TX_FAILED` to SystemMonitor.
-
-#### Frame Reception (`HAL_Modbus_ReceiveFrame`):
-- Validate `rx_buffer`, `buffer_size`, and `received_length`.
-- Call `MCAL_UART_Receive(uart_port_id, rx_buffer, buffer_size, config->rx_timeout_ms, &bytes_read)`.  
-  Assume this function returns `bytes_read` after timeout or full buffer.
-- If `bytes_read` is 0 or less than 3 (min frame size: 1 byte data + 2 bytes CRC), report `HAL_MODBUS_ERROR_RX_TIMEOUT` or `HAL_MODBUS_ERROR_INVALID_PARAM` and return error.
-- Extract the received CRC from the last two bytes of `rx_buffer`.
-- Calculate the CRC for the received data (excluding the received CRC).
-- Compare calculated CRC with received CRC. If they don't match, report `HAL_MODBUS_ERROR_RX_CRC_MISMATCH` and return error.
-- Set `*received_length` to `bytes_read - 2`.
-- Return `HAL_MODBUS_OK` on success.
-
-#### Set Transmit Enable (`HAL_Modbus_SetTxEnable`):
-- If `rs485_tx_en_gpio` is configured, call `HAL_GPIO_SetState(rs485_tx_en_gpio, enable ? HAL_GPIO_STATE_HIGH : HAL_GPIO_STATE_LOW)`.
-- If `HAL_GPIO_SetState` fails, report `HAL_MODBUS_ERROR_BUS_BUSY` (or more specific GPIO error) to SystemMonitor.
-
-#### Sequence Diagram (Example: HAL_Modbus_TransmitFrame)
-
+**Sequence Diagram (Example: HAL_MODBUS_ProcessRx - Frame Reception):**
 ```mermaid
-sequenceDiagram
-    participant ComM as Service/ComM
-    participant HAL_Modbus as HAL/Modbus
-    participant MCAL_UART as MCAL/UART
-    participant HAL_GPIO as HAL/GPIO
+sequenceDiagram  
+    participant ComM as Service/ComM  
+    participant HAL_MODBUS as HAL/Modbus  
+    participant MCAL_UART as MCAL/UART  
     participant SystemMonitor as Application/SystemMonitor
 
-    ComM->>HAL_Modbus: HAL_Modbus_TransmitFrame(frame_data, length)
-    HAL_Modbus->>HAL_Modbus: Calculate CRC
-    HAL_Modbus->>HAL_Modbus: Prepare full frame (data + CRC)
-    opt If RS-485 TX_EN is used
-        HAL_Modbus->>HAL_GPIO: HAL_GPIO_SetTxEnable(true)
-        HAL_GPIO-->>HAL_Modbus: Return APP_OK
-    end
-    HAL_Modbus->>MCAL_UART: MCAL_UART_Transmit(uart_port, full_frame, full_length)
-    alt MCAL_UART_Transmit returns MCAL_ERROR
-        MCAL_UART--xHAL_Modbus: Return MCAL_ERROR
-        HAL_Modbus->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_MODBUS_ERROR_TX_FAILED, SEVERITY_HIGH, ...)
-        HAL_Modbus--xComM: Return HAL_MODBUS_ERROR_TX_FAILED
-    else MCAL_UART_Transmit returns MCAL_OK
-        MCAL_UART-->>HAL_Modbus: Return MCAL_OK
-        opt If RS-485 TX_EN is used
-            HAL_Modbus->>HAL_Modbus: Delay (3.5 char times)
-            HAL_Modbus->>HAL_GPIO: HAL_GPIO_SetTxEnable(false)
-            HAL_GPIO-->>HAL_Modbus: Return APP_OK
-        end
-        HAL_Modbus-->>ComM: Return HAL_MODBUS_OK
+    loop Periodically (e.g., every 10ms)  
+        ComM->>HAL_MODBUS: HAL_MODBUS_ProcessRx()  
+        HAL_MODBUS->>MCAL_UART: MCAL_UART_ReadByte()  
+        alt Byte available  
+            MCAL_UART-->>HAL_MODBUS: Return APP_OK (byte)  
+            HAL_MODBUS->>HAL_MODBUS: Store byte in s_rx_buffer, update s_rx_buffer_idx, reset s_last_byte_time_us  
+        else No byte available  
+            MCAL_UART-->>HAL_MODBUS: Return APP_ERROR (no data)  
+            alt s_rx_buffer_idx > 0 AND timeout elapsed (3.5 char times)  
+                HAL_MODBUS->>HAL_MODBUS: Calculate CRC16  
+                alt CRC matches  
+                    HAL_MODBUS->>ComM: s_rx_callback(s_rx_buffer, s_rx_buffer_idx)  
+                    ComM->>ComM: Process Modbus frame  
+                else CRC mismatch  
+                    HAL_MODBUS->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_HAL_MODBUS_CRC_ERROR, ...)  
+                end  
+                HAL_MODBUS->>HAL_MODBUS: Reset s_rx_buffer_idx  
+            end  
+        end  
+        HAL_MODBUS-->>ComM: Return  
     end
 ```
+### **5.4. Dependencies**
 
----
+* Mcal/uart/inc/mcal_uart.h: For low-level UART driver functions (MCAL_UART_Init, MCAL_UART_Transmit, MCAL_UART_ReadByte).  
+* Application/logger/inc/logger.h: For internal logging.  
+* Rte/inc/Rte.h: For calling RTE_Service_SystemMonitor_ReportFault().  
+* Application/common/inc/app_common.h: For APP_Status_t, APP_OK/APP_ERROR, and APP_COMMON_GetUptimeUs().  
+* HAL/Modbus/cfg/hal_modbus_cfg.h: For configuration parameters.
 
-### 5.4. Dependencies
-- `Mcal/uart/inc/mcal_uart.h`: For byte-level UART transmission and reception.
-- `HAL/inc/hal_gpio.h`: For controlling the RS-485 Transmit Enable (TX_EN) pin.
-- `Application/logger/inc/logger.h`: For internal logging.
-- `Rte/inc/Rte.h`: For calling `RTE_Service_SystemMonitor_ReportFault()`.
-- `Application/common/inc/app_common.h`: For `APP_Status_t` and `APP_OK`/`APP_ERROR` (though `HAL_Modbus_Status_t` is more specific for this module).
-- `HAL/cfg/hal_modbus_cfg.h`: For the `HAL_Modbus_Config_t` structure and default configuration.
+### **5.5. Error Handling**
 
----
+* **Input Validation**: Public API functions will validate inputs (e.g., frame_data not NULL, frame_len within bounds).  
+* **UART Driver Errors**: Errors returned by MCAL_UART functions are caught by HAL_Modbus and reported.  
+* **CRC Mismatch**: If the calculated CRC does not match the received CRC, FAULT_ID_HAL_MODBUS_CRC_ERROR is reported.  
+* **Frame Timeout**: If a complete frame is not received within the specified timeout, FAULT_ID_HAL_MODBUS_FRAME_TIMEOUT is reported.  
+* **Receive Buffer Overflow**: If s_rx_buffer_idx exceeds HAL_MODBUS_MAX_FRAME_SIZE, FAULT_ID_HAL_MODBUS_RX_OVERFLOW is reported, and the current frame is discarded.  
+* **Fault Reporting**: All critical errors are reported to SystemMonitor via RTE_Service_SystemMonitor_ReportFault().  
+* **Return Status**: Public API functions return APP_ERROR on failure.
 
-### 5.5. Error Handling
-- **Input Validation:** All public API functions will validate input parameters (e.g., non-NULL pointers, valid lengths).
-- **MCAL Error Propagation:** Errors returned by `MCAL_UART` or `HAL_GPIO` functions will be caught by `HAL_Modbus`.
-- **CRC Validation:** `HAL_Modbus_ReceiveFrame` will perform CRC validation and report `HAL_MODBUS_ERROR_RX_CRC_MISMATCH` if it fails.
-- **Timeout Handling:** `HAL_Modbus_ReceiveFrame` will return `HAL_MODBUS_ERROR_RX_TIMEOUT` if a complete frame is not received within the configured timeout.
-- **Fault Reporting:** Upon detection of an error, `HAL_Modbus` will report a specific fault ID (e.g., `FAULT_ID_MODBUS_UART_INIT_FAILED`, `FAULT_ID_MODBUS_TX_FAILED`, `FAULT_ID_MODBUS_RX_TIMEOUT`, `FAULT_ID_MODBUS_CRC_ERROR`) to SystemMonitor via the `RTE_Service_SystemMonitor_ReportFault()` service.
-- **Return Status:** All public API functions will return `HAL_Modbus_Status_t` indicating success or specific error.
+### **5.6. Configuration**
 
----
+The HAL/Modbus/cfg/hal_modbus_cfg.h file will contain:
 
-### 5.6. Configuration
-The `HAL/cfg/hal_modbus_cfg.h` file will contain:
-- The `HAL_Modbus_Config_t` structure instance defining the UART port, baud rate, parity, stop bits, data bits, receive timeout, and RS-485 TX_EN GPIO pin.
-- Macros for default Modbus parameters.
-
+* HAL_MODBUS_UART_PORT: The MCAL UART port to use for Modbus.  
+* HAL_MODBUS_BAUD_RATE: Baud rate (e.g., 9600, 19200).  
+* HAL_MODBUS_PARITY: Parity setting (e.g., MCAL_UART_PARITY_EVEN, MCAL_UART_PARITY_NONE).  
+* HAL_MODBUS_STOP_BITS: Number of stop bits.  
+* HAL_MODBUS_MAX_FRAME_SIZE: Maximum size of a Modbus RTU frame.  
+* HAL_MODBUS_CHARACTER_TIME_US: Time for one character transmission in microseconds (used for 3.5 character timeout).  
+* HAL_MODBUS_FRAME_TIMEOUT_US: Calculated 3.5 character time timeout for frame completion.
 ```c
-// Example: HAL/cfg/hal_modbus_cfg.h
-#define HAL_MODBUS_DEFAULT_UART_PORT        MCAL_UART_PORT_0
-#define HAL_MODBUS_DEFAULT_BAUD_RATE        9600
-#define HAL_MODBUS_DEFAULT_PARITY           HAL_MODBUS_PARITY_NONE
-#define HAL_MODBUS_DEFAULT_STOP_BITS        1
-#define HAL_MODBUS_DEFAULT_DATA_BITS        8
-#define HAL_MODBUS_DEFAULT_RX_TIMEOUT_MS    100 // 100 ms timeout for frame reception
-#define HAL_MODBUS_RS485_TX_EN_GPIO_PIN     GPIO_PIN_RS485_TX_EN // Define this in HAL_GPIO_cfg.h
+// Example: HAL/Modbus/cfg/hal_modbus_cfg.h  
+#ifndef HAL_MODBUS_CFG_H  
+#define HAL_MODBUS_CFG_H
 
-extern const HAL_Modbus_Config_t hal_modbus_config;
+#include "Mcal/uart/inc/mcal_uart.h" // For MCAL_UART_Port_t, MCAL_UART_Parity_t etc.
+
+// UART configuration for Modbus  
+#define HAL_MODBUS_UART_PORT            MCAL_UART_PORT_0  
+#define HAL_MODBUS_BAUD_RATE            19200  
+#define HAL_MODBUS_PARITY               MCAL_UART_PARITY_EVEN  
+#define HAL_MODBUS_STOP_BITS            MCAL_UART_STOP_BITS_1
+
+// Modbus RTU Timing Parameters  
+// Calculate character time: (1 start bit + 8 data bits + 1 parity bit + 1 stop bit) = 11 bits per character  
+// Or (1 start bit + 8 data bits + 2 stop bits) = 11 bits per character if no parity  
+// For 19200 baud, 1 bit time = 1/19200 s = 52.08 us  
+// 1 character time = 11 bits * 52.08 us/bit = 572.88 us  
+#define HAL_MODBUS_BITS_PER_CHAR        11 // 1 start + 8 data + 1 parity + 1 stop  
+#define HAL_MODBUS_BIT_TIME_US(baud)    (1000000 / (baud))  
+#define HAL_MODBUS_CHARACTER_TIME_US    (HAL_MODBUS_BITS_PER_CHAR * HAL_MODBUS_BIT_TIME_US(HAL_MODBUS_BAUD_RATE))
+
+// Modbus RTU silence interval (3.5 character times) for frame detection  
+#define HAL_MODBUS_FRAME_TIMEOUT_US     (3 * HAL_MODBUS_CHARACTER_TIME_US + (HAL_MODBUS_CHARACTER_TIME_US / 2))
+
+// Max Modbus frame size (e.g., 256 bytes including address, function, data, CRC)  
+#define HAL_MODBUS_MAX_FRAME_SIZE       256
+
+#endif // HAL_MODBUS_CFG_H
 ```
----
+### **5.7. Resource Usage**
 
-### 5.7. Resource Usage
+* **Flash**: Moderate, for Modbus RTU logic and CRC calculation.  
+* **RAM**: Moderate, primarily for the s_rx_buffer (HAL_MODBUS_MAX_FRAME_SIZE bytes).  
+* **CPU**: Low during idle. Moderate during active reception/transmission, as it involves byte-by-byte processing and CRC calculation. HAL_MODBUS_ProcessRx should be called frequently enough to catch inter-character timeouts.
 
-- **Flash**: Moderate, for protocol logic (CRC calculation, frame assembly/disassembly) and driver functions.
-- **RAM**: Moderate, for transmit and receive buffers (`HAL_MODBUS_MAX_FRAME_SIZE`).
-- **CPU**: Low for basic operations. Can increase with high baud rates and frequent communication, especially during CRC calculation.
+## **6. Test Considerations**
 
----
+### **6.1. Unit Testing**
 
-## 6. Test Considerations
+* **Mock MCAL_UART**: Unit tests for HAL_Modbus will mock the MCAL_UART functions (MCAL_UART_Init, MCAL_UART_Transmit, MCAL_UART_ReadByte) to isolate HAL_Modbus's logic.  
+* **Mock APP_COMMON_GetUptimeUs**: To simulate time passing for timeout tests.  
+* **Test Cases**:  
+  * HAL_MODBUS_Init: Test successful initialization and mocked MCAL_UART_Init failure (verify APP_ERROR and fault reporting).  
+  * HAL_MODBUS_RegisterRxCallback: Test valid/invalid callback.  
+  * HAL_MODBUS_TransmitFrame: Test with valid/invalid frame lengths, NULL data. Verify MCAL_UART_Transmit is called with correct data. Test MCAL_UART_Transmit failure.  
+  * HAL_MODBUS_ProcessRx:  
+    * **Complete Frame**: Simulate receiving a complete, valid Modbus frame byte-by-byte (using mocked MCAL_UART_ReadByte). Verify s_rx_callback is called with the correct frame and length.  
+    * **CRC Error**: Simulate a frame with incorrect CRC. Verify FAULT_ID_HAL_MODBUS_CRC_ERROR is reported.  
+    * **Inter-character Timeout**: Simulate bytes arriving with delays longer than HAL_MODBUS_CHARACTER_TIME_US (but less than HAL_MODBUS_FRAME_TIMEOUT_US for partial frame). Verify s_rx_buffer_idx resets and no callback is triggered prematurely.  
+    * **Frame Timeout**: Simulate a partial frame followed by a silence longer than HAL_MODBUS_FRAME_TIMEOUT_US. Verify FAULT_ID_HAL_MODBUS_FRAME_TIMEOUT is reported and buffer resets.  
+    * **Buffer Overflow**: Simulate a frame larger than HAL_MODBUS_MAX_FRAME_SIZE. Verify FAULT_ID_HAL_MODBUS_RX_OVERFLOW is reported and buffer resets.  
+    * **No Data**: Call HAL_MODBUS_ProcessRx repeatedly with no incoming bytes.  
+  * CRC Calculation: Unit test the internal hal_modbus_calculate_crc16 function with known Modbus CRC test vectors.  
+  * Error reporting: Verify RTE_Service_SystemMonitor_ReportFault() is called with the correct fault ID on various error conditions.
 
-### 6.1. Unit Testing
+### **6.2. Integration Testing**
 
-**Mock MCAL_UART & HAL_GPIO**: Unit tests for HAL_Modbus will mock `MCAL_UART` (for byte-level TX/RX) and `HAL_GPIO` (for TX_EN control) to isolate HAL_Modbus's logic.
+* **HAL-MCAL Integration**: Verify HAL_Modbus correctly interfaces with the actual MCAL_UART driver.  
+* **Loopback Test**: Connect UART Tx to Rx and send/receive Modbus frames to verify correct framing and CRC.  
+* **External Modbus Master/Slave**: Use a real Modbus master/slave device to communicate with the system. Verify that HAL_Modbus correctly transmits and receives frames.  
+* **Error Injection**: Introduce communication errors (e.g., disconnect UART, inject noise) and verify HAL_Modbus reports faults to SystemMonitor.  
+* **Timing Accuracy**: Verify that Modbus RTU timing (inter-character, frame timeouts) is met under various baud rates.
 
-#### Test Cases
+### **6.3. System Testing**
 
-- **HAL_Modbus_Init**:
-  - Test valid/invalid configurations.
-  - Verify `MCAL_UART_Init` and `HAL_GPIO_Init` calls.
-  - Test error propagation.
-
-- **HAL_Modbus_TransmitFrame**:
-  - Test with various valid frame data and lengths.
-  - Verify correct CRC calculation and `MCAL_UART_Transmit` calls.
-  - Verify `HAL_Modbus_SetTxEnable` is called correctly before/after transmission if configured.
-  - Test with invalid `frame_data` (NULL) or `frame_length` (too long/too short).
-  - Test error propagation from `MCAL_UART_Transmit`.
-
-- **HAL_Modbus_ReceiveFrame**:
-  - Mock `MCAL_UART_Receive` to return valid frames.
-  - Verify correct data is received and `received_length` is set.
-  - Test with frames having correct and incorrect CRC.
-  - Verify `HAL_MODBUS_OK` vs. `HAL_MODBUS_ERROR_RX_CRC_MISMATCH`.
-  - Test with incomplete frames or timeouts. Verify `HAL_MODBUS_ERROR_RX_TIMEOUT`.
-  - Test with invalid `rx_buffer` (NULL) or `buffer_size` (too small).
-  - Test error propagation from `MCAL_UART_Receive`.
-
-- **HAL_Modbus_SetTxEnable**:
-  - Test enabling/disabling. Verify `HAL_GPIO_SetState` calls.
-
-- **Error Reporting**:
-  - Verify that `RTE_Service_SystemMonitor_ReportFault()` is called with the correct fault ID on various error conditions.
-
----
-
-### 6.2. Integration Testing
-
-- **HAL-MCAL Integration**:
-  - Verify that `HAL_Modbus` correctly interfaces with the actual `MCAL_UART` driver and `HAL_GPIO` (for TX_EN).
-
-- **Loopback Test**:
-  - Connect UART TX to RX (or use a physical loopback adapter for RS-485) and send/receive frames to verify basic functionality.
-
-- **Master/Slave Simulation**:
-  - Use a Modbus master simulator to send requests and verify the system's responses.
-  - Simulate a slave to test the system as a master.
-
-- **Error Injection**:
-  - Introduce CRC errors, incomplete frames, or timeouts to verify that `HAL_Modbus` detects and reports these faults correctly to `SystemMonitor`.
-
-- **Stress Testing**:
-  - Test high-frequency communication and large frame sizes to assess performance and stability.
-
----
-
-### 6.3. System Testing
-
-- **End-to-End Communication**:
-  - Verify that the entire communication path (e.g., external Modbus master → `HAL_Modbus` → `ComM` → `systemMgr` → `Diagnostic` and back) functions correctly.
-
-- **Functional Compliance**:
-  - Verify that the system responds to standard Modbus function codes (e.g., read holding registers, write single register) as expected by the application.
-
-- **Robustness**:
-  - Test Modbus communication under adverse conditions (e.g., noisy environment, power fluctuations) to ensure reliability.
-
-
+* **End-to-End Modbus Communication**: Verify that the entire Modbus communication path (from external master/slave through ComM and HAL_Modbus to application logic) functions correctly.  
+* **Stress Testing**: Run Modbus communication at high rates and for extended periods to ensure stability and no buffer overflows or missed frames.  
+* **Fault Tolerance**: Verify system behavior when Modbus communication fails (e.g., SystemMonitor receives faults, systemMgr takes corrective action if configured).

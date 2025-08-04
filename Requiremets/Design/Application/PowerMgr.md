@@ -1,276 +1,356 @@
-# **Detailed Design Document: PowerMgr Component**
+# **Detailed Design Document: PowerMgr(Power Management) Component**
 
 ## **1. Introduction**
 
 ### **1.1. Purpose**
 
-This document details the design of the PowerMgr component. Its primary purpose is to manage the ECU's **Power Management Modes** (ON, OFF, Sleep) and to continuously monitor and calculate the ECU's current, voltage, and power consumption. It reports this data to systemMgr, allowing systemMgr to take corrective actions (e.g., overriding actuator control, preventing OTA updates) based on power constraints.
+This document details the design of the Power component. Its primary purpose is to manage the ECU's **Power Management Modes** (ON, OFF, Sleep) by interacting with HAL/MCAL power control features. It also continuously monitors and calculates the ECU's current, voltage, and power consumption, reporting this data to systemMgr. This fulfills requirements like SyRS-02-04-05, SyRS-03-01-06, and SyRS-03-01-07.
 
 ### **1.2. Scope**
 
-The scope of this document covers the power module's architecture, functional behavior, interfaces, dependencies, and resource considerations. It details how power interacts with HAL/MCAL power control features and ADC drivers for monitoring, and provides power consumption data to systemMgr via RTE services.
+The scope of this document covers the Power module's architecture, functional behavior, interfaces, dependencies, and resource considerations. It details how Power transitions between different power modes, monitors electrical parameters, and reports critical power-related faults to SystemMonitor.
 
 ### **1.3. References**
 
-* Software Architecture Document (SAD) - Smart Device Firmware (Final Version)  
+* Software Architecture Document (SAD) - Environmental Monitoring & Control System (Final Version)  
 * Detailed Design Document: RTE  
-* Detailed Design Document: Application/systemMgr  
-* Detailed Design Document: HAL_ADC (if ADC-based power monitoring)  
-* MCAL GPIO Driver Specification (for power control pins)  
-* Power Monitoring IC Datasheet (e.g., INA219, if used)
+* Detailed Design Document: SystemMonitor  
+* Detailed Design Document: systemMgr  
+* Detailed Design Document: HAL_ADC (for voltage/current sensing)  
+* Detailed Design Document: MCAL_GPIO (for power rail control, wake-up pins)  
+* Power Management IC (PMIC) Datasheet (if external PMIC is used)  
+* Current Sensor Datasheet (e.g., INA219, shunt resistor + ADC)  
+* Voltage Divider/Sensor Datasheet
 
 ## **2. Functional Description**
 
-The PowerMgr component provides the following core functionalities:
+The Power component provides the following core functionalities:
 
-1. **Initialization**: Initialize power monitoring hardware (e.g., ADC channels, power monitoring ICs) and power control pins.  
-2. **Power Mode Control**: Provides functions to set the ECU into different power management modes (e.g., active, sleep, deep sleep).  
-3. **Current/Voltage/Power Monitoring**: Continuously reads raw data from sensors (e.g., ADC for voltage/current shunts, or I2C for dedicated power monitoring ICs) and calculates real-time current, voltage, and power consumption.  
-4. **Power Data Reporting**: Provides an RTE service (RTE_Service_POWER_GetConsumption()) for systemMgr to query the latest power consumption data.  
-5. **Threshold Monitoring**: (Optional) Detects if power consumption exceeds or falls below predefined thresholds and can report these as faults to SystemMonitor.  
-6. **Error Reporting**: Report any failures during power monitoring or control (e.g., sensor read failure, invalid power mode) to the SystemMonitor via RTE_Service_SystemMonitor_ReportFault().
+1. **Initialization (PowerMgr_Init)**: Initialize the underlying hardware for power management (e.g., power monitoring ADCs, GPIOs for power rails). It also sets the initial power mode (typically ON).  
+2. **Set Power Mode (POWER_SetMode)**: Allows systemMgr or diagnostic to command a transition to a specific power mode (ON, OFF, Sleep). This function orchestrates the necessary hardware changes (e.g., enabling/disabling power rails, configuring wake-up sources).  
+3. **Periodic Monitoring (POWER_MainFunction)**: This is the module's primary periodic function. It is responsible for:  
+   * Reading raw current and voltage values from ADC channels via HAL_ADC.  
+   * Calculating real-time power consumption (Current, Voltage, Power).  
+   * Reporting these metrics to systemMgr via RTE_Service_SYS_MGR_UpdatePowerConsumption().  
+   * Comparing calculated power values against predefined safe operating ranges.  
+   * Reporting FAULT_ID_POWER_OVER_CURRENT, FAULT_ID_POWER_UNDER_VOLTAGE, or FAULT_ID_POWER_OVER_POWER to SystemMonitor if thresholds are exceeded.  
+4. **Get Current Power Consumption (POWER_GetConsumption)**: Provides a non-blocking interface to retrieve the last calculated current, voltage, and power.  
+5. **Wake-up Source Management (for Sleep Mode)**: Configures and manages external wake-up sources (e.g., GPIO interrupts from buttons) when entering Sleep mode.  
+6. **Error Reporting**: Detect and report any failures during power management or monitoring (e.g., ADC read error, invalid power mode transition) to the SystemMonitor via RTE_Service_SystemMonitor_ReportFault().
 
 ## **3. Non-Functional Requirements**
 
 ### **3.1. Performance**
 
-* **Accuracy**: Power consumption measurements shall be accurate within specified tolerances.  
-* **Update Rate**: Power data should be updated frequently enough to enable responsive power management.  
-* **Transition Speed**: Power mode transitions should be fast and seamless.
+* **Monitoring Frequency**: POWER_MainFunction shall execute frequently enough to provide near real-time power consumption data (defined by POWER_MONITOR_PERIOD_MS).  
+* **Mode Transition Latency**: Transitions between power modes shall occur within specified time limits to ensure responsiveness.  
+* **Accuracy**: Power consumption measurements shall be accurate within specified tolerances.
 
 ### **3.2. Memory**
 
-* **Minimal Footprint**: The power module shall have a minimal memory footprint.
+* **Minimal Footprint**: The Power module shall have a minimal memory footprint for its internal state variables and buffers.
 
 ### **3.3. Reliability**
 
-* **Robustness**: The module shall be robust against sensor read errors or power fluctuations.  
-* **Safety**: Ensure that power mode transitions are safe and do not lead to system instability or data loss.  
-* **Fail-Safe**: In case of critical power issues (e.g., brownout), the module should assist in transitioning to a safe state.
+* **Robustness**: The module shall be robust against invalid power mode commands or hardware failures during power control.  
+* **Fail-Safe**: In case of critical power faults (e.g., overcurrent), the module shall immediately report to SystemMonitor, which will then instruct systemMgr to take corrective actions (e.g., disable actuators).  
+* **Persistence**: The last known power state (e.g., if it was in Sleep mode before an unexpected reset) might be stored in NVM (via Nvm module) if required for specific recovery scenarios.
 
 ## **4. Architectural Context**
 
-As per the SAD (Section 3.1.2, Application Layer), power resides in the Application Layer. It manages the ECU's power states and monitors consumption. It interacts with HAL_ADC or HAL_I2C (if an I2C power monitor is used) for reading sensor data, and MCAL_GPIO for direct power control pins. It reports power data to systemMgr via RTE_Service_POWER_GetConsumption(), and systemMgr uses this information for its internal logic and to make decisions regarding OTA updates.
+As per the SAD (Section 3.1.2, Application Layer), Power resides in the Application Layer. It manages power modes and monitors consumption. It interacts with HAL_ADC and MCAL_GPIO for hardware control and sensing. It reports power data to systemMgr and faults to SystemMonitor via RTE services.
 
 ## **5. Design Details**
 
 ### **5.1. Module Structure**
 
-The PowerMgr component will consist of the following files:
+The Power component will consist of the following files:
 
-* PowerMgr/inc/power.h: Public header file containing function prototypes, power mode definitions, and data structures for consumption.  
-* PowerMgr/src/power.c: Source file containing the implementation of power management logic and monitoring.  
-* PowerMgr/cfg/power_cfg.h: Configuration header for power monitoring hardware details (ADC channels, calibration, IC addresses) and power mode definitions.
+* Application/power/inc/power.h: Public header file containing function prototypes, data types for power modes, and consumption metrics.  
+* Application/power/src/power.c: Source file containing the implementation of power management logic, monitoring, and mode transitions.  
+* Application/power/cfg/power_cfg.h: Configuration header for power thresholds, ADC channel mappings, and power mode specific settings.
 
 ### **5.2. Public Interface (API)**
 
-// In PowerMgr/inc/power.h
+// In Application/power/inc/power.h
 ```c
-#include "Application/common/inc/app_common.h" // For APP_Status_t
+#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include <stdint.h>   // For uint32_t, uint8_t  
+#include <stdbool.h>  // For bool
 
-// --- Power Management Modes ---  
+// --- Power Mode Definitions ---  
 typedef enum {  
-    POWER_MODE_ACTIVE = 0,  
-    POWER_MODE_SLEEP,  
-    POWER_MODE_DEEP_SLEEP,  
-    // Add more modes as needed  
+    POWER_MODE_ON = 0,    // Full power, all peripherals active  
+    POWER_MODE_SLEEP,     // Low power, essential peripherals active, wake-up sources enabled  
+    POWER_MODE_OFF,       // Lowest power, effectively shut down, requires external wake-up/power cycle  
+    POWER_MODE_COUNT  
 } Power_Mode_t;
 
-// --- Power Consumption Data Structure ---  
+// --- Power Consumption Metrics ---  
 typedef struct {  
-    float current_ma;   // Current consumption in milliamperes  
-    float voltage_mv;   // Voltage in millivolts  
-    float power_mw;     // Power consumption in milliwatts  
+    float current_mA;    // Current in milli-Amperes  
+    float voltage_mV;    // Voltage in milli-Volts  
+    float power_mW;      // Power in milli-Watts  
 } Power_Consumption_t;
 
 // --- Public Functions ---
 
 /**  
- * @brief Initializes the Power module and power monitoring hardware.  
- * This function should be called once during application initialization.  
+ * @brief Initializes the Power module and related hardware (e.g., ADC for monitoring).  
+ * Sets the initial power mode to ON.  
  * @return APP_OK on success, APP_ERROR on failure.  
  */  
-APP_Status_t POWER_Init(void);
+APP_Status_t Power_Init(void);
 
 /**  
- * @brief Sets the ECU into a specified power management mode.  
- * @param mode The desired power mode.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @brief Commands the system to transition to a specified power mode.  
+ * This function handles the necessary hardware configurations for the mode change.  
+ * @param mode The desired power mode (POWER_MODE_ON, POWER_MODE_SLEEP, POWER_MODE_OFF).  
+ * @return APP_OK on successful transition, APP_ERROR on failure or invalid mode.  
  */  
-APP_Status_t POWER_SetMode(Power_Mode_t mode);
+APP_Status_t PowerMgr_SetMode(Power_Mode_t mode);
 
 /**  
- * @brief Gets the current power consumption data.  
- * This function is typically called by systemMgr (via RTE_Service_POWER_GetConsumption).  
- * @param consumption Pointer to a Power_Consumption_t structure to fill with data.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @brief Gets the last calculated power consumption metrics.  
+ * This is a non-blocking getter function.  
+ * @param consumption Pointer to a Power_Consumption_t structure to fill.  
+ * @return APP_OK on successful retrieval, APP_ERROR on failure (e.g., NULL pointer).  
  */  
-APP_Status_t POWER_GetConsumption(Power_Consumption_t *consumption);
+APP_Status_t PowerMgr_GetConsumption(Power_Consumption_t *consumption);
 
-// --- Internal Task Prototype (implemented in .c, declared in Rte.h) ---  
-// void POWER_MONITOR_Task(void *pvParameters); // If continuous monitoring in a task
+// --- Internal Periodic Runnable Prototype (called by RTE) ---  
+// This function is declared here so RTE can call it.  
+/**  
+ * @brief Performs periodic power consumption monitoring and fault detection.  
+ * This function is intended to be called periodically by an RTE task.  
+ */  
+void PowerMgr_MainFunction(void);
 ```
 
 ### **5.3. Internal Design**
 
-The PowerMgr module will have a dedicated task (POWER_MONITOR_Task) if continuous monitoring is required. It will perform ADC reads or I2C communication to get raw sensor data, then apply calibration and conversion to calculate actual power values.
+The Power module will maintain its current power mode, last measured consumption metrics, and handle transitions by interacting with HAL/MCAL drivers.
 
-1. **Initialization (POWER_Init)**:  
-   * **Monitoring Hardware Init**:  
-     * If ADC-based: Call HAL_ADC_Init() for relevant channels.  
-     * If I2C power monitor IC: Call HAL_I2C_Init() for the relevant port and initialize the IC (e.g., INA219_Init()).  
-   * **Power Control Pins Init**: Call MCAL_GPIO_Init() for any GPIOs controlling power rails or sleep modes.  
-   * Create POWER_MONITOR_Task using RTE_Service_OS_CreateTask().  
-   * If any underlying initialization fails, report FAULT_ID_POWER_INIT_FAILED to SystemMonitor.  
+1. **Internal State**:  
+   ```c
+   static Power_Mode_t s_current_power_mode = POWER_MODE_OFF; // Default to OFF until Init  
+   static Power_Consumption_t s_last_consumption = {0};  
+   static bool s_is_initialized = false;
+   ```
+   * Power_Init() will initialize these variables.  
+2. **Initialization (Power_Init)**:  
+   * Initialize internal state variables (s_current_power_mode = POWER_MODE_ON;).  
+   * Call HAL_ADC_Init() (if not already done by RTE_HwInitTask).  
+   * Configure ADC channels for voltage and current sensing using HAL_ADC_ConfigChannel().  
+   * Configure any GPIOs for power rail control or wake-up sources using HAL_GPIO_Init() or HAL_GPIO_SetDirection().  
+   * Set initial power mode to POWER_MODE_ON by calling power_transition_to_on().  
+   * If any underlying HAL/MCAL initialization fails, report FAULT_ID_POWER_INIT_FAILURE to SystemMonitor and return APP_ERROR.  
+   * Set s_is_initialized = true;.  
    * Return APP_OK.  
-2. **Set Mode (POWER_SetMode)**:  
-   * Validate mode.  
+3. **Set Power Mode (POWER_SetMode)**:  
+   * If !s_is_initialized, return APP_ERROR.  
+   * Validate mode. If mode == s_current_power_mode, return APP_OK (no change needed).  
    * Use a switch statement based on mode:  
-     * POWER_MODE_ACTIVE: Ensure all necessary peripherals are powered, clocks are at full speed.  
-     * POWER_MODE_SLEEP: Configure MCU peripherals for low power, enter light sleep mode (e.g., esp_light_sleep_start()).  
-     * POWER_MODE_DEEP_SLEEP: Configure MCU for deep sleep (e.g., esp_deep_sleep_start()), potentially losing RAM context.  
-   * Report FAULT_ID_POWER_MODE_SET_FAILED if transition fails.  
-   * Return APP_OK.  
-3. **Get Consumption (POWER_GetConsumption)**:  
-   * Called by systemMgr via RTE_Service_POWER_GetConsumption().  
-   * Acquire power_data_mutex (if POWER_MONITOR_Task updates shared data).  
-   * Copy the latest calculated Power_Consumption_t data to the consumption buffer.  
-   * Release power_data_mutex.  
-   * Return APP_OK.  
-4. **POWER_MONITOR_Task(void *pvParameters)**:  
-   * This is the dedicated FreeRTOS task for continuous power monitoring.  
-   * **Periodicity**: Defined in power_cfg.h (e.g., 1000 ms).  
-   * **Loop**:  
-     * Acquire power_data_mutex.  
-     * **Read Raw Data**:  
-       * If ADC-based: Call HAL_ADC_Read() for voltage and current shunt channels.  
-       * If I2C power monitor IC: Call HAL_I2C_MasterWriteRead() to read current/voltage registers from the IC.  
-     * **Calibration and Calculation**: Apply calibration factors (from power_cfg.h) to raw ADC/IC readings to convert to real-world units (mV, mA). Calculate power (mW = mV * mA / 1000).  
-     * Store calculated current_ma, voltage_mv, power_mw in an internal Power_Consumption_t structure.  
-     * **Threshold Check (Optional)**: If power_mw exceeds POWER_CONSUMPTION_THRESHOLD_MW, report FAULT_ID_HIGH_POWER_CONSUMPTION to SystemMonitor.  
-     * Release power_data_mutex.  
-     * vTaskDelay(pdMS_TO_TICKS(POWER_MONITOR_TASK_PERIOD_MS)).  
-   * **Error Handling**: If sensor read fails, report FAULT_ID_POWER_SENSOR_READ_FAILED to SystemMonitor.
+     * **POWER_MODE_ON**: Call power_transition_to_on().  
+     * **POWER_MODE_SLEEP**: Call power_transition_to_sleep().  
+     * **POWER_MODE_OFF**: Call power_transition_to_off().  
+     * **Default**: Log error, return APP_ERROR.  
+   * If the transition function returns APP_OK, update s_current_power_mode = mode;.  
+   * Log LOGI("Power: Transitioned to mode %d", s_current_power_mode);.  
+   * Return APP_OK or APP_ERROR based on transition function's result.  
+4. **Internal Mode Transition Functions (Static)**:  
+   * **power_transition_to_on()**:  
+     * Enable all necessary power rails (via HAL_GPIO_SetState).  
+     * Disable any sleep-specific wake-up sources.  
+     * Ensure all essential peripherals are powered and clocked.  
+     * Return APP_OK or APP_ERROR.  
+   * **power_transition_to_sleep()**:  
+     * Configure wake-up sources (e.g., HAL_GPIO_ConfigInterrupt for a button, MCAL_RTC_SetAlarm).  
+     * Disable non-essential peripherals/power rails.  
+     * Inform systemMgr to prepare for sleep (e.g., save state to NVM).  
+     * Call MCAL_MCU_EnterSleepMode() (conceptual MCAL function).  
+     * Return APP_OK (note: actual return happens on wake-up).  
+   * **power_transition_to_off()**:  
+     * Disable all non-essential power rails.  
+     * Potentially save critical state to NVM (via Nvm module).  
+     * Call MCAL_MCU_Shutdown() (conceptual MCAL function, might not return).  
+     * Return APP_OK (if it returns).  
+5. **Periodic Monitoring (POWER_MainFunction)**:  
+   * If !s_is_initialized, return immediately.  
+   * If s_current_power_mode is POWER_MODE_OFF or POWER_MODE_SLEEP, monitoring might be skipped or reduced, depending on requirements.  
+   * **Read Raw ADC Values**:  
+     * Read voltage raw value: HAL_ADC_ReadChannel(POWER_VOLTAGE_ADC_UNIT, POWER_VOLTAGE_ADC_CHANNEL, &raw_voltage);  
+     * Read current raw value: HAL_ADC_ReadChannel(POWER_CURRENT_ADC_UNIT, POWER_CURRENT_ADC_CHANNEL, &raw_current);  
+     * If any ADC read fails, report FAULT_ID_POWER_ADC_READ_FAILURE to SystemMonitor.  
+   * **Convert to Physical Units**:  
+     * s_last_consumption.voltage_mV = raw_voltage * POWER_VOLTAGE_SCALE_FACTOR;  
+     * s_last_consumption.current_mA = raw_current * POWER_CURRENT_SCALE_FACTOR;  
+     * s_last_consumption.power_mW = s_last_consumption.voltage_mV * s_last_consumption.current_mA / 1000.0f;  
+   * **Report to systemMgr**:  
+     * RTE_Service_SYS_MGR_UpdatePowerConsumption(s_last_consumption.current_mA, s_last_consumption.voltage_mV, s_last_consumption.power_mW);  
+   * **Threshold Check & Fault Reporting**:  
+     * If s_last_consumption.current_mA > POWER_OVERCURRENT_THRESHOLD_MA:  
+       RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_OVER_CURRENT, SEVERITY_HIGH, (uint32_t)s_last_consumption.current_mA);  
+     * If s_last_consumption.voltage_mV < POWER_UNDERVOLTAGE_THRESHOLD_MV:  
+       RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_UNDER_VOLTAGE, SEVERITY_HIGH, (uint32_t)s_last_consumption.voltage_mV);  
+     * If s_last_consumption.power_mW > POWER_OVERPOWER_THRESHOLD_MW:  
+       RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_OVER_POWER, SEVERITY_HIGH, (uint32_t)s_last_consumption.power_mW);  
+   * Log LOGD("Power: V:%.1f mV, I:%.1f mA, P:%.1f mW", ...);.  
+6. **Get Consumption (POWER_GetConsumption)**:  
+   * Validate consumption pointer.  
+   * Copy s_last_consumption to *consumption.  
+   * Return APP_OK.
 
-**Sequence Diagram (Example: systemMgr Queries Power Consumption):**
+**Sequence Diagram (Example: Power Consumption Monitoring):**
 ```mermaid
 sequenceDiagram  
-    participant SystemMgr as Application/systemMgr  
+    participant RTE_MainLoopTask as RTE Task  
+    participant Power as Application/Power  
     participant RTE as Runtime Environment  
-    participant Power as PowerMgr  
-    participant PowerMonitorTask as PowerMgr::POWER_MONITOR_Task  
-    participant PowerDataMutex as FreeRTOS Mutex  
+    participant HAL_ADC as HAL/ADC  
+    participant SystemMgr as Application/systemMgr  
     participant SystemMonitor as Application/SystemMonitor
 
-    SystemMgr->>RTE: RTE_Service_POWER_GetConsumption(&consumption_data)  
-    RTE->>Power: POWER_GetConsumption(&consumption_data)  
-    Power->>PowerDataMutex: Acquire power_data_mutex  
-    Power->>Power: Copy internal power data to consumption_data  
-    Power->>PowerDataMutex: Release power_data_mutex  
-    Power-->>RTE: Return APP_OK  
-    RTE-->>SystemMgr: Return APP_OK
+    RTE_MainLoopTask->>Power: POWER_MainFunction()  
+    Power->>RTE: RTE_Service_ADC_ReadChannel(VOLTAGE_UNIT, VOLTAGE_CHANNEL, &raw_V)  
+    RTE->>HAL_ADC: HAL_ADC_ReadChannel(VOLTAGE_UNIT, VOLTAGE_CHANNEL, &raw_V)  
+    HAL_ADC-->>RTE: Return APP_OK (raw_V)  
+    RTE-->>Power: Return APP_OK (raw_V)
 
-    Note over PowerMonitorTask: (Meanwhile, in its periodic loop)  
-    PowerMonitorTask->>PowerDataMutex: Acquire power_data_mutex  
-    PowerMonitorTask->>PowerMonitorTask: Read raw power sensor data (e.g., from HAL_ADC)  
-    PowerMonitorTask->>PowerMonitorTask: Calculate current, voltage, power  
-    PowerMonitorTask->>PowerMonitorTask: Store updated power data internally  
-    alt Power exceeds threshold  
-        PowerMonitorTask->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_HIGH_POWER_CONSUMPTION, SEVERITY_MEDIUM, current_power)  
-        SystemMonitor-->>PowerMonitorTask: Return APP_OK  
+    Power->>RTE: RTE_Service_ADC_ReadChannel(CURRENT_UNIT, CURRENT_CHANNEL, &raw_I)  
+    RTE->>HAL_ADC: HAL_ADC_ReadChannel(CURRENT_UNIT, CURRENT_CHANNEL, &raw_I)  
+    HAL_ADC-->>RTE: Return APP_OK (raw_I)  
+    RTE-->>Power: Return APP_OK (raw_I)
+
+    Power->>Power: Calculate current_mA, voltage_mV, power_mW  
+    Power->>RTE: RTE_Service_SYS_MGR_UpdatePowerConsumption(current_mA, voltage_mV, power_mW)  
+    RTE->>SystemMgr: SYS_MGR_UpdatePowerConsumption(current_mA, voltage_mV, power_mW)  
+    SystemMgr-->>RTE: Return APP_OK  
+    RTE-->>Power: Return APP_OK
+
+    alt Current > Overcurrent Threshold  
+        Power->>RTE: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_OVER_CURRENT, SEVERITY_HIGH, current_mA)  
+        RTE->>SystemMonitor: SYSTEMMONITOR_ReportFault(...)  
+        SystemMonitor-->>RTE: Return APP_OK  
+        RTE-->>Power: Return APP_OK  
     end  
-    PowerMonitorTask->>PowerDataMutex: Release power_data_mutex  
-    PowerMonitorTask->>PowerMonitorTask: vTaskDelay(...)
+    Power-->>RTE_MainLoopTask: Return APP_OK
 ```
 ### **5.4. Dependencies**
 
-* **Application/common/inc/app_common.h**: For APP_Status_t.  
-* **Application/logger/inc/logger.h**: For logging power events and errors.  
-* **Application/SystemMonitor/inc/system_monitor.h**: For SystemMonitor_FaultId_t (e.g., FAULT_ID_POWER_INIT_FAILED).  
-* **Rte/inc/Rte.h**: For calling RTE_Service_SystemMonitor_ReportFault() and RTE_Service_OS_CreateTask().  
-* **HAL/inc/hal_adc.h**: If using ADC for power monitoring.  
-* **HAL/inc/hal_i2c.h**: If using an I2C power monitoring IC.  
-* **Mcal/gpio/inc/mcal_gpio.h**: For direct GPIO control of power rails or sleep pins.  
-* **FreeRTOS Headers**: FreeRTOS.h, task.h, semphr.h (for mutex).
+* Application/common/inc/app_common.h: For APP_Status_t.  
+* Application/logger/inc/logger.h: For logging power events and errors.  
+* Rte/inc/Rte.h: For calling RTE_Service_SystemMonitor_ReportFault(), RTE_Service_SYS_MGR_UpdatePowerConsumption(), and potentially RTE_Service_Nvm_WriteParam() if sleep state is persisted.  
+* Application/SystemMonitor/inc/system_monitor.h: For FAULT_ID_POWER_... definitions.  
+* Application/systemMgr/inc/sys_mgr.h: For SYS_MGR_UpdatePowerConsumption().  
+* HAL/inc/hal_adc.h: For reading voltage and current.  
+* HAL/inc/hal_gpio.h: For controlling power enable pins, wake-up pins.  
+* Mcal/mcu/inc/mcal_mcu.h (conceptual): For low-level sleep/shutdown functions.  
+* Mcal/rtc/inc/mcal_rtc.h (conceptual): For RTC-based wake-up from sleep.  
+* Service/nvm/inc/nvm.h (optional): If power mode or context needs to be saved to NVM before deep sleep/shutdown.
 
 ### **5.5. Error Handling**
 
-* **Initialization Failure**: If power monitoring hardware or control pins fail to initialize, FAULT_ID_POWER_INIT_FAILED is reported.  
-* **Sensor Read Errors**: If ADC or I2C reads for power sensors fail, FAULT_ID_POWER_SENSOR_READ_FAILED is reported.  
-* **Power Mode Set Failure**: If POWER_SetMode fails to transition to the requested mode, FAULT_ID_POWER_MODE_SET_FAILED is reported.  
-* **Threshold Exceeded**: If power consumption exceeds configured thresholds, FAULT_ID_HIGH_POWER_CONSUMPTION is reported to SystemMonitor.  
-* **Mutex Protection**: Access to the internal Power_Consumption_t data must be protected by a mutex.
+* **Initialization Failure**: If underlying HAL/MCAL initialization fails, Power_Init() reports FAULT_ID_POWER_INIT_FAILURE to SystemMonitor.  
+* **ADC Read Errors**: If HAL_ADC_ReadChannel() fails, POWER_MainFunction() reports FAULT_ID_POWER_ADC_READ_FAILURE to SystemMonitor.  
+* **Threshold Exceedance**: If calculated current, voltage, or power exceed configured thresholds, specific faults (FAULT_ID_POWER_OVER_CURRENT, FAULT_ID_POWER_UNDER_VOLTAGE, FAULT_ID_POWER_OVER_POWER) are reported to SystemMonitor with SEVERITY_HIGH. SystemMonitor will then request systemMgr to take corrective actions.  
+* **Invalid Mode Transition**: POWER_SetMode() validates the requested mode and returns APP_ERROR if invalid.  
+* **Return Status**: All public API functions return APP_ERROR on failure.
 
 ### **5.6. Configuration**
 
-The PowerMgr/cfg/power_cfg.h file will contain:
+The Application/power/cfg/power_cfg.h file will contain:
 
-* **Power Monitoring Type**: Define POWER_MONITOR_TYPE_ADC or POWER_MONITOR_TYPE_I2C_IC.  
-* **For ADC-based Monitoring**:  
-  * POWER_VOLTAGE_ADC_CHANNEL, POWER_CURRENT_ADC_CHANNEL.  
-  * Calibration factors (e.g., POWER_VOLTAGE_CAL_FACTOR_MV_PER_LSB, POWER_CURRENT_CAL_FACTOR_MA_PER_LSB).  
-* **For I2C IC-based Monitoring**:  
-  * POWER_MONITOR_IC_I2C_PORT_ID, POWER_MONITOR_IC_I2C_SLAVE_ADDRESS.  
-* **Power Control GPIOs**: POWER_ENABLE_GPIO_PIN, POWER_SLEEP_GPIO_PIN (if direct control).  
-* **Monitoring Task Period**: POWER_MONITOR_TASK_PERIOD_MS.  
-* **Power Thresholds**: POWER_CONSUMPTION_THRESHOLD_MW.
-
-// Example: PowerMgr/cfg/power_cfg.h
+* **Power Mode Specific Settings**:  
+  * GPIO pins for power rail control.  
+  * Wake-up source configurations (e.g., button pins for wake-up from sleep).  
+* **Power Monitoring Settings**:  
+  * ADC unit and channel mappings for voltage and current sensors.  
+  * Scaling factors (POWER_VOLTAGE_SCALE_FACTOR, POWER_CURRENT_SCALE_FACTOR) to convert raw ADC values to mV/mA.  
+* **Thresholds**:  
+  * POWER_OVERCURRENT_THRESHOLD_MA  
+  * POWER_UNDERVOLTAGE_THRESHOLD_MV  
+  * POWER_OVERPOWER_THRESHOLD_MW  
+* **Periodic Task Settings**:  
+  * POWER_MONITOR_PERIOD_MS: The frequency at which POWER_MainFunction() is called by RTE.
 ```c
-// Choose power monitoring hardware  
-#define POWER_MONITOR_TYPE_ADC      1  
-#define POWER_MONITOR_TYPE_I2C_IC   0
+// Example: Application/power/cfg/power_cfg.h  
+#ifndef POWER_CFG_H  
+#define POWER_CFG_H
 
-#if POWER_MONITOR_TYPE_ADC  
-#define POWER_VOLTAGE_ADC_CHANNEL           HAL_ADC_CHANNEL_0  
-#define POWER_CURRENT_ADC_CHANNEL           HAL_ADC_CHANNEL_1  
-#define POWER_VOLTAGE_CAL_FACTOR_MV_PER_LSB 3.3f / 4095.0f * 1000.0f // Example for 3.3V, 12-bit ADC  
-#define POWER_CURRENT_CAL_FACTOR_MA_PER_LSB 0.5f // Example for current shunt  
-#elif POWER_MONITOR_TYPE_I2C_IC  
-#define POWER_MONITOR_IC_I2C_PORT_ID        HAL_I2C_PORT_0  
-#define POWER_MONITOR_IC_I2C_SLAVE_ADDRESS  0x40 // Example for INA219  
-#endif
+#include "HAL/inc/hal_adc.h"  // For HAL_ADC_Unit_t, HAL_ADC_Channel_t  
+#include "HAL/inc/hal_gpio.h" // For HAL_GPIO_Pin_t
 
-// Power control GPIOs (if direct control is needed)  
-#define POWER_ENABLE_GPIO_PIN               26  
-#define POWER_SLEEP_GPIO_PIN                27
+// --- Power Monitoring ADC Channel Mappings ---  
+#define POWER_VOLTAGE_ADC_UNIT      HAL_ADC_UNIT_0  
+#define POWER_VOLTAGE_ADC_CHANNEL   HAL_ADC_CHANNEL_2 // Example channel  
+#define POWER_CURRENT_ADC_UNIT      HAL_ADC_UNIT_0  
+#define POWER_CURRENT_ADC_CHANNEL   HAL_ADC_CHANNEL_3 // Example channel
 
-#define POWER_MONITOR_TASK_PERIOD_MS        1000 // Monitor every 1 second
+// --- ADC Raw Value to Physical Unit Scaling Factors ---  
+// These values depend on your voltage divider, current sensor, and ADC reference.  
+// Example: 12-bit ADC (0-4095), 3.3V ref, voltage divider 10:1 (so 1V input = 0.1V at ADC)  
+// 3300mV / 4096 counts = 0.805 mV/count. If 10:1 divider, then 8.05 mV/count for actual voltage.  
+#define POWER_VOLTAGE_SCALE_FACTOR  8.05f // mV per ADC count  
+#define POWER_CURRENT_SCALE_FACTOR  0.5f  // mA per ADC count (e.g., for a current sensor outputting 1V/Amp)
 
-#define POWER_CONSUMPTION_THRESHOLD_MW      1500 // Report fault if power > 1.5W
+// --- Power Thresholds for Fault Reporting ---  
+#define POWER_OVERCURRENT_THRESHOLD_MA  4500 // 4.5 Amps (e.g., for SyRS-02-02-08: 4A AC-1 load)  
+#define POWER_UNDERVOLTAGE_THRESHOLD_MV 10000 // 10 Volts (e.g., for 12V supply)  
+#define POWER_OVERPOWER_THRESHOLD_MW    50000 // 50 Watts (e.g., 4 VA max consumption)
+
+// --- Power Mode Specific GPIOs ---  
+// Example: A GPIO pin to enable/disable a main power rail  
+#define POWER_MAIN_RAIL_ENABLE_GPIO_PIN HAL_GPIO_PIN_26
+
+// Example: A button pin configured as wake-up source from sleep  
+#define POWER_WAKEUP_BUTTON_GPIO_PIN    HAL_GPIO_PIN_27
+
+// --- Periodic Task Settings ---  
+#define POWER_MONITOR_PERIOD_MS         1000 // POWER_MainFunction called every 1 second
+
+#endif // POWER_CFG_H
 ```
-
 ### **5.7. Resource Usage**
 
-* **Flash**: Low to moderate, depending on the complexity of power monitoring (e.g., specific IC drivers).  
-* **RAM**: Low, for internal data structures and buffers.  
-* **CPU**: Low. Periodic sampling and calculation are generally efficient.
+* **Flash**: Moderate, for power management logic, calculations, and configuration data.  
+* **RAM**: Low, for internal state variables (s_current_power_mode, s_last_consumption).  
+* **CPU**: Low for periodic monitoring (a few ADC reads and float calculations). Can be higher during mode transitions if complex hardware reconfigurations are involved.
 
 ## **6. Test Considerations**
 
 ### **6.1. Unit Testing**
 
-* **Mock Dependencies**: Unit tests for power will mock HAL_ADC_Read(), HAL_I2C_MasterWriteRead(), MCAL_GPIO_SetState(), RTE_Service_SystemMonitor_ReportFault(), and FreeRTOS task/mutex APIs.  
+* **Mock Dependencies**: Unit tests for Power will mock HAL_ADC_Init(), HAL_ADC_ReadChannel(), HAL_GPIO_Init(), HAL_GPIO_SetState(), MCAL_MCU_EnterSleepMode(), MCAL_MCU_Shutdown(), RTE_Service_SystemMonitor_ReportFault(), and RTE_Service_SYS_MGR_UpdatePowerConsumption().  
 * **Test Cases**:  
-  * POWER_Init: Verify initialization of underlying hardware drivers and task creation. Test failure scenarios.  
-  * POWER_SetMode: Test setting different power modes. Mock MCAL_GPIO_SetState() or native sleep functions. Verify correct state transitions.  
-  * POWER_GetConsumption: Verify it returns the latest calculated data. Test mutex protection.  
-  * POWER_MONITOR_Task:  
-    * Mock raw sensor reads to simulate various current/voltage values. Verify correct calculation of current_ma, voltage_mv, power_mw.  
-    * Simulate power exceeding POWER_CONSUMPTION_THRESHOLD_MW and verify FAULT_ID_HIGH_POWER_CONSUMPTION is reported to SystemMonitor.  
-    * Test sensor read failures and verify FAULT_ID_POWER_SENSOR_READ_FAILED is reported.
+  * Power_Init: Verify correct initialization of internal state and calls to HAL/MCAL for hardware setup. Test initialization failure and fault reporting.  
+  * POWER_SetMode:  
+    * Test transitions to POWER_MODE_ON, POWER_MODE_SLEEP, POWER_MODE_OFF. Verify correct HAL/MCAL calls for each transition.  
+    * Test invalid mode commands.  
+    * Test repeated calls to the same mode.  
+    * Test scenarios where underlying HAL/MCAL calls fail during mode transitions (verify APP_ERROR return and fault reporting).  
+  * POWER_MainFunction:  
+    * Mock HAL_ADC_ReadChannel() to return various raw values. Verify correct calculation of current_mA, voltage_mV, power_mW.  
+    * Verify RTE_Service_SYS_MGR_UpdatePowerConsumption() is called with the calculated values.  
+    * Test scenarios where calculated values exceed POWER_OVERCURRENT_THRESHOLD_MA, POWER_UNDERVOLTAGE_THRESHOLD_MV, POWER_OVERPOWER_THRESHOLD_MW. Verify RTE_Service_SystemMonitor_ReportFault() is called with the correct fault ID and severity.  
+    * Test HAL_ADC_ReadChannel() failure (verify fault reporting).  
+  * POWER_GetConsumption: Verify it returns the last calculated consumption data. Test with NULL pointer.
 
 ### **6.2. Integration Testing**
 
-* **Power-HAL/MCAL Integration**: Verify that power correctly interfaces with the actual ADC, I2C, or GPIO drivers and the physical power monitoring/control hardware.  
-* **Power-SystemMgr Integration**: Verify that systemMgr correctly receives and uses power consumption data from power for its logic (e.g., preventing OTA if power is low).  
-* **Power Mode Transitions**: Verify that POWER_SetMode correctly transitions the ECU into different power states (e.g., measure current consumption in sleep modes).  
-* **Accuracy Verification**: Compare power's reported current/voltage/power with external measurement equipment (multimeter, power analyzer).  
-* **Fault Injection**: Simulate power monitoring sensor failures (e.g., disconnect a shunt resistor, cause I2C communication error) and verify power reports faults to SystemMonitor.
+* **Power-HAL_ADC/HAL_GPIO Integration**: Verify Power correctly interfaces with the actual HAL drivers for power monitoring and control.  
+* **Power-systemMgr Integration**: Verify systemMgr receives power consumption updates from Power and can act upon them (e.g., preventing OTA if power is low).  
+* **Power-SystemMonitor Integration**: Verify Power correctly reports power-related faults to SystemMonitor.  
+* **Mode Transitions**: Physically test transitions between ON, SLEEP, and OFF modes. Verify power consumption changes as expected and that wake-up sources function correctly.  
+* **Fault Injection**: Simulate overcurrent/undervoltage conditions (e.g., by adjusting power supply or introducing loads) and verify Power detects and reports these faults.
 
 ### **6.3. System Testing**
 
-* **End-to-End Power Management**: Verify that the system's overall power consumption aligns with expectations across different operational modes and loads.  
-* **OTA Power Readiness**: Test the full OTA update process, ensuring systemMgr (using power's data) correctly allows/prevents OTA based on power conditions.  
-* **Long-Term Monitoring**: Run the system for extended periods to ensure stable and continuous power monitoring.  
-* **Battery Life (if applicable)**: If battery-powered, perform battery life tests to validate power management strategies.
+* **End-to-End Power Management**: Verify the system's overall power management strategy, including automatic power mode transitions based on system state, manual mode changes via diagnostic, and fail-safe actions triggered by critical power faults.  
+* **Power Consumption Validation**: Measure actual system power consumption and compare it against calculated values from Power module for accuracy.  
+* **Long-Term Reliability**: Run the system for extended periods under various load conditions and power modes, observing power consumption trends and fault reports.  
+* **OTA Power Constraint**: Test initiating an OTA update when power is insufficient (as reported by Power to systemMgr), verifying that systemMgr correctly blocks the update.
+
+I've completed the detailed design document for the **Power** component.
+
+Which module would you like to design next? We still have lightIndication, logger, ComM, os, ota, security, and various MCAL/HAL communication drivers pending.

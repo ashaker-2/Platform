@@ -1,264 +1,307 @@
-# **Detailed Design Document: DisplayMgr Component**
+# **Detailed Design Document: Display Component**
 
 ## **1. Introduction**
 
 ### **1.1. Purpose**
 
-This document details the design of the DisplayMgr component. Its primary purpose is to manage the interaction with the character-based LCD (Liquid Crystal Display) used for displaying system status, sensor readings, and alarms. It provides a high-level, easy-to-use interface for other application modules to update the display content, abstracting the low-level display driver details.
+This document details the design of the Display component. Its primary purpose is to provide a high-level interface for managing and updating the character-based LCD display within the smart device. It abstracts the complexities of the underlying hardware drivers (e.g., I2C or GPIO for LCD communication). This module is responsible for presenting system information, sensor readings, and alarm statuses to the user.
 
 ### **1.2. Scope**
 
-The scope of this document covers the display module's architecture, functional behavior, interfaces, dependencies, and resource considerations. It details how display receives display requests from systemMgr (via RTE services) and interacts with the underlying HAL_I2C (assuming an I2C-controlled LCD) or MCAL_GPIO (for direct GPIO-controlled LCD) for physical display updates.
+The scope of this document covers the Display module's architecture, functional behavior, interfaces, dependencies, and resource considerations. It details how Display receives data from systemMgr (via RTE services) and renders it on the LCD, managing display modes and updates.
 
 ### **1.3. References**
 
-* Software Architecture Document (SAD) - Smart Device Firmware (Final Version)  
+* Software Architecture Document (SAD) - Environmental Monitoring & Control System (Final Version)  
 * Detailed Design Document: RTE  
+* Detailed Design Document: systemMgr  
 * Detailed Design Document: HAL_I2C (if I2C LCD)  
-* MCAL GPIO Driver Specification (if GPIO LCD)  
-* LCD Datasheet (e.g., HD44780 compatible LCD)
+* Detailed Design Document: HAL_GPIO (if parallel LCD or for backlight control)  
+* LCD Module Datasheet (e.g., HD44780-compatible LCD)
 
 ## **2. Functional Description**
 
-The DisplayMgr component provides the following core functionalities:
+The Display component provides the following core functionalities:
 
-1. **Initialization**: Initialize the LCD hardware and clear its content.  
-2. **Text Display**: Write text strings to specific lines or positions on the LCD.  
-3. **Clear Display**: Clear the entire LCD screen or specific lines.  
-4. **Backlight Control**: Control the LCD backlight (on/off, or brightness if supported).  
-5. **Custom Characters**: Support loading and displaying custom characters (if supported by LCD).  
-6. **Error Reporting**: Report any failures during display operations (e.g., initialization failure, communication error with LCD) to the SystemMonitor via RTE_Service_SystemMonitor_ReportFault().
+1. **Initialization (Display_Init)**: Initialize the LCD hardware (via HAL drivers) and prepare its internal state for display operations.  
+2. **Update Display Content (DisplayMgr_Update)**: This is the module's primary function for rendering information. It receives data (e.g., temperature, humidity, alarm status) and formats it for presentation on the LCD. This function is typically called periodically by RTE_DisplayAlarmTask.  
+3. **Manage Display Modes (DisplayMgr_SetMode, DisplayMgr_CycleMode)**: Control which information is currently shown on the display (e.g., alternating temperature/humidity, version number, min/max readings, alarm status).  
+4. **Control Backlight (DisplayMgr_SetBacklight)**: Turn the LCD backlight ON or OFF.  
+5. **Error Reporting**: Detect and report any failures during display operations (e.g., LCD communication error) to the SystemMonitor via RTE_Service_SystemMonitor_ReportFault().
 
 ## **3. Non-Functional Requirements**
 
 ### **3.1. Performance**
 
-* **Responsiveness**: Display updates should appear promptly after a request.  
-* **Efficiency**: Display update operations should be efficient to minimize CPU overhead.
+* **Responsiveness**: Display updates shall be performed with sufficient frequency to ensure a smooth user experience and timely presentation of information (defined by DisplayMgr_UPDATE_PERIOD_MS).  
+* **Readability**: Display content shall be clear and easy to read under various lighting conditions.
 
 ### **3.2. Memory**
 
-* **Minimal Footprint**: The display module shall have a minimal memory footprint.  
-* **Buffer Management**: Efficiently manage any internal display buffers.
+* **Minimal Footprint**: The Display module shall have a minimal memory footprint for its internal buffers and state.
 
 ### **3.3. Reliability**
 
-* **Robustness**: The module shall handle communication errors with the LCD gracefully.  
-* **Readability**: Displayed text must be clear and legible.  
-* **Safety**: Ensure display does not show corrupted or misleading information.
+* **Robustness**: The module shall be robust against communication errors with the LCD, attempting retries or reporting faults without crashing the system.  
+* **Consistency**: Displayed information shall be consistent with the actual system state.
 
 ## **4. Architectural Context**
 
-As per the SAD (Section 3.1.2, Application Layer), display resides in the Application Layer. It receives display update requests from systemMgr (via RTE_Service_DISPLAY_UpdateText()). It then interacts with the appropriate HAL or MCAL drivers (e.g., HAL_I2C for I2C LCD, or MCAL_GPIO for direct parallel LCD) to send commands and data to the physical LCD.
+As per the SAD (Section 3.1.2, Application Layer), Display resides in the Application Layer. It is primarily driven by the RTE_DisplayAlarmTask, which periodically calls DisplayMgr_Update(). It receives data from systemMgr via RTE services and interacts with HAL drivers (e.g., HAL_I2C, HAL_GPIO) for physical LCD communication.
 
 ## **5. Design Details**
 
 ### **5.1. Module Structure**
 
-The DisplayMgr component will consist of the following files:
+The Display component will consist of the following files:
 
-* DisplayMgr/inc/display.h: Public header file containing function prototypes and any display-specific definitions (e.g., line numbers).  
-* DisplayMgr/src/display.c: Source file containing the implementation of display control logic.  
-* DisplayMgr/cfg/display_cfg.h: Configuration header for LCD type, dimensions (rows/columns), communication interface (I2C address/GPIO pins), and backlight control pin.
+* Application/display/inc/display.h: Public header file containing function prototypes, data types for display modes, and error codes.  
+* Application/display/src/display.c: Source file containing the implementation of display logic, content formatting, and LCD communication.  
+* Application/display/cfg/display_cfg.h: Configuration header for LCD dimensions, character mappings, and update timing.
 
 ### **5.2. Public Interface (API)**
 
-// In DisplayMgr/inc/display.h
+// In Application/display/inc/display.h
 ```c
-#include "Application/common/inc/app_common.h" // For APP_Status_t
+#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include <stdint.h>   // For uint32_t, uint8_t  
+#include <stdbool.h>  // For bool
 
-// --- Display Line Definitions (Example for 2x16 LCD) ---  
-#define DISPLAY_LINE_1  0  
-#define DISPLAY_LINE_2  1  
-#define DISPLAY_MAX_LINES 2  
-#define DISPLAY_MAX_COLUMNS 16
+// --- Display Mode Definitions ---  
+typedef enum {  
+    DisplayMgr_MODE_VERSION = 0,         // SyRS-02-03-03: Display version on power-on  
+    DisplayMgr_MODE_TEMP_HUM_ALT,        // SyRS-02-03-02: Alternating temp/humidity  
+    DisplayMgr_MODE_MIN_MAX_TEMP,        // SyRS-02-03-04: Min/Max recorded temperatures  
+    DisplayMgr_MODE_ALARM_STATUS,        // SyRS-02-03-05: Alarm status  
+    DisplayMgr_MODE_SETPOINT_CONFIG,     // SyRS-02-06-04: Set point configuration mode  
+    // Add more modes as needed (e.g., current fan speed, specific actuator status)  
+    DisplayMgr_MODE_COUNT  
+} Display_Mode_t;
 
 // --- Public Functions ---
 
 /**  
- * @brief Initializes the Display module and the LCD hardware.  
- * Clears the display and sets up the backlight.  
+ * @brief Initializes the Display module and the underlying LCD hardware.  
+ * This function should be called once during system initialization.  
  * @return APP_OK on success, APP_ERROR on failure.  
  */  
-APP_Status_t DISPLAY_Init(void);
+APP_Status_t Display_Init(void);
 
 /**  
- * @brief Updates the text on a specific line of the LCD.  
- * @param line_num The line number to update (e.g., DISPLAY_LINE_1).  
- * @param text The null-terminated string to display.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @brief Updates the content on the LCD display based on the current display mode  
+ * and system data retrieved from systemMgr. This function is called periodically.  
+ * @return APP_OK on successful update, APP_ERROR on communication failure.  
  */  
-APP_Status_t DISPLAY_UpdateLine(uint8_t line_num, const char *text);
+APP_Status_t DisplayMgr_Update(void);
 
 /**  
- * @brief Clears the entire LCD screen.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @brief Sets the current display mode.  
+ * @param mode The desired display mode.  
+ * @return APP_OK on success, APP_ERROR if the mode is invalid.  
  */  
-APP_Status_t DISPLAY_ClearScreen(void);
+APP_Status_t DisplayMgr_SetMode(Display_Mode_t mode);
+
+/**  
+ * @brief Cycles to the next display mode in a predefined sequence.  
+ * This is typically triggered by a user button press (SyRS-02-06-01).  
+ * @return APP_OK on success, APP_ERROR if cycling fails.  
+ */  
+APP_Status_t DisplayMgr_CycleMode(void);
 
 /**  
  * @brief Controls the LCD backlight.  
- * @param enable True to turn on backlight, false to turn off.  
+ * @param enable True to turn backlight ON, false to turn OFF.  
  * @return APP_OK on success, APP_ERROR on failure.  
  */  
-APP_Status_t DISPLAY_SetBacklight(bool enable);
+APP_Status_t DisplayMgr_SetBacklight(bool enable);
 
-// Add functions for custom characters, cursor control if needed
+/**  
+ * @brief Sets the current setpoint context for DisplayMgr_MODE_SETPOINT_CONFIG.  
+ * This allows the display to show the correct function name and value.  
+ * @param function_id An ID representing the function being configured (e.g., FAN_ID_1, HEATER_ID_MAIN).  
+ * @param setpoint_value The current setpoint value to display.  
+ * @return APP_OK on success, APP_ERROR on invalid input.  
+ */  
+APP_Status_t DisplayMgr_SetSetpointContext(uint32_t function_id, int32_t setpoint_value);
+
+// --- Internal Periodic Runnable Prototype (called by RTE) ---  
+// This function is declared here so RTE can call it.  
+/**  
+ * @brief Internal periodic function for display updates.  
+ * This is the same as DisplayMgr_Update, but explicitly marked for RTE use.  
+ */  
+void DisplayMgr_MainFunction(void);
 ```
-
 ### **5.3. Internal Design**
 
-The DisplayMgr module will encapsulate the specific commands and sequences required to control the LCD. It will use the configured communication interface (I2C or GPIO) to send these commands.
+The Display module will manage its own internal state, including the current display mode, and will format data retrieved from systemMgr before sending it to the LCD driver via HAL.
 
-1. **Initialization (DISPLAY_Init)**:  
-   * **Communication Interface Init**:  
-     * If DISPLAY_COMM_INTERFACE_I2C is configured: Call HAL_I2C_Init() for the relevant port.  
-     * If DISPLAY_COMM_INTERFACE_GPIO is configured: Call MCAL_GPIO_Init() for all LCD data/control pins.  
-   * **LCD Hardware Init Sequence**: Send the specific initialization commands to the LCD as per its datasheet (e.g., function set, display on/off, clear display).  
-   * **Backlight Control**: Call DISPLAY_SetBacklight(true) (or as configured).  
-   * If any underlying communication or LCD command fails, report FAULT_ID_DISPLAY_INIT_FAILED to SystemMonitor via RTE_Service_SystemMonitor_ReportFault().  
+1. **Internal State**:
+   ```c  
+   static Display_Mode_t s_current_display_mode = DisplayMgr_MODE_VERSION;  
+   static uint32_t s_last_mode_change_time_ms = 0; // For alternating displays  
+   static uint32_t s_current_setpoint_function_id = 0; // For setpoint config mode  
+   static int32_t s_current_setpoint_value = 0;       // For setpoint config mode  
+   static bool s_is_initialized = false;
+   ```
+   * All these variables will be initialized in Display_Init().  
+2. **Initialization (Display_Init)**:  
+   * Initialize internal state variables.  
+   * Call HAL_LCD_Init() (assuming a generic HAL LCD driver, which would internally use HAL_I2C or HAL_GPIO).  
+   * If HAL_LCD_Init() fails, report FAULT_ID_DisplayMgr_INIT_FAILED to SystemMonitor and return APP_ERROR.  
+   * Set s_is_initialized = true;.  
+   * Call DisplayMgr_SetMode(DisplayMgr_MODE_VERSION) to show version on startup.  
    * Return APP_OK.  
-2. **Update Line (DISPLAY_UpdateLine)**:  
-   * Validate line_num and text length (truncate if too long for the line).  
-   * Send LCD command to set cursor to the beginning of line_num.  
-   * Send the text string character by character as data to the LCD.  
-   * Pad with spaces if the text is shorter than the line length to clear previous content.  
-   * If any underlying communication fails, report FAULT_ID_DISPLAY_COMM_ERROR to SystemMonitor.  
+3. **Update Display Content (DisplayMgr_Update / DisplayMgr_MainFunction)**:  
+   * If !s_is_initialized, return immediately.  
+   * Clear the LCD: HAL_LCD_ClearDisplay().  
+   * Use a switch statement on s_current_display_mode:  
+     * **DisplayMgr_MODE_VERSION**:  
+       * Retrieve version string from systemMgr via RTE_Service_SYS_MGR_GetVersion().  
+       * Write "Version X.Y" to LCD using HAL_LCD_WriteString().  
+       * After DisplayMgr_VERSION_SHOW_TIME_MS, transition to DisplayMgr_MODE_TEMP_HUM_ALT.  
+     * **DisplayMgr_MODE_TEMP_HUM_ALT**:  
+       * Retrieve current temperature and humidity from systemMgr via RTE_Service_SYS_MGR_GetCurrentSensorReadings().  
+       * Alternate between "Temp: XX.X C" and "Hum: YY.Y %" every DisplayMgr_ALT_PERIOD_MS using APP_COMMON_GetUptimeMs() and s_last_mode_change_time_ms.  
+       * Check for out-of-range conditions (SyRS-02-03-05). If systemMgr reports an alarm for temp/hum, display "ALARM!" or flash the reading.  
+     * **DisplayMgr_MODE_MIN_MAX_TEMP**:  
+       * Retrieve min/max temperatures from systemMgr via RTE_Service_SYS_MGR_GetMinMaxTemperatures().  
+       * Display "Min: XX.X C" and "Max: YY.Y C".  
+     * **DisplayMgr_MODE_ALARM_STATUS**:  
+       * Retrieve active alarm status from SystemMonitor via RTE_Service_SystemMonitor_GetFaultStatus().  
+       * Display a summary of active alarms (e.g., "ALARM: TEMP HIGH" or "NO ALARMS").  
+     * **DisplayMgr_MODE_SETPOINT_CONFIG**:  
+       * Display the function name based on s_current_setpoint_function_id (e.g., "Fan 1 Setpoint").  
+       * Display the s_current_setpoint_value.  
+       * This mode is typically entered and exited by systemMgr or diagnostic via DisplayMgr_SetMode and DisplayMgr_SetSetpointContext.  
+     * **Default**: Clear display or show an error message.  
+   * If any HAL_LCD_... function returns an error, report FAULT_ID_DisplayMgr_COMM_ERROR to SystemMonitor.  
+4. **Set Display Mode (DisplayMgr_SetMode)**:  
+   * Validate mode.  
+   * Set s_current_display_mode = mode;.  
+   * Reset s_last_mode_change_time_ms = APP_COMMON_GetUptimeMs();.  
+   * Log LOGD("Display: Mode set to %d", mode);.  
    * Return APP_OK.  
-3. **Clear Screen (DISPLAY_ClearScreen)**:  
-   * Send the LCD "clear display" command.  
-   * Send the LCD "return home" command.  
+5. **Cycle Display Mode (DisplayMgr_CycleMode)**:  
+   * Calculate the next mode: s_current_display_mode = (s_current_display_mode + 1) % DisplayMgr_MODE_COUNT;.  
+   * Skip DisplayMgr_MODE_SETPOINT_CONFIG if not actively in a configuration session.  
+   * Call DisplayMgr_SetMode(s_current_display_mode).  
    * Return APP_OK.  
-4. **Set Backlight (DISPLAY_SetBacklight)**:  
-   * If DISPLAY_BACKLIGHT_GPIO_PIN is defined: Call MCAL_GPIO_SetState(DISPLAY_BACKLIGHT_GPIO_PIN, enable ? MCAL_GPIO_STATE_HIGH : MCAL_GPIO_STATE_LOW).  
-   * If DISPLAY_BACKLIGHT_PWM_CHANNEL is defined: Call RTE_Service_FAN_SetSpeed(DISPLAY_BACKLIGHT_PWM_CHANNEL, enable ? 100 : 0) (or a specific RTE_Service_PWM_SetDutyCycle if available).  
+6. **Control Backlight (DisplayMgr_SetBacklight)**:  
+   * Call HAL_LCD_SetBacklight(enable) (assuming HAL LCD driver provides this).  
+   * If HAL_LCD_SetBacklight fails, report FAULT_ID_DisplayMgr_BACKLIGHT_ERROR to SystemMonitor.  
    * Return APP_OK.  
-5. **Internal LCD Communication Functions**:  
-   * display_send_command(uint8_t command): Sends a command byte to the LCD.  
-   * display_send_data(uint8_t data): Sends a data byte to the LCD.  
-   * These functions will internally use either HAL_I2C_MasterWrite() (for I2C LCDs, encapsulating the I2C expander commands) or MCAL_GPIO_SetPinState() (for parallel LCDs, controlling data/control lines).  
-   * They should include small delays (vTaskDelay(1)) between commands/data as required by the LCD datasheet.
+7. **Set Setpoint Context (DisplayMgr_SetSetpointContext)**:  
+   * Store function_id and setpoint_value in internal static variables.  
+   * This function is primarily used by systemMgr or diagnostic when entering/exiting a configuration flow.
 
-**Sequence Diagram (Example: Update Display Line - I2C LCD):**
+**Sequence Diagram (Example: Displaying Temperature/Humidity):**
 ```mermaid
 sequenceDiagram  
-    participant SystemMgr as Application/systemMgr  
+    participant RTE_DisplayAlarmTask as RTE Task  
+    participant Display as Application/display  
     participant RTE as Runtime Environment  
-    participant Display as DisplayMgr  
-    participant HAL_I2C as HAL/I2C  
-    participant MCAL_I2C as MCAL/I2C  
+    participant SystemMgr as Application/systemMgr  
+    participant HAL_LCD as HAL/LCD  
     participant SystemMonitor as Application/SystemMonitor
 
-    SystemMgr->>RTE: RTE_Service_DISPLAY_UpdateText(line1_text, line2_text)  
-    RTE->>Display: DISPLAY_UpdateLine(DISPLAY_LINE_1, line1_text)  
-    Display->>Display: display_send_command(LCD_SET_CURSOR_LINE1)  
-    Display->>HAL_I2C: HAL_I2C_MasterWrite(I2C_PORT_DISPLAY, LCD_I2C_ADDR, [I2C_CMD_BYTE, LCD_SET_CURSOR_LINE1], len)  
-    HAL_I2C->>MCAL_I2C: MCAL_I2C_MasterTransmit(...)  
-    MCAL_I2C-->>HAL_I2C: Return OK  
-    HAL_I2C-->>Display: Return APP_OK  
-    loop For each character in line1_text  
-        Display->>Display: display_send_data(char)  
-        Display->>HAL_I2C: HAL_I2C_MasterWrite(I2C_PORT_DISPLAY, LCD_I2C_ADDR, [I2C_DATA_BYTE, char], len)  
-        HAL_I2C->>MCAL_I2C: MCAL_I2C_MasterTransmit(...)  
-        MCAL_I2C-->>HAL_I2C: Return OK  
-        HAL_I2C-->>Display: Return APP_OK  
+    RTE_DisplayAlarmTask->>Display: DisplayMgr_MainFunction()  
+    Display->>Display: Check s_current_display_mode (e.g., TEMP_HUM_ALT)  
+    Display->>RTE: RTE_Service_SYS_MGR_GetCurrentSensorReadings(&temp, &hum)  
+    RTE->>SystemMgr: SYS_MGR_GetCurrentSensorReadings(&temp, &hum)  
+    SystemMgr-->>RTE: Return APP_OK (with data)  
+    RTE-->>Display: Return APP_OK (with data)  
+    Display->>Display: Format "Temp: XX.X C"  
+    Display->>HAL_LCD: HAL_LCD_WriteString(line1, "Temp: XX.X C")  
+    HAL_LCD-->>Display: Return APP_OK  
+    Display->>HAL_LCD: HAL_LCD_UpdateDisplay()  
+    HAL_LCD-->>Display: Return APP_OK  
+    alt HAL_LCD_WriteString or HAL_LCD_UpdateDisplay fails  
+        HAL_LCD--xDisplay: Return APP_ERROR  
+        Display->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_DisplayMgr_COMM_ERROR, SEVERITY_LOW, ...)  
     end  
-    alt HAL_I2C returns APP_ERROR  
-        HAL_I2C--xDisplay: Return APP_ERROR  
-        Display->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_DISPLAY_COMM_ERROR, SEVERITY_HIGH, 0)  
-        Display--xRTE: Return APP_ERROR  
-        RTE--xSystemMgr: Return APP_ERROR  
-    else All successful  
-        Display-->>RTE: Return APP_OK  
-        RTE-->>SystemMgr: Return APP_OK  
-    end
+    Display-->>RTE_DisplayAlarmTask: Return APP_OK
 ```
-
 ### **5.4. Dependencies**
 
-* **Application/common/inc/app_common.h**: For APP_Status_t.  
-* **Application/logger/inc/logger.h**: For logging display errors.  
-* **Rte/inc/Rte.h**: For calling RTE_Service_SystemMonitor_ReportFault().  
-* **HAL/inc/hal_i2c.h**: If using an I2C-controlled LCD.  
-* **Mcal/gpio/inc/mcal_gpio.h**: If using a direct GPIO-controlled LCD or for backlight control.  
-* **Service/os/inc/service_os.h**: For delays (SERVICE_OS_DelayMs).
+* app_common.h: For APP_Status_t, APP_OK/APP_ERROR, and APP_COMMON_GetUptimeMs().  
+* logger.h: For internal logging.  
+* Rte.h: For calling RTE_Service_SystemMonitor_ReportFault() and RTE_Service_SYS_MGR_Get...() functions.  
+* hal_lcd.h (conceptual): A generic HAL interface for the LCD, which would abstract I2C or GPIO details. This hal_lcd.h would internally use HAL_I2C or HAL_GPIO.  
+* system_monitor.h: For FAULT_ID_DisplayMgr_... definitions.
 
 ### **5.5. Error Handling**
 
-* **Communication Errors**: If HAL_I2C or MCAL_GPIO operations fail, display will log the error and report FAULT_ID_DISPLAY_COMM_ERROR to SystemMonitor.  
-* **Initialization Failure**: If LCD initialization sequence fails, FAULT_ID_DISPLAY_INIT_FAILED is reported.  
-* **Input Validation**: Validate line_num and text length to prevent buffer overflows or writing to invalid display areas.
+* **Initialization Failure**: If HAL_LCD_Init() fails, Display_Init() reports FAULT_ID_DisplayMgr_INIT_FAILED to SystemMonitor.  
+* **Communication Errors**: If any HAL_LCD_... function fails during display updates (e.g., HAL_LCD_WriteString), DisplayMgr_Update() reports FAULT_ID_DisplayMgr_COMM_ERROR to SystemMonitor.  
+* **Backlight Errors**: If HAL_LCD_SetBacklight() fails, DisplayMgr_SetBacklight() reports FAULT_ID_DisplayMgr_BACKLIGHT_ERROR to SystemMonitor.  
+* **Input Validation**: Public API functions validate input parameters (e.g., valid Display_Mode_t).  
+* **Return Status**: All public API functions return APP_ERROR on failure.
 
 ### **5.6. Configuration**
 
-The DisplayMgr/cfg/display_cfg.h file will contain:
-
-* **LCD Type**: Define DISPLAY_TYPE_LCD_16x2, DISPLAY_TYPE_LCD_20x4, etc.  
-* **Communication Interface**: Define DISPLAY_COMM_INTERFACE_I2C or DISPLAY_COMM_INTERFACE_GPIO.  
-* **For I2C LCD**: DISPLAY_I2C_PORT_ID, DISPLAY_I2C_SLAVE_ADDRESS.  
-* **For GPIO LCD**: DISPLAY_GPIO_RS_PIN, DISPLAY_GPIO_EN_PIN, DISPLAY_GPIO_D4_PIN to D7_PIN.  
-* **Backlight Control**: DISPLAY_BACKLIGHT_GPIO_PIN or DISPLAY_BACKLIGHT_PWM_CHANNEL.  
-* **LCD Command/Data Delays**: DISPLAY_CMD_DELAY_US, DISPLAY_DATA_DELAY_US.
-
-// Example: DisplayMgr/cfg/display_cfg.h
+The Application/display/cfg/display_cfg.h file will contain:
 ```c
-#define DISPLAY_TYPE_LCD_16x2           1 // Example: 16 characters, 2 lines
+/* DisplayMgr_LCD_ROWS, DisplayMgr_LCD_COLUMNS: Dimensions of the LCD.  
+* DisplayMgr_VERSION_SHOW_TIME_MS: How long the version number is displayed on startup.  
+* DisplayMgr_ALT_PERIOD_MS: Period for alternating between temperature and humidity.  
+* DisplayMgr_UPDATE_PERIOD_MS: The frequency at which DisplayMgr_MainFunction() is called by RTE.  
+* DisplayMgr_DEFAULT_BACKLIGHT_ON_TIME_MS: Default duration for backlight to stay on after activation.  
+* Macros for character mappings or custom symbols if needed.*/
 
-// Choose communication interface  
-#define DISPLAY_COMM_INTERFACE_I2C      1  
-#define DISPLAY_COMM_INTERFACE_GPIO     0
+// Example: Application/display/cfg/display_cfg.h  
+#ifndef DisplayMgr_CFG_H  
+#define DisplayMgr_CFG_H
 
-#if DISPLAY_COMM_INTERFACE_I2C  
-#define DISPLAY_I2C_PORT_ID             HAL_I2C_PORT_0  
-#define DISPLAY_I2C_SLAVE_ADDRESS       0x27 // Common I2C address for PCF8574 based LCDs  
-#elif DISPLAY_COMM_INTERFACE_GPIO  
-// Define GPIO pins for parallel interface (RS, EN, D4-D7)  
-#define DISPLAY_GPIO_RS_PIN             12  
-#define DISPLAY_GPIO_EN_PIN             13  
-#define DISPLAY_GPIO_D4_PIN             14  
-#define DISPLAY_GPIO_D5_PIN             15  
-#define DISPLAY_GPIO_D6_PIN             16  
-#define DISPLAY_GPIO_D7_PIN             17  
-#endif
+#define DisplayMgr_LCD_ROWS                2  
+#define DisplayMgr_LCD_COLUMNS             16
 
-// Backlight control (choose one)  
-#define DISPLAY_BACKLIGHT_GPIO_PIN      25 // Example GPIO pin  
-// #define DISPLAY_BACKLIGHT_PWM_CHANNEL   HAL_PWM_CHANNEL_DISPLAY_BACKLIGHT // If PWM controlled
+#define DisplayMgr_VERSION_SHOW_TIME_MS    3000 // 3 seconds  
+#define DisplayMgr_ALT_PERIOD_MS           2000 // 2 seconds for alternating temp/hum
 
-// LCD timing delays in microseconds (refer to datasheet)  
-#define DISPLAY_CMD_DELAY_US            2000 // 2ms  
-#define DISPLAY_DATA_DELAY_US           50   // 50us
+#define DisplayMgr_UPDATE_PERIOD_MS        100  // DisplayMgr_MainFunction called every 100 ms
+
+#define DisplayMgr_DEFAULT_BACKLIGHT_ON_TIME_MS 10000 // 10 seconds
+
+// Custom characters or symbols can be defined here if needed by the LCD driver  
+// #define DisplayMgr_CHAR_DEGREE_CELSIUS     0xDF // Example for custom degree symbol
+
+#endif // DisplayMgr_CFG_H
 ```
-
 ### **5.7. Resource Usage**
 
-* **Flash**: Low to moderate, depending on the complexity of the LCD driver and custom character definitions.  
-* **RAM**: Low, for internal buffers (e.g., a small buffer to hold the current display content for comparison, if implemented).  
-* **CPU**: Low. Display updates are typically not very frequent, and the operations are simple.
+* **Flash**: Moderate, for content formatting logic, string handling, and various display modes.  
+* **RAM**: Low, for internal state variables and temporary string buffers (e.g., for sprintf operations).  
+* **CPU**: Low for periodic updates, as most time is spent waiting for LCD communication.
 
 ## **6. Test Considerations**
 
 ### **6.1. Unit Testing**
 
-* **Mock Dependencies**: Unit tests for display will mock HAL_I2C_MasterWrite() or MCAL_GPIO_SetPinState(), RTE_Service_SystemMonitor_ReportFault(), and SERVICE_OS_DelayMs().  
+* **Mock Dependencies**: Unit tests for Display will mock HAL_LCD_Init(), HAL_LCD_ClearDisplay(), HAL_LCD_WriteString(), HAL_LCD_SetBacklight(), RTE_Service_SystemMonitor_ReportFault(), and RTE_Service_SYS_MGR_Get...().  
 * **Test Cases**:  
-  * DISPLAY_Init: Mock underlying communication init. Verify LCD command sequence is sent correctly. Verify backlight state. Test initialization failure and fault reporting.  
-  * DISPLAY_UpdateLine:  
-    * Test writing text to different lines. Mock communication to verify correct cursor positioning commands and data bytes are sent.  
-    * Test with text shorter/longer than line length (verify padding/truncation).  
-    * Test with invalid line_num.  
-    * Test communication errors and verify fault reporting.  
-  * DISPLAY_ClearScreen: Verify LCD clear command is sent.  
-  * DISPLAY_SetBacklight: Verify correct GPIO state or PWM duty cycle is commanded.
+  * Display_Init: Verify HAL_LCD_Init() is called and internal state is initialized. Test initialization failure and fault reporting.  
+  * DisplayMgr_Update (or DisplayMgr_MainFunction):  
+    * Test all Display_Mode_t scenarios (version, temp/hum, min/max, alarm, setpoint). Mock systemMgr data accordingly. Verify correct HAL_LCD_WriteString() calls and content.  
+    * Test alternating display logic (temp/hum).  
+    * Test communication failures (mock HAL_LCD_WriteString to return error) and verify FAULT_ID_DisplayMgr_COMM_ERROR is reported.  
+  * DisplayMgr_SetMode: Test setting valid/invalid modes. Verify s_current_display_mode and s_last_mode_change_time_ms are updated.  
+  * DisplayMgr_CycleMode: Test cycling through modes, including skipping SETPOINT_CONFIG if not active.  
+  * DisplayMgr_SetBacklight: Test turning ON/OFF. Verify HAL_LCD_SetBacklight() calls and error reporting.  
+  * DisplayMgr_SetSetpointContext: Verify internal storage of context.
 
 ### **6.2. Integration Testing**
 
-* **Display-HAL/MCAL Integration**: Verify that display correctly interfaces with the actual HAL_I2C or MCAL_GPIO drivers and the physical LCD.  
-* **Visual Verification**: Visually inspect the LCD to ensure text is displayed correctly, updates are timely, and backlight control works.  
-* **Fault Injection**: Disconnect LCD power or communication lines and verify that display reports FAULT_ID_DISPLAY_COMM_ERROR to SystemMonitor.
+* **Display-HAL_LCD Integration**: Verify Display correctly interfaces with the actual HAL LCD driver.  
+* **Display-systemMgr Integration**: Verify Display accurately retrieves and presents data from systemMgr (sensor readings, min/max, version).  
+* **Display-SystemMonitor Integration**: Verify Display can correctly show alarm statuses based on data from SystemMonitor.  
+* **User Interaction**: Test physical button presses (via Application/buttons and systemMgr) triggering DisplayMgr_CycleMode and DisplayMgr_SetSetpointContext.  
+* **Fault Reporting**: Trigger HAL LCD errors (e.g., by disconnecting LCD) and verify Display reports faults to SystemMonitor.
 
 ### **6.3. System Testing**
 
-* **End-to-End Display Updates**: Verify that systemMgr updates (e.g., current temperature, alarm messages) are correctly reflected on the LCD.  
-* **Long-Term Operation**: Run the system for extended periods to ensure display reliability and no unexpected behavior (e.g., flickering, blanking).  
-* **Power Cycling**: Verify that the display initializes correctly after power cycles.
+* **End-to-End Display Functionality**: Verify all display modes, updates, backlight control, and alarm indications work correctly in the integrated system.  
+* **Power-On Sequence**: Verify the version number is displayed correctly on startup, then transitions to alternating temp/hum.  
+* **Mode Transitions**: Test all user-triggered display mode transitions.  
+* **Alarm Indication**: Simulate alarm conditions (e.g., high temperature) and verify the display correctly indicates the alarm.  
+* **Long-Term Operation**: Run the system for extended periods to ensure display reliability and no memory leaks.
