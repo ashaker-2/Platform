@@ -61,7 +61,7 @@ The RTE component will consist of the following files:
 
 // In Rte/inc/Rte.h
 ```c
-#include "Application/common/inc/app_common.h" // For APP_Status_t
+#include "Application/common/inc/common.h" // For APP_Status_t
 
 // --- RTE Initialization ---  
 /**  
@@ -189,7 +189,7 @@ The RTE module's internal design focuses on the implementation of the initializa
      * Perform basic hardware watchdog initialization (e.g., Mcal_WDG_Init()).  
      * Create RTE_AppInitTask.  
      * Self-delete: vTaskDelete(NULL).  
-   * **Error Handling**: If any MCAL _Init() call returns APP_ERROR, log the error via logger and potentially halt the system or enter a critical fault state via SystemMonitor.  
+   * **Error Handling**: If any MCAL _Init() call returns E_NOK, log the error via logger and potentially halt the system or enter a critical fault state via SystemMonitor.  
 3. **RTE_AppInitTask(void *pvParameters)**:  
    * **Responsibility**: Initializes HAL, Service, and Application layer modules. Creates and starts permanent application tasks.  
    * **Sequence**:  
@@ -243,7 +243,7 @@ The RTE module's internal design focuses on the implementation of the initializa
          if (min_temp > max_temp) {  
              // Log error, report fault to SystemMonitor if severe enough  
              RTE_Service_SystemMonitor_ReportFault(FAULT_ID_INVALID_TEMP_RANGE, FAULT_SEVERITY_LOW, 0);  
-             return APP_ERROR;  
+             return E_NOK;  
          }  
          // Call the actual application module function  
          return SYS_MGR_SetOperationalTemperature(min_temp, max_temp);  
@@ -268,9 +268,9 @@ sequenceDiagram
     FreeRTOS->>RTE_HwInit: Schedule RTE_HwInitTask (Highest Priority)
 
     RTE_HwInit->>MCAL_Drivers: Mcal_GPIO_Init()  
-    MCAL_Drivers-->>RTE_HwInit: Return APP_OK  
+    MCAL_Drivers-->>RTE_HwInit: Return E_OK  
     RTE_HwInit->>MCAL_Drivers: Mcal_ADC_Init()  
-    MCAL_Drivers-->>RTE_HwInit: Return APP_OK  
+    MCAL_Drivers-->>RTE_HwInit: Return E_OK  
     % ... more MCAL inits ...  
     RTE_HwInit->>RTE_HwInit: xTaskCreate(RTE_AppInitTask)  
     RTE_HwInit->>FreeRTOS: vTaskDelete(NULL) (self-deletes)
@@ -278,7 +278,7 @@ sequenceDiagram
     FreeRTOS->>RTE_AppInit: Schedule RTE_AppInitTask
 
     RTE_AppInit->>HAL_Drivers: HAL_Init() (or individual HAL_X_Init())  
-    HAL_Drivers-->>RTE_AppInit: Return APP_OK  
+    HAL_Drivers-->>RTE_AppInit: Return E_OK  
     RTE_AppInit->>Service_Modules: RTE_Service_OS_Init()  
     Service_Modules-->>RTE_AppInit: Return OK  
     RTE_AppInit->>Service_Modules: RTE_Service_COMM_Init()  
@@ -295,7 +295,7 @@ sequenceDiagram
 
 ### **5.4. Dependencies**
 
-* **Application/common/inc/app_common.h**: For APP_Status_t.  
+* **Application/common/inc/common.h**: For APP_Status_t.  
 * **FreeRTOS Headers**: FreeRTOS.h, task.h, semphr.h (for mutexes if RTE manages any internal to itself).  
 * **All MCAL Headers**: Mcal/*/inc/*.h (e.g., Mcal/gpio/inc/mcal_gpio.h).  
 * **All HAL Headers**: HAL/*/inc/*.h (e.g., HAL/modbus/inc/hal_modbus.h).  
@@ -365,12 +365,12 @@ The Rte/cfg/Rte_cfg.h file will contain:
 * **Mock Dependencies**: Unit tests for RTE will extensively mock all underlying MCAL, HAL, Service, and Application module functions that RTE calls during initialization and service routing.  
 * **Test Cases**:  
   * RTE_Init: Verify that RTE_HwInitTask is created and scheduler starts.  
-  * RTE_HwInitTask: Mock all Mcal_X_Init() calls. Test success path and failure paths (where an Mcal_X_Init() returns APP_ERROR). Verify RTE_AppInitTask creation and self-deletion.  
+  * RTE_HwInitTask: Mock all Mcal_X_Init() calls. Test success path and failure paths (where an Mcal_X_Init() returns E_NOK). Verify RTE_AppInitTask creation and self-deletion.  
   * RTE_AppInitTask: Mock all HAL_X_Init(), Service_X_Init(), App_X_Init() calls. Test success/failure paths. Verify permanent task creation and self-deletion.  
   * RTE_Service_...() functions: For each service, test:  
     * Valid parameters: Verify that the correct target module function is called with the correct parameters and its return value is propagated.  
-    * Invalid parameters: Verify appropriate error logging/fault reporting (e.g., to SystemMonitor) and APP_ERROR return.  
-    * Target module failure: Mock the target module function to return APP_ERROR and verify RTE propagates it.  
+    * Invalid parameters: Verify appropriate error logging/fault reporting (e.g., to SystemMonitor) and E_NOK return.  
+    * Target module failure: Mock the target module function to return E_NOK and verify RTE propagates it.  
   * Permanent Tasks: Mock the application/service calls within each task's loop. Verify the task's periodicity and that it calls its intended services. Verify watchdog feeding in RTE_MainLoopTask.
 
 ### **6.2. Integration Testing**

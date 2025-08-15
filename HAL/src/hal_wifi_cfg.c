@@ -30,6 +30,6 @@ const HAL_WIFI_Config_t g_hal_wifi_config = {
     .scan_min_dwell_time_ms = 100,              // Minimum 100ms dwell time per channel during scan
     .scan_max_dwell_time_ms = 300,              // Maximum 300ms dwell time per channel during scan
 
-    .default_event_callback = NULL,             // No default event callback, application should set it
+    // .default_event_callback = NULL,             // No default event callback, application should set it
 };
 

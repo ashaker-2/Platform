@@ -97,7 +97,7 @@ HAL_I2C_Status_t HAL_I2C_DeInit(HAL_I2C_Port_t port);
  * @param timeout_ms Timeout for the operation in milliseconds. Use 0 for no timeout.
  * @return HAL_I2C_STATUS_OK if successful, an error code otherwise.
  */
-HAL_I2C_Status_t HAL_I2C_Master_Write(HAL_I2C_Port_t port, uint8_t slave_addr, const uint8_t *data_write, size_t size, uint32_t timeout_ms);
+HAL_I2C_Status_t HAL_I2C_Master_Write(HAL_I2C_Port_t port, uint8_t slave_addr, const uint8_t *data_write, uint16_t size, uint32_t timeout_ms);
 
 /**
  * @brief Performs an I2C master read operation from a slave device.
@@ -111,7 +111,7 @@ HAL_I2C_Status_t HAL_I2C_Master_Write(HAL_I2C_Port_t port, uint8_t slave_addr, c
  * @param timeout_ms Timeout for the operation in milliseconds. Use 0 for no timeout.
  * @return HAL_I2C_STATUS_OK if successful, an error code otherwise.
  */
-HAL_I2C_Status_t HAL_I2C_Master_Read(HAL_I2C_Port_t port, uint8_t slave_addr, uint8_t *data_read, size_t size, uint32_t timeout_ms);
+HAL_I2C_Status_t HAL_I2C_Master_Read(HAL_I2C_Port_t port, uint8_t slave_addr, uint8_t *data_read, uint16_t size, uint32_t timeout_ms);
 
 /**
  * @brief Performs an I2C master write-then-read operation.
@@ -129,8 +129,8 @@ HAL_I2C_Status_t HAL_I2C_Master_Read(HAL_I2C_Port_t port, uint8_t slave_addr, ui
  * @return HAL_I2C_STATUS_OK if successful, an error code otherwise.
  */
 HAL_I2C_Status_t HAL_I2C_Master_WriteRead(HAL_I2C_Port_t port, uint8_t slave_addr,
-                                          const uint8_t *write_data, size_t write_size,
-                                          uint8_t *read_data, size_t read_size,
+                                          const uint8_t *write_data, uint16_t write_size,
+                                          uint8_t *read_data, uint16_t read_size,
                                           uint32_t timeout_ms);
 
 /**

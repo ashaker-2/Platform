@@ -133,7 +133,7 @@ Minimal Error Handling: Given its very early execution context, SystemStartup ha
 - **Fatal Errors**: If `LOGGER_Init()` or `RTE_Init()` fails, the system may enter an infinite loop, perform a software reset, or halt, depending on the underlying SDK's default behavior for unhandled exceptions. Explicit error checks and infinite loops could be added for critical failures:
 
 ```c
-if (LOGGER_Init() != APP_OK) { while(1); }
+if (LOGGER_Init() != E_OK) { while(1); }
 ```
 
 ### 5.6. Configuration

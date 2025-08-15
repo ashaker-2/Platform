@@ -23,9 +23,9 @@
 #include "nvm.h"
 #include "nvm_cfg.h" // NVM configuration
 
-#include "esp_log.h"           // ESP-IDF logging
-#include "freertos/FreeRTOS.h" // For FreeRTOS types
-#include "freertos/semphr.h"   // For mutex
+// #include "esp_log.h"           // ESP-IDF logging
+// #include "freertos/FreeRTOS.h" // For FreeRTOS types
+// #include "freertos/semphr.h"   // For mutex
 
 // --- Hypothetical NVM HAL Interface (PLACEHOLDER) ---
 // In a real project, these would be defined in a separate hal_nvm.h and hal_nvm.c
@@ -38,7 +38,7 @@
  * @param size The number of bytes to read.
  * @return ESP_OK if successful, an error code otherwise.
  */
-static esp_err_t HAL_NVM_Read(uint32_t address, void *buffer, size_t size)
+static esp_err_t HAL_NVM_Read(uint32_t address, void *buffer, uint16_t size)
 {
     // Placeholder: Simulate reading from NVM
     // In a real system, this would call actual flash/EEPROM read functions.
@@ -55,7 +55,7 @@ static esp_err_t HAL_NVM_Read(uint32_t address, void *buffer, size_t size)
  * @param size The number of bytes to write.
  * @return ESP_OK if successful, an error code otherwise.
  */
-static esp_err_t HAL_NVM_Write(uint32_t address, const void *data, size_t size)
+static esp_err_t HAL_NVM_Write(uint32_t address, const void *data, uint16_t size)
 {
     // Placeholder: Simulate writing to NVM
     // In a real system, this would call actual flash/EEPROM write functions.
@@ -97,7 +97,7 @@ typedef struct
 static NVM_BlockRuntimeData_t g_nvm_runtime_data[NVM_BLOCK_ID_MAX];
 
 static bool g_nvm_initialized = false;       /**< Flag indicating if the NVM service is initialized. */
-static SemaphoreHandle_t g_nvm_mutex = NULL; /**< Mutex to protect NVM operations. */
+// static SemaphoreHandle_t g_nvm_mutex = NULL; /**< Mutex to protect NVM operations. */
 
 /**
  * @brief Calculates the CRC16 checksum for a given data buffer.
@@ -105,10 +105,10 @@ static SemaphoreHandle_t g_nvm_mutex = NULL; /**< Mutex to protect NVM operation
  * @param len Length of the data buffer.
  * @return The calculated CRC16 value.
  */
-static uint16_t nvm_calculate_crc16(const uint8_t *buf, size_t len)
+static uint16_t nvm_calculate_crc16(const uint8_t *buf, uint16_t len)
 {
     uint16_t crc = 0xFFFF;
-    for (size_t pos = 0; pos < len; pos++)
+    for (uint16_t pos = 0; pos < len; pos++)
     {
         crc ^= (uint16_t)buf[pos];
         for (int i = 8; i != 0; i--)
@@ -327,7 +327,7 @@ NVM_Status_t NVM_DeInit(void)
     return NVM_STATUS_OK;
 }
 
-NVM_Status_t NVM_Read(uint32_t block_id, void *buffer, size_t buffer_len)
+NVM_Status_t NVM_Read(uint32_t block_id, void *buffer, uint16_t buffer_len)
 {
     if (!g_nvm_initialized)
     {
@@ -371,7 +371,7 @@ NVM_Status_t NVM_Read(uint32_t block_id, void *buffer, size_t buffer_len)
     return status;
 }
 
-NVM_Status_t NVM_Write(uint32_t block_id, const void *data, size_t data_len)
+NVM_Status_t NVM_Write(uint32_t block_id, const void *data, uint16_t data_len)
 {
     if (!g_nvm_initialized)
     {

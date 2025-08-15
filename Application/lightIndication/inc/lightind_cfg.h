@@ -1,9 +1,9 @@
 #ifndef LIGHTIND_CFG_H
 #define LIGHTIND_CFG_H
 
-#include "app_common.h"
+#include "common.h"
 #include "system_monitor.h" // For fault IDs
-#include "mcal_gpio.h"
+#include "hal_gpio.h"
 #include <stdint.h>
 
 /**

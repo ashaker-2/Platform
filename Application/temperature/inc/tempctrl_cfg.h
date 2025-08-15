@@ -1,10 +1,9 @@
 #ifndef TEMPCTRL_CFG_H
 #define TEMPCTRL_CFG_H
 
-#include "mcal_adc.h"
-#include "mcal_i2c.h"
-#include "hal_1wire.h"
-#include "system_monitor.h" // Including for fault IDs
+#include "hal_adc.h"
+#include "hal_i2c.h"
+
 #include <stdint.h>
 
 /**

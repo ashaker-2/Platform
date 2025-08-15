@@ -6,83 +6,105 @@
 
 # Include the global project settings to inherit common options/definitions.
 # Path is relative from components/ to cmake/project_global_settings.cmake
-include(../../cmake/project_global_settings.cmake)
+include(../cmake/project_global_settings.cmake)
 
-# --- Component: app_fan ---
-# Define source files for the app_fan component
+# --- Application Component  ---
+# Define source files for the Application component by globbing
+
+# === CONFIGURE PATH ===
+
+file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/temperature"      TEMP_DIR)
+file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/fan"              FAN_DIR)
+file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/heater"           HEAT_DIR)
+file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/humadity"         HUM_DIR)
+file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/display"          DISP_DIR)
+file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/diagnostic"       DIAG_DIR)
+file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/lightControl"     LigCtrl_DIR)
+file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/lightIndication"  LigIdn_DIR)
+file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/logger"           Log_DIR)
+file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/OTA"              OTA_DIR)
+file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/power"            PWR_DIR)
+file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/pump"             PUMP_DIR)
+file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/systemMgr"        SysMgr_DIR)
+file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/SystemMonitor"    SysMon_DIR)
+file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/SystemStartup"    SysStart_DIR)
+file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/ventilator"       VEN_DIR)
+file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/common"           COMMON_DIR)
+
+
+
+# --- Application SWC ---
+# Define source files for the  component
 set(APPLICATION_SRCS
 
-    SystemMonitor/src/SystemMonitor.c
-    diagnostic/src/Diag.c
-    display/src/display.c
-    fan/src/fan.c
-    heater/src/heater.c
-    lightControl/src/LightControl.c
-    lightIndication/src/LightIndication.c
-    logger/src/Logger.c
-    power/src/Power.c
-    pump/src/Pump.c
-    systemMgr/src/SystemManager.c
-    temperature/src/Temperature.c
-    humadity/src/humadity.c
-    ventilator/src/ventilator.c
-
+    "${TEMP_DIR}/src/tempctrl.c"
+    "${TEMP_DIR}/src/tempctrl_cfg.c"
+    "${FAN_DIR}/src/fanctrl.c"
+    "${FAN_DIR}/src/fanctrl_cfg.c"
+    "${HEAT_DIR}/src/Heaterctrl.c"
+    "${HEAT_DIR}/src/Heaterctrl_cfg.c"
+    "${HUM_DIR}/src/humctrl.c"
+    "${HUM_DIR}/src/humctrl_cfg.c"
+    # "${DISP_DIR}/src/char_display.c"
+    # "${DISP_DIR}/src/char_display_cfg.c"
+    # "${DIAG_DIR}/src/Diag_cfg.c"
+    # "${DIAG_DIR}/src/Diag.c"
+    "${LigCtrl_DIR}/src/lightctrl.c"
+    "${LigCtrl_DIR}/src/lightctrl_cfg.c"
+    "${LigIdn_DIR}/src/lightind.c"
+    "${LigIdn_DIR}/src/lightind_cfg.c"
+    "${PWR_DIR}/src/Power.c"
+    "${PWR_DIR}/src/Power_cfg.c"
+    "${PUMP_DIR}/src/pumpctrl.c"
+    "${PUMP_DIR}/src/pumpctrl_cfg.c"
+    "${SysMgr_DIR}/src/sys_mgr.c"
+    "${SysMgr_DIR}/src/sys_mgr_cfg.c"
+    "${SysMon_DIR}/src/system_monitor.c"
+    "${SysMon_DIR}/src/system_monitor_cfg.c"
+    "${VEN_DIR}/src/ventctrl.c"
+    "${VEN_DIR}/src/ventctrl_cfg.c"
+    # "${Log_DIR}/src/logger.c"
+    # "${Log_DIR}/src/logger_cfg.c"
+    # "${OTA_DIR}/src/ota.c"    
 )
-# Define configuration source files for the app_fan component
-set(APPLICATION_CONFIG_SRCS
 
-    SystemMonitor/src/SystemMonitor_cfg.c
-    diagnostic/src/Diag_cfg.c
-    display/src/display_cfg.c
-    fan/src/fan_cfg.c
-    heater/src/heater_cfg.c
-    lightControl/src/LightControl_cfg.c
-    lightIndication/src/LightIndication_cfg.c
-    logger/src/Logger_cfg.c
-    power/src/Power_cfg.c
-    pump/src/Pump_cfg.c
-    systemMgr/src/SystemManager_cfg.c
-    temperature/src/Temperature_cfg.c
-    humadity/src/humadity_cfg.c
-    ventilator/src/ventilator_cfg.c
-)
-# Define public include directories for the app_fan component
+# Define public include directories for the component
 set(APPLICATION_PUBLIC_INC_DIRS
-    SystemMonitor/inc/
-    cmake/inc/
-    common/inc/
-    diagnostic/inc/
-    display/inc/
-    fan/inc/
-    heater/inc/
-    lightControl/inc/
-    lightIndicatioinc/n/
-    logger/inc/
-    power/inc/
-    pump/inc/
-    systemMgr/inc/
-    temperature/inc/
-    ventilator/inc/
+    
+    "${TEMP_DIR}/inc"
+    "${FAN_DIR}/inc"
+    "${HEAT_DIR}/inc"
+    "${HUM_DIR}/inc"
+    "${DISP_DIR}/inc"
+    "${DIAG_DIR}/inc"
+    "${LigCtrl_DIR}/inc"
+    "${LigIdn_DIR}/inc"
+    "${Log_DIR}/inc"
+    "${OTA_DIR}/inc"
+    "${PWR_DIR}/inc"
+    "${PUMP_DIR}/inc"
+    "${SysMgr_DIR}/inc"
+    "${SysMon_DIR}/inc"
+    "${SysStart_DIR}/inc"
+    "${VEN_DIR}/inc"
 )
-# Define private include directories for the app_fan component (if any)
-set(APPLICATIONPRIVATE_INC_DIRS
-    # Example: "private_inc"
-)
-# Define public dependencies for the app_fan component
+
+# Define public dependencies for the  component
 set(APPLICATION_PUBLIC_REQUIRES
-    # Example: "some_internal_lib"
+    
 )
-# Define private dependencies for the app_fan component (if any)
+# Define private dependencies for the  component (if any)
 set(APPLICATION_PRIVATE_REQUIRES
     # Example: "some_internal_lib"
 )
-# Define compile options for the app_fan component (inherits from GLOBAL_C_COMPILE_OPTIONS)
+# Define compile options for the  component (inherits from GLOBAL_C_COMPILE_OPTIONS)
 set(APPLICATION_COMPILE_OPTIONS
-    ${GLOBAL_C_COMPILE_OPTIONS}
+    
     # -Wno-unused-variable # Example: specific warning disable
 )
-# Define compile definitions for the app_fan component (inherits from GLOBAL_COMPILE_DEFINITIONS)
+# Define compile definitions for the  component (inherits from GLOBAL_COMPILE_DEFINITIONS)
 set(APPLICATION_COMPILE_DEFINITIONS
     ${GLOBAL_COMPILE_DEFINITIONS}
-    -DFAN_DEBUG_MODE
 )
+
+

@@ -1,7 +1,7 @@
 #ifndef VENTCTRL_H
 #define VENTCTRL_H
 
-#include "app_common.h"
+#include "common.h"
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -29,9 +29,9 @@ typedef enum {
  * @brief Initializes the VentCtrl module and all configured ventilator control hardware.
  * All module-internal variables and ventilator states are initialized to a safe,
  * known state (e.g., OFF or 0% speed).
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-APP_Status_t VentCtrl_Init(void);
+Status_t VentCtrl_Init(void);
 
 /**
  * @brief Commands a desired ventilator state (ON/OFF) or speed (for PWM ventilators).
@@ -41,10 +41,10 @@ APP_Status_t VentCtrl_Init(void);
  * @param state The desired state (VentCtrl_STATE_ON or VentCtrl_STATE_OFF).
  * @param speed_percent For PWM ventilators: desired speed in percentage (0-100).
  * For relay ventilators: this parameter is ignored.
- * @return APP_OK on successful command update, APP_ERROR if the actuatorId is invalid
+ * @return E_OK on successful command update, E_NOK if the actuatorId is invalid
  * or the state/speed_percent is out of range.
  */
-APP_Status_t VentCtrl_SetState(uint32_t actuatorId, VentCtrl_State_t state, uint8_t speed_percent);
+Status_t VentCtrl_SetState(uint32_t actuatorId, VentCtrl_State_t state, uint8_t speed_percent);
 
 /**
  * @brief Gets the last commanded state/speed, or the actual measured state/speed if feedback is implemented.
@@ -52,10 +52,10 @@ APP_Status_t VentCtrl_SetState(uint32_t actuatorId, VentCtrl_State_t state, uint
  * @param actuatorId The unique ID of the ventilator to retrieve data from.
  * @param state Pointer to store the current ON/OFF state.
  * @param speed_percent Pointer to store the current speed in percentage (0-100), relevant for PWM.
- * @return APP_OK on successful retrieval, APP_ERROR if the actuatorId is invalid,
+ * @return E_OK on successful retrieval, E_NOK if the actuatorId is invalid,
  * or any pointer is NULL.
  */
-APP_Status_t VentCtrl_GetState(uint32_t actuatorId, VentCtrl_State_t *state, uint8_t *speed_percent);
+Status_t VentCtrl_GetState(uint32_t actuatorId, VentCtrl_State_t *state, uint8_t *speed_percent);
 
 // --- Internal Periodic Runnable Prototype (called by RTE) ---
 // This function is declared here so RTE can call it.

@@ -19,7 +19,7 @@ The scope of this document covers the common module's architecture, functional b
 
 The Common component provides the following core functionalities:
 
-1. **Standard Return Status**: Defines APP_OK and APP_ERROR as universal return codes for functions across all layers.  
+1. **Standard Return Status**: Defines E_OK and E_NOK as universal return codes for functions across all layers.  
 2. **System Uptime**: Provides a mechanism to track and retrieve the system's uptime in milliseconds.  
 3. **Basic Utilities**: May include other simple, universally applicable utilities that don't fit into specific modules (e.g., min/max macros, basic data conversions).  
 4. **Global Definitions**: Centralizes global constants, enums, or macros that are shared across the entire application.
@@ -50,27 +50,27 @@ As per the SAD (Section 3.1.2, Application Layer), common resides in the Applica
 
 The Common component will consist of the following files:
 
-* Common/inc/app_common.h: Public header file containing APP_Status_t enum, uptime function prototypes, and other global definitions.  
+* Common/inc/common.h: Public header file containing APP_Status_t enum, uptime function prototypes, and other global definitions.  
 * Common/src/app_common.c: Source file containing the implementation of uptime tracking and any other simple utilities.
 
 ### **5.2. Public Interface (API)**
 
-// In Common/inc/app_common.h
+// In Common/inc/common.h
 ```c
 #include <stdint.h>  
 #include <stdbool.h> // For bool type
 
 // --- Standard Return Status ---  
 typedef enum {  
-    APP_OK = 0,  
-    APP_ERROR = -1  
+    E_OK = 0,  
+    E_NOK = -1  
 } APP_Status_t;
 
 // --- System Uptime ---  
 /**  
  * @brief Initializes the common module, specifically for uptime tracking.  
  * This should be called early in system startup.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t APP_COMMON_Init(void);
 
@@ -103,7 +103,7 @@ The Common module's primary internal function is to track system uptime using Fr
 1. **Initialization (APP_COMMON_Init)**:  
    * This function can be called early in app_main or RTE_HwInitTask.  
    * It might perform any one-time setup for common utilities.  
-   * Currently, it simply returns APP_OK.  
+   * Currently, it simply returns E_OK.  
 2. **Uptime Tracking (APP_COMMON_GetUptimeMs)**:  
    * This function directly leverages FreeRTOS's xTaskGetTickCount() to get the current tick count.  
    * It then converts this tick count to milliseconds using portTICK_PERIOD_MS (a FreeRTOS macro).  
@@ -113,7 +113,7 @@ The Common module's primary internal function is to track system uptime using Fr
 
      APP_Status_t APP_COMMON_Init(void) {  
          // No specific initialization needed for uptime, but good practice to have.  
-         return APP_OK;  
+         return E_OK;  
      }
 
      uint32_t APP_COMMON_GetUptimeMs(void) {  
@@ -162,7 +162,7 @@ The Common module typically has no specific configuration file beyond its public
 
 * **Mock FreeRTOS**: Unit tests for APP_COMMON_GetUptimeMs would mock xTaskGetTickCount() to return controlled values and verify the correct millisecond conversion.  
 * **Test Cases**:  
-  * APP_COMMON_Init: Verify it returns APP_OK.  
+  * APP_COMMON_Init: Verify it returns E_OK.  
   * APP_COMMON_GetUptimeMs:  
     * Test with xTaskGetTickCount() returning 0, 1, and larger values.  
     * Verify the conversion to milliseconds is accurate based on portTICK_PERIOD_MS.  
@@ -170,7 +170,7 @@ The Common module typically has no specific configuration file beyond its public
 
 ### **6.2. Integration Testing**
 
-* **System-wide Usage**: Verify that APP_OK and APP_ERROR are consistently used as return types across all layers.  
+* **System-wide Usage**: Verify that E_OK and E_NOK are consistently used as return types across all layers.  
 * **Uptime Accuracy**: In an integrated system, verify that APP_COMMON_GetUptimeMs provides accurate uptime by comparing it with an external timer or a debugger's timestamp.
 
 ### **6.3. System Testing**

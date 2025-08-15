@@ -85,7 +85,7 @@ The SystemMgr component will consist of the following files:
 
 // In SystemMgr/inc/sys_mgr.h
 ```c
-#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdbool.h> // For bool  
 #include <stdint.h>  // For uint8_t
 
@@ -130,28 +130,28 @@ typedef struct {
 /**  
  * @brief Initializes the System Manager module.  
  * Loads operational parameters from storage and sets initial system mode.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t SYS_MGR_Init(void);
 
 /**  
  * @brief Processes the latest sensor readings and updates internal state.  
  * Called periodically by RTE_SensorReadTask.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t SYS_MGR_ProcessSensorReadings(void);
 
 /**  
  * @brief Applies control algorithms and commands actuators based on current state and mode.  
  * Called periodically by RTE_ActuatorControlTask.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t SYS_MGR_ControlActuators(void);
 
 /**  
  * @brief Updates the display and alarm indicators based on current system state.  
  * Called periodically by RTE_DisplayAlarmTask.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t SYS_MGR_UpdateDisplayAndAlarm(void);
 
@@ -159,7 +159,7 @@ APP_Status_t SYS_MGR_UpdateDisplayAndAlarm(void);
  * @brief Sets the operational temperature range.  
  * @param min_temp The minimum desired temperature in Celsius.  
  * @param max_temp The maximum desired temperature in Celsius.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t SYS_MGR_SetOperationalTemperature(float min_temp, float max_temp);
 
@@ -167,21 +167,21 @@ APP_Status_t SYS_MGR_SetOperationalTemperature(float min_temp, float max_temp);
  * @brief Gets the current operational temperature range.  
  * @param min_temp Pointer to store the minimum desired temperature.  
  * @param max_temp Pointer to store the maximum desired temperature.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t SYS_MGR_GetOperationalTemperature(float *min_temp, float *max_temp);
 
 /**  
  * @brief Sets the system's operational mode (Automatic, Manual, Hybrid, Fail-Safe).  
  * @param mode The desired system mode.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t SYS_MGR_SetMode(SYS_MGR_Mode_t mode);
 
 /**  
  * @brief Gets the current system's operational mode.  
  * @param mode Pointer to store the current system mode.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t SYS_MGR_GetMode(SYS_MGR_Mode_t *mode);
 
@@ -189,7 +189,7 @@ APP_Status_t SYS_MGR_GetMode(SYS_MGR_Mode_t *mode);
  * @brief Activates or deactivates the fail-safe mode.  
  * This function is primarily called by SystemMonitor in response to critical faults.  
  * @param enable True to activate fail-safe, false to deactivate.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t SYS_MGR_SetFailSafeMode(bool enable);
 
@@ -197,7 +197,7 @@ APP_Status_t SYS_MGR_SetFailSafeMode(bool enable);
  * @brief Checks if the system has sufficient power for critical operations like OTA updates.  
  * This function queries the Power module.  
  * @param ready Pointer to a boolean to store the readiness status.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t SYS_MGR_CheckPowerReadinessForOTA(bool *ready);
 
@@ -220,14 +220,14 @@ The SystemMgr module will maintain its entire state in a SYS_MGR_State_t structu
    * Call RTE_Service_STORAGE_ReadConfig(STORAGE_CONFIG_ID_SYSTEM_OPERATIONAL_PARAMS, &sys_mgr_state.operational_params, sizeof(SystemOperationalParams_t)) to load saved parameters.  
    * If read fails, use hardcoded defaults and report FAULT_ID_STORAGE_READ_FAILED to SystemMonitor.  
    * Set initial current_mode to SYS_MGR_MODE_AUTOMATIC.  
-   * Return APP_OK.  
+   * Return E_OK.  
 3. **Process Sensor Readings (SYS_MGR_ProcessSensorReadings)**:  
    * Acquire sys_mgr_state_mutex.  
    * Call RTE_Service_TEMP_SENSOR_Read(&sys_mgr_state.current_room_temp_c).  
    * Call RTE_Service_HUMIDITY_SENSOR_Read(&sys_mgr_state.current_room_humidity_p).  
    * (Optional) Implement sensor data validation (e.g., check for reasonable ranges). If invalid, report FAULT_ID_SENSOR_DATA_INVALID to SystemMonitor.  
    * Release sys_mgr_state_mutex.  
-   * Return APP_OK.  
+   * Return E_OK.  
 4. **Control Actuators (SYS_MGR_ControlActuators)**:  
    * Acquire sys_mgr_state_mutex.  
    * **Check Fail-Safe Mode**: If sys_mgr_state.is_fail_safe_active is true:  
@@ -260,7 +260,7 @@ The SystemMgr module will maintain its entire state in a SYS_MGR_State_t structu
        * Mix of automatic and manual logic.  
    * Update sys_mgr_state with the new actuator states.  
    * Release sys_mgr_state_mutex.  
-   * Return APP_OK.  
+   * Return E_OK.  
 5. **Update Display and Alarm (SYS_MGR_UpdateDisplayAndAlarm)**:  
    * Acquire sys_mgr_state_mutex.  
    * **Display Update**:  
@@ -271,27 +271,27 @@ The SystemMgr module will maintain its entire state in a SYS_MGR_State_t structu
      * Check sys_mgr_state.fire_alarm_active. If true, call RTE_Service_LIGHT_INDICATION_On(LIGHT_INDICATION_ID_CRITICAL_ALARM). Else, RTE_Service_LIGHT_INDICATION_Off().  
      * (Optional) Indicate current mode, actuator states via other LEDs.  
    * Release sys_mgr_state_mutex.  
-   * Return APP_OK.  
+   * Return E_OK.  
 6. **Set Operational Temperature (SYS_MGR_SetOperationalTemperature)**:  
    * Acquire sys_mgr_state_mutex.  
    * Validate min_temp, max_temp (e.g., min_temp <= max_temp). If invalid, report FAULT_ID_INVALID_TEMP_RANGE to SystemMonitor.  
    * Update sys_mgr_state.operational_params.operational_temp_min_c and max_temp_c.  
    * Call RTE_Service_STORAGE_WriteConfig(STORAGE_CONFIG_ID_SYSTEM_OPERATIONAL_PARAMS, &sys_mgr_state.operational_params, sizeof(SystemOperationalParams_t)) to save persistently.  
    * Release sys_mgr_state_mutex.  
-   * Return APP_OK.  
+   * Return E_OK.  
 7. **Set Fail-Safe Mode (SYS_MGR_SetFailSafeMode)**:  
    * Acquire sys_mgr_state_mutex.  
    * Set sys_mgr_state.is_fail_safe_active = enable;.  
    * If enabling fail-safe, immediately call SYS_MGR_ControlActuators() to apply safe states.  
    * Release sys_mgr_state_mutex.  
-   * Return APP_OK.  
+   * Return E_OK.  
 8. **Check Power Readiness for OTA (SYS_MGR_CheckPowerReadinessForOTA)**:  
    * Acquire sys_mgr_state_mutex.  
    * Call RTE_Service_POWER_GetConsumption(&power_data).  
    * Check power_data.voltage_mv against SYS_MGR_OTA_MIN_VOLTAGE_MV (from sys_mgr_cfg.h).  
    * Set *ready = (power_data.voltage_mv >= SYS_MGR_OTA_MIN_VOLTAGE_MV).  
    * Release sys_mgr_state_mutex.  
-   * Return APP_OK.
+   * Return E_OK.
 
 **Sequence Diagram (Example: SystemMonitor Triggers Fail-Safe):**
 ```mermaid
@@ -313,16 +313,16 @@ sequenceDiagram
     SystemMgr->>SystemMgrMutex: Acquire sys_mgr_state_mutex (re-acquire if needed, or ensure nested calls are safe)  
     SystemMgr->>RTE: RTE_Service_HEATER_SetState(false)  
     RTE->>Heater: HEATER_SetState(false)  
-    Heater-->>RTE: Return APP_OK  
-    RTE-->>SystemMgr: Return APP_OK  
+    Heater-->>RTE: Return E_OK  
+    RTE-->>SystemMgr: Return E_OK  
     SystemMgr->>RTE: RTE_Service_FAN_SetSpeed(100)  
     RTE->>Fan: FAN_SetSpeed(100)  
-    Fan-->>RTE: Return APP_OK  
-    RTE-->>SystemMgr: Return APP_OK  
+    Fan-->>RTE: Return E_OK  
+    RTE-->>SystemMgr: Return E_OK  
     % ... other actuators to safe state ...  
     SystemMgr->>SystemMgrMutex: Release sys_mgr_state_mutex  
-    SystemMgr-->>RTE: Return APP_OK  
-    RTE-->>SystemMonitor: Return APP_OK  
+    SystemMgr-->>RTE: Return E_OK  
+    RTE-->>SystemMonitor: Return E_OK  
     Note over SystemMgr: (Later, RTE_DisplayAlarmTask calls SYS_MGR_UpdateDisplayAndAlarm)  
     SystemMgr->>RTE: RTE_Service_DISPLAY_UpdateLine(...) (e.g., "FAIL-SAFE MODE")  
     SystemMgr->>RTE: RTE_Service_LIGHT_INDICATION_On(LIGHT_INDICATION_ID_CRITICAL_ALARM)
@@ -330,7 +330,7 @@ sequenceDiagram
 
 ### **5.4. Dependencies**
 
-* **Application/common/inc/app_common.h**: For APP_Status_t.  
+* **Application/common/inc/common.h**: For APP_Status_t.  
 * **Application/logger/inc/logger.h**: For logging system events and errors.  
 * **Application/SystemMonitor/inc/system_monitor.h**: For SystemMonitor_FaultId_t (e.g., FAULT_ID_INVALID_TEMP_RANGE).  
 * **Rte/inc/Rte.h**: For calling all necessary RTE services (RTE_Service_TEMP_SENSOR_Read(), RTE_Service_HUMIDITY_SENSOR_Read(), RTE_Service_FAN_SetSpeed(), etc., RTE_Service_SystemMonitor_ReportFault(), RTE_Service_STORAGE_ReadConfig(), RTE_Service_STORAGE_WriteConfig(), RTE_Service_POWER_GetConsumption()).  
@@ -340,8 +340,8 @@ sequenceDiagram
 
 * **Mutex Protection**: All access to sys_mgr_state must be protected by sys_mgr_state_mutex to prevent race conditions.  
 * **Input Validation**: Validate parameters for SetOperationalTemperature, SetMode, etc. Report invalid inputs as faults to SystemMonitor.  
-* **Sensor Read Failures**: If RTE_Service_TEMP_SENSOR_Read() or RTE_Service_HUMIDITY_SENSOR_Read() return APP_ERROR, systemMgr should use the last valid reading or a default safe value, and SystemMonitor would have already been notified by the sensor modules.  
-* **Actuator Command Failures**: If RTE_Service_FAN_SetSpeed() or other actuator commands return APP_ERROR, systemMgr should log this, but continue operation. SystemMonitor would have been notified by the actuator modules.  
+* **Sensor Read Failures**: If RTE_Service_TEMP_SENSOR_Read() or RTE_Service_HUMIDITY_SENSOR_Read() return E_NOK, systemMgr should use the last valid reading or a default safe value, and SystemMonitor would have already been notified by the sensor modules.  
+* **Actuator Command Failures**: If RTE_Service_FAN_SetSpeed() or other actuator commands return E_NOK, systemMgr should log this, but continue operation. SystemMonitor would have been notified by the actuator modules.  
 * **Storage Failures**: If RTE_Service_STORAGE_ReadConfig()/WriteConfig() fail, systemMgr should use default parameters and report a fault to SystemMonitor.  
 * **Fail-Safe Override**: The is_fail_safe_active flag is critical for overriding normal control logic during emergencies, ensuring safety.
 

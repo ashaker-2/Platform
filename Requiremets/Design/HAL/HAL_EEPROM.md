@@ -173,19 +173,19 @@ sequenceDiagram
         HAL_I2C->>MCAL_I2C: MCAL_I2C_MasterTransmit(...)  
         alt MCAL_I2C_MasterTransmit returns MCAL_ERROR  
             MCAL_I2C--xHAL_I2C: Return MCAL_ERROR  
-            HAL_I2C--xHAL_EEPROM: Return APP_ERROR  
+            HAL_I2C--xHAL_EEPROM: Return E_NOK  
             HAL_EEPROM->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_EEPROM_ERROR_COMM_FAILED, SEVERITY_HIGH, ...)  
             HAL_EEPROM--xRTE: Return HAL_EEPROM_ERROR_WRITE_FAILED  
-            RTE--xAppLayer: Return APP_ERROR  
+            RTE--xAppLayer: Return E_NOK  
             break loop  
         else MCAL_I2C_MasterTransmit returns MCAL_OK  
             MCAL_I2C-->>HAL_I2C: Return MCAL_OK  
-            HAL_I2C-->>HAL_EEPROM: Return APP_OK  
+            HAL_I2C-->>HAL_EEPROM: Return E_OK  
             HAL_EEPROM->>HAL_EEPROM: Delay for write cycle (if needed)  
         end  
     end  
     HAL_EEPROM-->>RTE: Return HAL_EEPROM_OK  
-    RTE-->>AppLayer: Return APP_OK
+    RTE-->>AppLayer: Return E_OK
 ```
 ### **5.4. Dependencies**
 
@@ -193,7 +193,7 @@ sequenceDiagram
 * **HAL/inc/hal_i2c.h** or **HAL/inc/hal_spi.h**: If using an external EEPROM chip requiring I2C or SPI communication.  
 * **Application/logger/inc/logger.h**: For internal logging.  
 * **Rte/inc/Rte.h**: For calling RTE_Service_SystemMonitor_ReportFault().  
-* **Application/common/inc/app_common.h**: For APP_Status_t.  
+* **Application/common/inc/common.h**: For APP_Status_t.  
 * **HAL/cfg/hal_eeprom_cfg.h**: For EEPROM configuration.
 
 ### **5.5. Error Handling**

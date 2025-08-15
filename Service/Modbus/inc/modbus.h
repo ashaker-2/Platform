@@ -13,7 +13,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <stddef.h> // For size_t
+#include <stddef.h> // For uint16_t
 
 /**
  * @brief Enumeration for Modbus Service status codes.

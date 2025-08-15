@@ -71,7 +71,7 @@ The VentCtrl component will consist of the following files:
 
 // In Application/ventilator/inc/ventctrl.h
 ```c
-#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h> // For uint32_t  
 #include <stdbool.h> // For bool
 
@@ -91,7 +91,7 @@ typedef enum {
  * @brief Initializes the VentCtrl module and all configured ventilator control hardware.  
  * All module-internal variables and ventilator states are initialized to a safe,  
  * known state (e.g., OFF or 0% speed).  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t VentCtrl_Init(void);
 
@@ -103,7 +103,7 @@ APP_Status_t VentCtrl_Init(void);
  * @param state The desired state (VentCtrl_STATE_ON or VentCtrl_STATE_OFF).  
  * @param speed_percent For PWM ventilators: desired speed in percentage (0-100).  
  * For relay ventilators: this parameter is ignored.  
- * @return APP_OK on successful command update, APP_ERROR if the actuatorId is invalid  
+ * @return E_OK on successful command update, E_NOK if the actuatorId is invalid  
  * or the state/speed_percent is out of range.  
  */  
 APP_Status_t VentCtrl_SetState(uint32_t actuatorId, VentCtrl_State_t state, uint8_t speed_percent);
@@ -114,7 +114,7 @@ APP_Status_t VentCtrl_SetState(uint32_t actuatorId, VentCtrl_State_t state, uint
  * @param actuatorId The unique ID of the ventilator to retrieve data from.  
  * @param state Pointer to store the current ON/OFF state.  
  * @param speed_percent Pointer to store the current speed in percentage (0-100), relevant for PWM.  
- * @return APP_OK on successful retrieval, APP_ERROR if the actuatorId is invalid,  
+ * @return E_OK on successful retrieval, E_NOK if the actuatorId is invalid,  
  * or any pointer is NULL.  
  */  
 APP_Status_t VentCtrl_GetState(uint32_t actuatorId, VentCtrl_State_t *state, uint8_t *speed_percent);
@@ -162,16 +162,16 @@ The VentCtrl module will manage its own ventilator control cycle for multiple ve
          * If VentCtrl_FEEDBACK_TYPE_ANALOG_ADC: Call MCAL_ADC_Init() for the vent_config.feedback_adc_channel.  
        * If any underlying MCAL/HAL initialization fails, report FAULT_ID_VentCtrl_INIT_FAILED to SystemMonitor with vent_config.id as data. Log an error.  
    * s_is_initialized = true; on overall success.  
-   * Return APP_OK.  
+   * Return E_OK.  
 3. **Set Commanded State/Speed (VentCtrl_SetState)**:  
-   * If !s_is_initialized, return APP_ERROR and log a warning.  
-   * Validate actuatorId. If actuatorId >= VentCtrl_COUNT, return APP_ERROR and log a warning.  
-   * Validate state (ON/OFF). If invalid, return APP_ERROR.  
-   * Validate speed_percent (0-100). If out of range, clamp or return APP_ERROR.  
+   * If !s_is_initialized, return E_NOK and log a warning.  
+   * Validate actuatorId. If actuatorId >= VentCtrl_COUNT, return E_NOK and log a warning.  
+   * Validate state (ON/OFF). If invalid, return E_NOK.  
+   * Validate speed_percent (0-100). If out of range, clamp or return E_NOK.  
    * Update s_commanded_states[actuatorId] = state;.  
    * Update s_commanded_speeds_percent[actuatorId] = speed_percent;.  
    * Log LOGD("VentCtrl %d commanded to %s, speed %d%%", actuatorId, (state == VentCtrl_STATE_ON) ? "ON" : "OFF", speed_percent);  
-   * Return APP_OK.  
+   * Return E_OK.  
 4. **Periodic Control & Feedback (VentCtrl_MainFunction)**:  
    * This function is called periodically by a generic RTE task (e.g., RTE_PeriodicTask_HighPrio_100ms).  
    * If !s_is_initialized, return immediately.  
@@ -195,11 +195,11 @@ The VentCtrl module will manage its own ventilator control cycle for multiple ve
            * **Feedback Validation**: Compare s_actual_speeds_percent[vent_config.id] with s_commanded_speeds_percent[vent_config.id] (if PWM) or s_actual_states[vent_config.id] with s_commanded_states[vent_config.id]. If there's a significant deviation or unexpected state, report FAULT_ID_VentCtrl_FEEDBACK_MISMATCH to SystemMonitor with vent_config.id as data (severity MEDIUM).  
        * If any MCAL/HAL call fails during control, report FAULT_ID_VentCtrl_CONTROL_FAILED to SystemMonitor with vent_config.id as data (severity HIGH). Log an error.  
 5. **Get Current State/Speed (VentCtrl_GetState)**:  
-   * Validate pointers (state, speed_percent). If NULL, return APP_ERROR and log a warning.  
-   * Validate actuatorId. If actuatorId >= VentCtrl_COUNT, return APP_ERROR and log a warning.  
+   * Validate pointers (state, speed_percent). If NULL, return E_NOK and log a warning.  
+   * Validate actuatorId. If actuatorId >= VentCtrl_COUNT, return E_NOK and log a warning.  
    * Copy s_actual_states[actuatorId] to *state.  
    * Copy s_actual_speeds_percent[actuatorId] to *speed_percent.  
-   * Return APP_OK.
+   * Return E_OK.
 
 **Sequence Diagram (Example: systemMgr commands ventilator state, VentCtrl applies it):**
 ```mermaid
@@ -217,22 +217,22 @@ sequenceDiagram
     VentCtrl->>VentCtrl: Update s_commanded_states[VENT_ID_MAIN_EXHAUST] = ON  
     VentCtrl->>VentCtrl: Update s_commanded_speeds_percent[VENT_ID_MAIN_EXHAUST] = 50  
     VentCtrl->>Logger: LOGD("VentCtrl %d commanded to ON, speed 50%%", VENT_ID_MAIN_EXHAUST)  
-    VentCtrl-->>RTE: Return APP_OK  
-    RTE-->>SystemMgr: Return APP_OK
+    VentCtrl-->>RTE: Return E_OK  
+    RTE-->>SystemMgr: Return E_OK
 
     Note over RTE: (Later, RTE's periodic task runs)  
     RTE->>VentCtrl: VentCtrl_MainFunction()  
     VentCtrl->>VentCtrl: Retrieve commanded state/speed for VENT_ID_MAIN_EXHAUST (ON, 50%)  
     alt Ventilator is PWM type  
         VentCtrl->>MCAL_PWM: MCAL_PWM_SetDutyCycle(PWM_CHANNEL_VENT_EXHAUST, 50)  
-        MCAL_PWM-->>VentCtrl: Return APP_OK  
+        MCAL_PWM-->>VentCtrl: Return E_OK  
     else Ventilator is Relay type  
         VentCtrl->>MCAL_GPIO: MCAL_GPIO_WritePin(GPIO_PIN_VENT_RELAY, GPIO_STATE_HIGH)  
-        MCAL_GPIO-->>VentCtrl: Return APP_OK  
+        MCAL_GPIO-->>VentCtrl: Return E_OK  
     end  
     alt MCAL control fails  
         VentCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_VentCtrl_CONTROL_FAILED, SEVERITY_HIGH, VENT_ID_MAIN_EXHAUST)  
-        SystemMonitor-->>VentCtrl: Return APP_OK  
+        SystemMonitor-->>VentCtrl: Return E_OK  
     end  
     Note over VentCtrl: (Optional: Read feedback, update s_actual_speeds_percent/s_actual_states)  
     RTE-->>VentCtrl: (Return from VentCtrl_MainFunction)
@@ -241,12 +241,12 @@ sequenceDiagram
     SystemMgr->>RTE: RTE_Service_VENT_GetState(VENT_ID_MAIN_EXHAUST, &current_state, &current_speed)  
     RTE->>VentCtrl: VentCtrl_GetState(VENT_ID_MAIN_EXHAUST, &current_state, &current_speed)  
     VentCtrl->>VentCtrl: Retrieve s_actual_states[VENT_ID_MAIN_EXHAUST] and s_actual_speeds_percent[VENT_ID_MAIN_EXHAUST]  
-    VentCtrl-->>RTE: Return APP_OK (current_state=ON, current_speed=50)  
-    RTE-->>SystemMgr: Return APP_OK
+    VentCtrl-->>RTE: Return E_OK (current_state=ON, current_speed=50)  
+    RTE-->>SystemMgr: Return E_OK
 ```
 ### **5.4. Dependencies**
 
-* Application/common/inc/app_common.h: For APP_Status_t.  
+* Application/common/inc/common.h: For APP_Status_t.  
 * Application/logger/inc/logger.h: For logging errors and warnings.  
 * Application/SystemMonitor/inc/system_monitor.h: For SystemMonitor_FaultId_t (e.g., FAULT_ID_VentCtrl_INIT_FAILED, FAULT_ID_VentCtrl_CONTROL_FAILED, FAULT_ID_VentCtrl_FEEDBACK_MISMATCH).  
 * Rte/inc/Rte.h: For calling RTE_Service_SystemMonitor_ReportFault().  

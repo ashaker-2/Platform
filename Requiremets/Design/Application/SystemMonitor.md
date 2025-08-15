@@ -70,7 +70,7 @@ The SystemMonitor component will consist of the following files:
 
 // In Application/SystemMonitor/inc/system_monitor.h
 ```c
-#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h>   // For uint32_t  
 #include <stdbool.h>  // For bool
 
@@ -120,7 +120,7 @@ typedef struct {
 /**  
  * @brief Initializes the SystemMonitor module.  
  * Clears fault logs and resets system health metrics.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t SystemMonitor_Init(void);
 
@@ -130,7 +130,7 @@ APP_Status_t SystemMonitor_Init(void);
  * @param fault_id The ID of the fault being reported.  
  * @param severity The severity level of the fault.  
  * @param data Optional data related to the fault (e.g., sensor ID, error code).  
- * @return APP_OK on success, APP_ERROR if the fault could not be recorded.  
+ * @return E_OK on success, E_NOK if the fault could not be recorded.  
  */  
 APP_Status_t SysMon_ReportFault(SystemMonitor_FaultId_t fault_id,  
                                        SystemMonitor_FaultSeverity_t severity,  
@@ -158,7 +158,7 @@ uint32_t SysMon_GetTotalMinFreeStack(void);
  * @brief Retrieves the current fault status (active faults).  
  * This function is primarily for the Diagnostic module.  
  * @param status Pointer to a SystemMonitor_FaultStatus_t structure to fill.  
- * @return APP_OK on success, APP_ERROR on failure (e.g., NULL pointer).  
+ * @return E_OK on success, E_NOK on failure (e.g., NULL pointer).  
  */  
 APP_Status_t SysMon_GetFaultStatus(SystemMonitor_FaultStatus_t *status);
 ```
@@ -186,16 +186,16 @@ The SystemMonitor module will maintain internal data structures for active and h
    ```
    * SystemMonitor_Init() will initialize all these variables, create the mutex, and clear fault logs.  
 2. **Initialization (SystemMonitor_Init)**:  
-   * Create s_system_monitor_mutex. If creation fails, log a critical error and return APP_ERROR.  
+   * Create s_system_monitor_mutex. If creation fails, log a critical error and return E_NOK.  
    * Acquire mutex.  
    * Clear s_historical_fault_log and s_active_faults (e.g., set id to FAULT_ID_NONE).  
    * Reset s_history_write_idx, s_history_count, s_active_fault_count.  
    * Reset s_current_cpu_load_percent, s_total_min_free_stack_bytes.  
    * Release mutex.  
    * Set s_is_initialized = true;.  
-   * Return APP_OK.  
+   * Return E_OK.  
 3. **Report Fault (SysMon_ReportFault)**:  
-   * If !s_is_initialized, return APP_ERROR.  
+   * If !s_is_initialized, return E_NOK.  
    * Acquire s_system_monitor_mutex.  
    * Validate fault_id and severity.  
    * Create a new SystemMonitor_FaultRecord_t with provided details and APP_COMMON_GetUptimeMs(). Set is_active = true.  
@@ -203,7 +203,7 @@ The SystemMonitor module will maintain internal data structures for active and h
    * **Add to Active Faults**: Check if this fault id is already active. If not, add it to s_active_faults. If it is, update its timestamp and data. Handle SysMon_MAX_ACTIVE_FAULTS overflow (e.g., overwrite oldest active fault or return error).  
    * Log the fault using LOGE or LOGW based on severity.  
    * Release mutex.  
-   * Return APP_OK.  
+   * Return E_OK.  
 4. **Periodic Monitoring (SysMon_MainFunction)**:  
    * If !s_is_initialized, return immediately.  
    * Acquire s_system_monitor_mutex.  
@@ -237,28 +237,28 @@ sequenceDiagram
     SystemMonitor->>SystemMonitor: Add/Update fault in s_active_faults  
     SystemMonitor->>SystemMonitor: LOGE("Temp sensor X failed: %d", Sensor_ID_X)  
     SystemMonitor->>FreeRTOS: xSemaphoreGive(s_system_monitor_mutex)  
-    SystemMonitor-->>RTE: Return APP_OK  
-    RTE-->>TempSensor: Return APP_OK
+    SystemMonitor-->>RTE: Return E_OK  
+    RTE-->>TempSensor: Return E_OK
 
     Note over SystemMonitor: (Later, during SysMon_MainFunction execution)  
     SystemMonitor->>FreeRTOS: xSemaphoreTake(s_system_monitor_mutex, portMAX_DELAY)  
     SystemMonitor->>SystemMonitor: Check active faults  
     alt If critical fault active (e.g., TEMP_SENSOR_FAILURE)  
         SystemMonitor->>RTE: RTE_Service_SYS_MGR_SetFailSafeMode(true)  
-        RTE-->>SystemMonitor: Return APP_OK  
+        RTE-->>SystemMonitor: Return E_OK  
     end  
     SystemMonitor->>FreeRTOS: xSemaphoreGive(s_system_monitor_mutex)
 ```
 ### **5.4. Dependencies**
 
-* Application/common/inc/app_common.h: For APP_Status_t, APP_COMMON_GetUptimeMs().  
+* Application/common/inc/common.h: For APP_Status_t, APP_COMMON_GetUptimeMs().  
 * Application/logger/inc/logger.h: For logging system health and fault events.  
 * Rte/inc/Rte.h: For calling RTE_Service_SYS_MGR_SetFailSafeMode() and for being called by other modules (RTE_Service_SystemMonitor_ReportFault(), RTE_Service_SystemMonitor_GetCPULoad(), etc.).  
 * FreeRTOS headers (freertos/FreeRTOS.h, freertos/task.h, freertos/semphr.h): For task statistics, stack HWM, and mutex.
 
 ### **5.5. Error Handling**
 
-* **Initialization Failure**: If mutex creation fails, SystemMonitor_Init will return APP_ERROR.  
+* **Initialization Failure**: If mutex creation fails, SystemMonitor_Init will return E_NOK.  
 * **Mutex Protection**: All access to internal state (s_historical_fault_log, s_active_faults, system metrics) is protected by s_system_monitor_mutex to ensure thread safety.  
 * **Input Validation**: SysMon_ReportFault validates fault_id and severity. SysMon_GetFaultStatus validates the input pointer.  
 * **Fault Log Overflow**: The historical fault log uses a circular buffer. The active fault log has a fixed size; if it overflows, older active faults might be overwritten or new faults might be rejected, depending on the chosen strategy (overwriting is generally preferred for continuous operation).  

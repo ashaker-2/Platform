@@ -102,7 +102,7 @@ typedef struct {
 /**  
  * @brief Initializes all configured SPI peripherals based on the predefined array.  
  * This function should be called once during system initialization.  
- * @return APP_OK on success, APP_ERROR if any SPI port fails to initialize.  
+ * @return E_OK on success, E_NOK if any SPI port fails to initialize.  
  */  
 APP_Status_t HAL_SPI_Init(void);
 
@@ -111,7 +111,7 @@ APP_Status_t HAL_SPI_Init(void);
  * This function is used by higher layers to select/deselect SPI slave devices.  
  * @param cs_gpio_pin The GPIO pin number for the Chip Select.  
  * @param active True to assert (active low typically) CS, false to de-assert.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_SPI_SetChipSelect(uint8_t cs_gpio_pin, bool active);
 
@@ -120,7 +120,7 @@ APP_Status_t HAL_SPI_SetChipSelect(uint8_t cs_gpio_pin, bool active);
  * @param port_id The ID of the SPI port to use.  
  * @param data_out Pointer to the data buffer to transmit.  
  * @param data_out_len Length of the data to transmit.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_SPI_MasterTransmit(HAL_SPI_PortId_t port_id, const uint8_t *data_out, uint16_t data_out_len);
 
@@ -129,7 +129,7 @@ APP_Status_t HAL_SPI_MasterTransmit(HAL_SPI_PortId_t port_id, const uint8_t *dat
  * @param port_id The ID of the SPI port to use.  
  * @param data_in Pointer to the buffer to store received data.  
  * @param data_in_len Length of the data to receive.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_SPI_MasterReceive(HAL_SPI_PortId_t port_id, uint8_t *data_in, uint16_t data_in_len);
 
@@ -139,7 +139,7 @@ APP_Status_t HAL_SPI_MasterReceive(HAL_SPI_PortId_t port_id, uint8_t *data_in, u
  * @param data_out Pointer to the data buffer to transmit.  
  * @param data_in Pointer to the buffer to store received data.  
  * @param data_len Length of the data to transmit and receive.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_SPI_MasterTransmitReceive(HAL_SPI_PortId_t port_id, const uint8_t *data_out,  
                                            uint8_t *data_in, uint16_t data_len);
@@ -155,8 +155,8 @@ The HAL_SPI module will act as a wrapper around the MCAL_SPI functions. It will 
      * Validate the port_id against HAL_SPI_PORT_COUNT and GPIO pins.  
      * Translate HAL_SPI_Mode_t and HAL_SPI_BitOrder_t into MCAL_SPI specific enums/macros.  
      * Call MCAL_SPI_Init(mcal_port_id, mcal_clk_speed, mcal_spi_mode, mcal_bit_order, mcal_mosi_pin, mcal_miso_pin, mcal_sclk_pin).  
-     * If MCAL_SPI_Init returns an error for *any* port, report HAL_SPI_INIT_FAILURE to SystemMonitor. The function should continue to attempt to initialize remaining ports but will ultimately return APP_ERROR if any initialization fails.  
-   * If all SPI ports are initialized successfully, return APP_OK.  
+     * If MCAL_SPI_Init returns an error for *any* port, report HAL_SPI_INIT_FAILURE to SystemMonitor. The function should continue to attempt to initialize remaining ports but will ultimately return E_NOK if any initialization fails.  
+   * If all SPI ports are initialized successfully, return E_OK.  
 2. **Chip Select Control (HAL_SPI_SetChipSelect)**:  
    * This function directly calls HAL_GPIO_SetState(cs_gpio_pin, active ? HAL_GPIO_STATE_LOW : HAL_GPIO_STATE_HIGH) (assuming active-low CS, which is common).  
    * It's crucial that the cs_gpio_pin is configured as an output in HAL_GPIO_Init during system startup.  
@@ -187,22 +187,22 @@ sequenceDiagram
     App->>RTE: RTE_Service_STORAGE_WriteFlash(address, data, len)  
     RTE->>HAL_SPI: HAL_SPI_SetChipSelect(FLASH_CS_PIN, true)  
     HAL_SPI->>HAL_GPIO: HAL_GPIO_SetState(FLASH_CS_PIN, HAL_GPIO_STATE_LOW)  
-    HAL_GPIO-->>HAL_SPI: Return APP_OK  
+    HAL_GPIO-->>HAL_SPI: Return E_OK  
     HAL_SPI->>HAL_SPI: (Delay if needed for CS setup)  
     HAL_SPI->>MCAL_SPI: MCAL_SPI_MasterTransmit(HAL_SPI_PORT_1, data, len, timeout)  
     alt MCAL_SPI_MasterTransmit returns MCAL_ERROR  
         MCAL_SPI--xHAL_SPI: Return MCAL_ERROR  
         HAL_SPI->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_SPI_TX_FAILURE, SEVERITY_HIGH, ...)  
         HAL_SPI->>HAL_GPIO: HAL_GPIO_SetState(FLASH_CS_PIN, HAL_GPIO_STATE_HIGH)  
-        HAL_GPIO-->>HAL_SPI: Return APP_OK  
-        HAL_SPI--xRTE: Return APP_ERROR  
-        RTE--xApp: Return APP_ERROR  
+        HAL_GPIO-->>HAL_SPI: Return E_OK  
+        HAL_SPI--xRTE: Return E_NOK  
+        RTE--xApp: Return E_NOK  
     else MCAL_SPI_MasterTransmit returns MCAL_OK  
         MCAL_SPI-->>HAL_SPI: Return MCAL_OK  
         HAL_SPI->>HAL_GPIO: HAL_GPIO_SetState(FLASH_CS_PIN, HAL_GPIO_STATE_HIGH)  
-        HAL_GPIO-->>HAL_SPI: Return APP_OK  
-        HAL_SPI-->>RTE: Return APP_OK  
-        RTE-->>App: Return APP_OK  
+        HAL_GPIO-->>HAL_SPI: Return E_OK  
+        HAL_SPI-->>RTE: Return E_OK  
+        RTE-->>App: Return E_OK  
     end
 ```
 
@@ -212,7 +212,7 @@ sequenceDiagram
 * **HAL/inc/hal_gpio.h**: For controlling Chip Select (CS) pins.  
 * **Application/logger/inc/logger.h**: For internal logging.  
 * **Rte/inc/Rte.h**: For calling RTE_Service_SystemMonitor_ReportFault().  
-* **Application/common/inc/app_common.h**: For APP_Status_t and APP_OK/APP_ERROR.  
+* **Application/common/inc/common.h**: For APP_Status_t and E_OK/E_NOK.  
 * **HAL/cfg/hal_spi_cfg.h**: For the hal_spi_initial_config array and HAL_SPI_Config_t structure.
 
 ### **5.5. Error Handling**
@@ -220,7 +220,7 @@ sequenceDiagram
 * **Input Validation**: All public API functions will validate input parameters (e.g., valid port_id, non-NULL pointers, valid lengths).  
 * **MCAL Error Propagation**: Errors returned by MCAL_SPI functions will be caught by HAL_SPI.  
 * **Fault Reporting**: Upon detection of an error (invalid input, MCAL failure, SPI bus error), HAL_SPI will report a specific fault ID (e.g., HAL_SPI_INIT_FAILURE, HAL_SPI_CS_CONTROL_FAILURE, HAL_SPI_TX_FAILURE, HAL_SPI_RX_FAILURE, HAL_SPI_TRX_FAILURE) to SystemMonitor via the RTE service.  
-* **Return Status**: All public API functions will return APP_ERROR on failure. HAL_SPI_Init will return APP_ERROR if *any* port fails to initialize.
+* **Return Status**: All public API functions will return E_NOK on failure. HAL_SPI_Init will return E_NOK if *any* port fails to initialize.
 
 ### **5.6. Configuration**
 
@@ -255,7 +255,7 @@ extern const uint32_t hal_spi_initial_config_size;
 
 * **Mock MCAL_SPI & HAL_GPIO**: Unit tests for HAL_SPI will mock the MCAL_SPI and HAL_GPIO functions to isolate HAL_SPI's logic.  
 * **Test Cases**:  
-  * HAL_SPI_Init: Test with a valid hal_spi_initial_config array. Verify MCAL_SPI_Init calls for each entry. Test scenarios where MCAL calls fail (verify APP_ERROR return and SystemMonitor fault reporting).  
+  * HAL_SPI_Init: Test with a valid hal_spi_initial_config array. Verify MCAL_SPI_Init calls for each entry. Test scenarios where MCAL calls fail (verify E_NOK return and SystemMonitor fault reporting).  
   * HAL_SPI_SetChipSelect: Test valid/invalid CS GPIO pins. Verify correct HAL_GPIO_SetState calls.  
   * HAL_SPI_MasterTransmit: Test valid/invalid parameters. Mock MCAL_SPI_MasterTransmit to simulate success, timeouts, bus errors. Verify correct return status and fault reporting.  
   * HAL_SPI_MasterReceive: Similar to transmit, test valid/invalid parameters and mock MCAL_SPI_MasterReceive for various outcomes.  

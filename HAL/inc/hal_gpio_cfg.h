@@ -10,19 +10,19 @@
 #define HAL_GPIO_CFG_H
 
 #include "hal_gpio.h" // For HAL_GPIO_Pin_t, HAL_GPIO_Direction_t, etc.
-#include "mcal_gpio.h" // For MCAL_GPIO_Pin_t, MCAL_GPIO_InterruptType_t etc. (MCU-specific)
+// #include "gpio.h" // For MCAL_GPIO_Pin_t, MCAL_GPIO_InterruptType_t etc. (MCU-specific)
 
 // --- Configuration Structure for each Logical GPIO Pin ---
 /**
  * @brief Structure to hold the static configuration for each logical GPIO pin.
  */
 typedef struct {
-    HAL_GPIO_Pin_t          logical_id;     /**< The logical ID of the GPIO pin. */
-    MCAL_GPIO_Pin_t         mcal_pin;       /**< The corresponding MCAL (physical) pin number. */
-    HAL_GPIO_Direction_t    default_direction; /**< Default direction at initialization. */
-    HAL_GPIO_State_t        default_initial_state; /**< Default initial state for outputs. */
-    HAL_GPIO_PullMode_t     default_pull_mode; /**< Default pull mode for inputs. */
-    bool                    is_interrupt_capable; /**< True if this pin can generate interrupts. */
+    uint8_t   logical_id;     /**< The logical ID of the GPIO pin. */
+    uint8_t   mcal_pin;       /**< The corresponding MCAL (physical) pin number. */
+    uint8_t   direction; /**< Default direction at initialization. */
+    uint8_t   initial_state; /**< Default initial state for outputs. */
+    uint8_t   pull_mode; /**< Default pull mode for inputs. */
+    bool      is_interrupt_capable; /**< True if this pin can generate interrupts. */
     // Add more configuration parameters as needed (e.g., drive strength, speed)
 } HAL_GPIO_Config_t;
 

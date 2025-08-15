@@ -46,7 +46,7 @@ This document does **not** cover specific low-level driver implementations (e.g.
 
 * **CPU Load**: Percentage of CPU time spent on active tasks vs. idle task.
 
-* **APP_OK / APP_ERROR**: Standard return codes for success/failure.
+* **E_OK / E_NOK**: Standard return codes for success/failure.
 
 ### 1.4. References
 
@@ -104,14 +104,14 @@ The system employs a strict layered architecture to achieve separation of concer
 | +-----------+  +--------------+  +--------+  +-----------+   |
 | |  SYS_MGR  |  |  SYS_STARTUP |  | Heater |  | Humadity  |   |
 +--------------------------------------------------------------|
-| +---------+  +------------+  +-----------+  +--------------+ |
-| | FAN_CTL |  | Diagnostic |  | Light_CTL |  |SystemMonitor | |
+| +---------+ +---------+ +-----------+ +-------+ +--------+   |
+| | FanCtrl | | DiagMgr | | LightCtrl | |SysMon | | BtnMgr |   |
 +--------------------------------------------------------------|
 | +--------+ +---------+ +-----------+ +--------+ +---------+  |
 | | common | | Display | | TEMP_SENS | | Logger | | STORAGE |  |
 +--------------------------------------------------------------|
-| +-------+ +------+ +------------+  +----------+              |
-| | power | | pump | | ventilator |  | LightInd |              |
+| +-------+ +------+ +------+ +----------+ +-----------+       |
+| | power | | pump | | Vent | | LightInd | | KeypadMgr |       |
 +--------------------------------------------------------------|
 +--------------------------------------------------------------+
 |                  Runtime Environment (RTE)                   |
@@ -309,7 +309,7 @@ The development view describes the system's organization within the file system 
 ├── Application/
 │   ├── SystemMonitor/                # Contains system_monitor
 │   ├── SystemStartup/                # Contains startup.c (app_main entry point)
-│   ├── common/                       # Contains app_common.h
+│   ├── common/                       # Contains common.h
 │   ├── diagnostic/                   # (Placeholder for diagnostic features)
 │   ├── display/                      # Contains character_display
 │   ├── fan/                          # Contains fan
@@ -323,6 +323,8 @@ The development view describes the system's organization within the file system 
 │   ├── systemMgr/                    # Contains sys_mgr
 │   ├── temperature/                  # Contains temp_sensor
 │   ├── ventilator/                   # Contains ventilator
+│   ├── KeypadMgr/                    # Contains KeypadMgr
+│   ├── BtnMgr/                       # Contains BtnMgr
 │   ├── cmake/                        # CMake configuration for Application modules
 │   └── CMakeLists.txt                # Main CMakeLists for the Application layer
 ├── HAL/
@@ -540,6 +542,18 @@ The physical view describes the mapping of software components to the hardware p
 
 * **Responsibilities (`Rte.c`)**:
 
+
+| Task                            | Periodicity | Priority | Purpose                                        |
+| ------------------------------- | ----------  | -------- | ---------------------------------------------- |
+| `RTE_HwInitTask`                | Once        | Highest  | Init HAL                                       |
+| `RTE_AppInitTask`               | Once        | High     | Init Application + Services                    |
+| `RTE_App_20ms_SensorReadTask`   | 20ms        | High     | Read sensors and update system state           |
+| `RTE_App_100ms_ActuatorControl` | 100ms       | High     | Run control logic and actuate outputs          |
+| `RTE_Service_100ms_ComMgr`      | 100ms       | Medium   | Manage communication stack (Modbus, BLE, etc.) |
+| `RTE_Service_1000ms_Display`    | 1000ms      | Medium   | UI updates: displays, indicators               |
+| `RTE_Service_1000ms_LogHealth`  | 1000ms      | Low      | CPU load and stack HWM logging                 |
+
+
   * **`RTE_Init()`**: Creates `RTE_HwInitTask` and `RTE_AppInitTask()`.
 
   * **`RTE_HwInitTask()`**: Initializes **MCAL modules** , **HAL modules** and deletes itself.
@@ -600,7 +614,7 @@ The physical view describes the mapping of software components to the hardware p
     * **Power-Based Actuator Override**: Can override actuator commands (even in Manual or Hybrid mode) if voltage/power is outside safe operational ranges, ensuring system stability and preventing damage.
     * **OTA Power Readiness Check**: Provides the status of power readiness for OTA updates to `Diagnostic`.
 
-* **Dependencies**:`logger.h`, `app_common.h` (for uptime), `Rte.h` (for calling RTE services to control actuators/display, `storage`, and `power` services), `freertos/semphr.h` (for mutex).
+* **Dependencies**:`logger.h`, `common.h` (for uptime), `Rte.h` (for calling RTE services to control actuators/display, `storage`, and `power` services), `freertos/semphr.h` (for mutex).
 
 ### 5.4. `SystemMonitor`
 
@@ -624,7 +638,7 @@ The physical view describes the mapping of software components to the hardware p
     * Provides data to `Diagnostic` via RTE services (`RTE_Service_SystemMonitor_GetFaultStatus()`).
 
 * **Dependencies**: 
-  * `logger.h`, `app_common.h`, `Rte.h` (for calling `systemMgr` services), FreeRTOS headers.
+  * `logger.h`, `common.h`, `Rte.h` (for calling `systemMgr` services), FreeRTOS headers.
 * 
 
 ### 5.5. `Diagnostic`
@@ -808,7 +822,7 @@ The physical view describes the mapping of software components to the hardware p
 
 * **Dependencies**:`logger.h`, `Rte/inc/Rte.h` (for `Mcal/uart` services).
 
-#### 5.16. `Bluetooth.h`
+#### 5.16. `Bluetooth`
 
 * **Role**: Provides the Bluetooth (BLE/Classic) protocol driver at the Hardware Abstraction Layer.
 
@@ -887,7 +901,14 @@ Robust error handling and fault tolerance are critical for the reliability and s
     * **Application Modules (e.g., `temperature`, `fan`, `storage`, `power`)**: Detect application-specific errors (e.g., sensor reading out of expected range, actuator feedback indicating a stuck state, failure to enable a communication module, corrupted configuration data read from storage, **voltage/current out of safe range, failure to enter/exit power mode**).
 * **Centralized Reporting to `SystemMonitor`**: All detected faults, regardless of their origin, are ultimately reported to the `SystemMonitor` module via a dedicated RTE Service (e.g., `RTE_Service_SystemMonitor_ReportFault(fault_id, severity, data)`). This ensures `SystemMonitor` has a comprehensive view of system health.
 
-### 6.9. System Faults Table
+
+* **Severity Levels**:
+  - `LOW`: Transient, non-critical; retries possible.
+  - `MEDIUM`: Affects a non-essential feature.
+  - `HIGH`: Affects core functionality or safety.
+  - `CRITICAL`: Requires system reboot or shutdown.
+
+### 6.2. System Faults Table
 
 This table provides a comprehensive list of potential faults based on the analysis of the SAD. The faults are categorized by the layer/domain where they are detected. All faults are reported to the `SystemMonitor` module by the detecting HAL, Service, or Application layer component.
 
@@ -917,7 +938,20 @@ This table provides a comprehensive list of potential faults based on the analys
 | | | `0x030C` | **APP_DIAG_TEST_FAILURE**: A specific diagnostic test case failed to pass. |
 
 
-### 6.2. Fault Management and Action (`SystemMonitor`'s Role)
+
+
+| Fault ID | Fault Name             | Category | Criticality | Retry Count | Action Taken                     | Logged | Watchdog Reset | Debounced in HAL |
+| -------- | ---------------------- | -------- | ----------- | ----------- | -------------------------------- | ------ | -------------- | ---------------- |
+| F001     | Sensor Communication   | HW       | Medium      | 3           | Retry, then log fault            | Yes    | No             | Yes              |
+| F002     | Actuator Timeout       | HW       | High        | 1           | Immediate reset                  | Yes    | Yes            | Yes              |
+| F003     | CRC Error in Flash     | SW       | High        | 0           | Log fault, escalate              | Yes    | No             | N/A              |
+| F004     | Modbus Frame Error     | SW       | Low         | 5           | Retry, log on failure            | Yes    | No             | No               |
+| F005     | Overvoltage Detected   | HW       | Critical    | 0           | Log and reset                    | Yes    | Yes            | Yes              |
+| F006     | Memory Allocation Fail | SW       | High        | 0           | Log fault, attempt safe fallback | Yes    | No             | N/A              |
+| F007     | Temperature High       | HW       | Medium      | 2           | Throttle output, log fault       | Yes    | No             | Yes              |
+
+
+### 6.3. Fault Management and Action (`SystemMonitor`'s Role)
 
 * **Fault Storage**: `SystemMonitor` maintains a list of active faults and a history of past faults.
 * **System Health Monitoring**: `SystemMonitor` continuously monitors global system metrics like CPU load and task stack usage. If these metrics exceed predefined thresholds, `SystemMonitor` itself registers these as system faults.
@@ -927,7 +961,46 @@ This table provides a comprehensive list of potential faults based on the analys
     * Triggering a system reboot (via `Diagnostic`).
 * **Status Aggregation**: `SystemMonitor` aggregates the overall system health status, which can be queried by `Diagnostic`.
 
-### 6.3. Fault Response and Recovery (`Diagnostic`'s Role & System-wide Mechanisms)
+```
++-------------------+
+| System Monitor    |
++--------+----------+
+         |
+         v
++-----------------------+
+| Check System Faults   |<-------------------+
++-----------------------+                    |
+         |                                   |
+         v                                   |
++-----------------------+          No        |
+| Any Fault Detected?   |--------------------+
++----------+------------+
+           |
+          Yes
+           |
+           v
++-----------------------+
+| Map to Fault Category |
++-----------------------+
+           |
+           v
++----------------------------+
+| Take Action Based on Fault|
+| - Retry Logic              |
+| - Log Fault (Flash)        |
+| - Trigger Reset if Critical|
++----------------------------+
+           |
+           v
++-------------------------------+
+| Notify Diagnostic System      |
+| - Expose Fault for Retrieval  |
+| - Provide SRC Code            |
++-------------------------------+
+```
+
+
+### 6.4. Fault Response and Recovery (`Diagnostic`'s Role & System-wide Mechanisms)
 
 * **External Fault Reporting**: `Diagnostic` queries `SystemMonitor` for active and historical faults and exposes this information to external interfaces (BLE, Wi-Fi, Modbus) for remote monitoring and debugging.
 * **Fail-Safe States**:
@@ -936,21 +1009,43 @@ This table provides a comprehensive list of potential faults based on the analys
 * **System Reboot**: `Diagnostic` can initiate a software reboot of the system, potentially to a specific firmware image (e.g., factory bank) for recovery from unrecoverable errors. This might be triggered by `SystemMonitor` (for critical internal faults) or by an external command (via `Diagnostic`'s interface).
 * **Alarm Indication**: `systemMgr` (or `Diagnostic` directly for specific critical alarms) can activate visual (LEDs via `RTE_Service_LIGHT_INDICATION_On/Off`) or audible alarms (via `RTE_Service_UpdateDisplayAndAlarm`).
 
-### 6.4. Retry Logic
+* All critical faults detected in the SystemMonitor or Hardware Abstraction Layer are mapped to hardware-level alarms.
+* The diagnostic module:
+  * Collects fault logs (from Flash)
+  * Maps to standard SRC (Service Request Code) entries
+  * Exposes faults via diagnostic interfaces (UART/Modbus)
+* SRC example:
+  * SRC_0x02: Watchdog Reset after Sensor Comm Fault
+  * SRC_0x08: Memory Allocation Failure
+
+
+### 6.5. Retry Logic
 
 * **Transient Fault Handling**: For transient errors (e.g., a single sensor read failure, a temporary communication glitch), retry mechanisms are implemented at the layer where the error occurs.
     * **MCAL/HAL/Service Drivers**: Low-level drivers or middleware may have internal retries for bus communication or network operations.
     * **Application Modules**: Modules like `temperature` or `Bluetooth` might attempt a few retries before reporting a persistent failure to `SystemMonitor`.
 
-### 6.5. Watchdog Timers (WDG)
+* Retry logic for transient or recoverable faults is implemented at the SystemMonitor layer, but debounce handling is located in the HAL Layer.
+* All retries are bounded by attempt counters and timeouts to avoid endless loops.
+
+* If the retry fails, fault escalation follows the flow defined in section 6.2.
+
+### 6.6. Watchdog Timers (WDG)
 
 * **Hardware Watchdog**: A hardware watchdog timer is configured during system initialization (likely within MCAL or HAL setup). This watchdog must be periodically "fed" (reset) by a high-priority task (e.g., `RTE_MainLoopTask` or a dedicated watchdog task). If the watchdog is not fed within a configured timeout, it triggers a system reset, recovering from software deadlocks or infinite loops.
 * **Software Watchdogs (Conceptual)**: For critical tasks, FreeRTOS software timers could be used to monitor if a specific task is executing within its expected timeframe. Failure to "pet" this software watchdog could trigger a fault report to `SystemMonitor` or a system reset.
 
-### 6.6. Power Management Modes
+* Watchdog timers are used to detect and recover from software stalls or system hangs.
+* Before system reset triggered by watchdog expiry, the system:
+* Logs SRC Fault Code to Flash/NVM.
+* Fault is retrievable post-reset via diagnostics tools or on next boot.
+* Ensures persistent fault traceability after hard resets.
 
-The ECU operates in one of three distinct Power Management Modes, controlled by the `Application/power` component. These modes define hardware behavior and power consumption levels.
+## 7. Management Modes
 
+The ECU operates in one of three distinct Power Management Modes, controlled by the `power` component. These modes define hardware behavior and power consumption levels.
+
+### 7.1. Power Mode Management 
 #### Power Management Mode Diagram
 
 The diagram below illustrates the high-level ECU power states and their transitions:
@@ -992,7 +1087,7 @@ stateDiagram-v2
   - **Condition**: Fatal condition during sleep (e.g., sensor disconnection, timeout without wake event).  
   - **Action**: Immediate shutdown and transition to OFF.
 
-### 6.7. SW Modes
+### 7.1. SW Mode Management 
 
 The application's functional behavior is governed by three SW Modes, managed by the `Application/systemMgr` component. These modes define how actuators are controlled and how the system responds to sensor inputs and user commands. The ECU must be in the **ON** Power Management Mode for these states to be active.
 
@@ -1037,7 +1132,7 @@ stateDiagram-v2
   - **Action**: `systemMgr` applies logic of selected target mode to all actuators.
 
 
-### 6.8. Interactions Between Power and SW Modes
+### 7.3. Interactions Between Power and SW Modes
 
 The Power Management Modes and SW Modes operate at different levels of abstraction but are interconnected:
 
@@ -1051,43 +1146,91 @@ The Power Management Modes and SW Modes operate at different levels of abstracti
     * Critical operations like **OTA updates (initiated by `Diagnostic`) will be prevented by `systemMgr`** if the power module reports insufficient or unstable power, to avoid corrupting the firmware.
 * **Wake-up from OFF/Sleep**: When the ECU transitions from "OFF" (via power button) or "Sleep" to "ON," the `SystemStartup` and `RTE` will re-initialize, and `systemMgr` will load the last configured System Mode (defaulting to Automatic if none is stored).
 
-## 7. Scenarios
+| Power Mode | Description | Est. Current | Wake Triggers |
+|------------|-------------|--------------|----------------|
+| OFF        | Deep sleep  | <1 μA        | Button press |
+| SLEEP      | Low power, sensors on | ~5 mA | BLE, Timers |
+| ON         | Full operation | ~30–50 mA | — |
 
-### 7.1. Scenario 1: Sensor Reading and Actuator Control
+
+## 8. Modbus Command Handling
+
+All Modbus configuration writes (e.g., thresholds, limits) are:
+
+- Validated  
+- Written to NVM  
+- Reflected in active configuration  
+
+Commands follow a **modular register map structure**.
+
+Errors (e.g., invalid writes) return appropriate **Modbus exception codes**.
+
+## 9. Configuration Storage
+
+| **Parameter**         | **Source**         | **Stored In** | **Backup Exists** | **Updated By**         |
+|-----------------------|--------------------|----------------|-------------------|-------------------------|
+| Sensor Thresholds     | Modbus/User Input  | NVM            | Yes               | Modbus Interface        |
+| Operating Mode        | Default/Profile    | Flash          | Yes               | Application Init        |
+| Last Fault Info       | System Monitor     | Flash          | No                | On Fault                |
+| Network Settings      | Factory Setup      | NVM            | Yes               | Diagnostic Tool         |
+
+- Configuration stored in structured format (**TLV** / **Key-Value**).
+- **Checksum/CRC** validated on read.
+- **Factory reset** option restores default configuration.
+
+
+## 10. Scenarios
+
+### 10.1. Scenario 1: Sensor Reading and Actuator Control
 
 **Description**: This scenario illustrates the core control loop where sensor data is read and actuators are adjusted based on operational parameters.
 
 1.  **Sensor Read (Process View)**: `RTE_SensorReadTask` wakes up (every 20 ms).
 2.  **RTE Service Call (Logical View)**: `RTE_SensorReadTask` calls `RTE_Service_ProcessSensorReadings()`.
-3.  **Sensor Data Acquisition (Logical View)**: `RTE_Service_ProcessSensorReadings()` internally calls `Application/systemMgr/src/sys_mgr.c::SYS_MGR_ProcessSensorReadings()`. `SYS_MGR_ProcessSensorReadings()` then calls `RTE_Service_TEMP_SENSOR_Read()` and `RTE_Service_HUMIDITY_SENSOR_Read()`. These RTE services, in turn, call `Application/temperature/src/temp_sensor.c::TEMP_SENSOR_ReadTemperature()` and `Application/humadity/src/humidity_sensor.c::HUMIDITY_SENSOR_ReadHumidity()` (which internally use MCAL functions like `Mcal/adc/src/ecual_adc.c::ECUAL_ADC_Read()`).
+3.  **Sensor Data Acquisition (Logical View)**: `RTE_Service_ProcessSensorReadings()` internally calls `sys_mgr.c::SYS_MGR_ProcessSensorReadings()`. `SYS_MGR_ProcessSensorReadings()` then calls `RTE_Service_TEMP_SENSOR_Read()` and `RTE_Service_HUMIDITY_SENSOR_Read()`. These RTE services, in turn, call `temp_sensor.c::TEMP_SENSOR_ReadTemperature()` and `humidity_sensor.c::HUMIDITY_SENSOR_ReadHumidity()` (which internally use MCAL functions like `ecual_adc.c::ECUAL_ADC_Read()`).
     * **Fault Detection Example**: If `TEMP_SENSOR_ReadTemperature()` fails after retries, it calls `RTE_Service_SystemMonitor_ReportFault(FAULT_ID_TEMP_SENSOR_FAILURE, SEVERITY_HIGH, ...)`
 4.  **State Update (Logical View)**: `SYS_MGR_ProcessSensorReadings()` acquires `sys_mgr_state_mutex`, updates `sys_mgr_state.current_room_temp_c` and `sys_mgr_state.current_room_humidity_p`, and releases the mutex.
 5.  **Actuator Control (Process View)**: `RTE_ActuatorControlTask` wakes up (every 100 ms).
 6.  **RTE Service Call (Logical View)**: `RTE_ActuatorControlTask` calls `RTE_Service_ControlActuators()`.
-7.  **Control Logic (Logical View)**: `RTE_Service_ControlActuators()` internally calls `Application/systemMgr/src/sys_mgr.c::SYS_MGR_ControlActuators()`. `SYS_MGR_ControlActuators()` acquires `sys_mgr_state_mutex` to read current sensor values and operational parameters.
+7.  **Control Logic (Logical View)**: `RTE_Service_ControlActuators()` internally calls `sys_mgr.c::SYS_MGR_ControlActuators()`. `SYS_MGR_ControlActuators()` acquires `sys_mgr_state_mutex` to read current sensor values and operational parameters.
 8.  **Actuator Command (Logical View)**: Based on the control logic (e.g., if `current_room_temp_c` > `operational_temp_max`), `SYS_MGR_ControlActuators()` calls `RTE_Service_FAN_SetSpeed()` or `RTE_Service_HEATER_SetState()`.
-9.  **Hardware Control (Logical View)**: The RTE Service (e.g., `RTE_Service_FAN_SetSpeed()`) internally calls `Application/fan/src/fan.c::FAN_SetSpeed()`, which then calls `Mcal/pwm/src/ecual_pwm.c::ECUAL_PWM_SetDutyCycle()` to control the physical fan.
+9.  **Hardware Control (Logical View)**: The RTE Service (e.g., `RTE_Service_FAN_SetSpeed()`) internally calls `fan.c::FAN_SetSpeed()`, which then calls `Mcal/pwm/src/ecual_pwm.c::ECUAL_PWM_SetDutyCycle()` to control the physical fan.
 10. **State Update (Logical View)**: `SYS_MGR_ControlActuators()` updates `sys_mgr_state.current_fan_stage`, `sys_mgr_state.heater_is_working`, etc., and releases the mutex.
 
-### 7.2. Scenario 2: Modbus Command to Change Operational Temperature
+**Sensor Reading Flow:**  
+```
+Sensor → HAL Driver → Sensor Manager → SystemMonitor → Application
+```
+
+**Actuator Control Flow:** 
+```
+Application → Actuator Manager → HAL Driver → Actuator
+``` 
+
+
+* All values are validated, debounced (if needed), and sampled periodically.
+* On fault, control logic is suspended or failsafe paths engaged.
+
+
+### 10.2. Scenario 2: Modbus Command to Change Operational Temperature
 
 **Description**: An external Modbus master sends a command to update the system's operational temperature range.
 
 1.  **Modbus Request Reception (Physical View)**: A Modbus master sends a "Write Multiple Registers" command over UART. The `Mcal/uart` driver receives the raw bytes.
-2.  **HAL Protocol Processing (Logical View)**: `Service/ComM/src/comm.c::COMM_Process()` (called by `COMMUNICATION_STACK_MainTask`) detects incoming Modbus data via `HAL/modbus/src/modbus.c::HAL_MODBUS_ProcessInput()`. `HAL_MODBUS_ProcessInput()` parses the Modbus frame, identifies it as a write command for `MODBUS_REG_SET_MIN_OP_TEMP_X100` and `MODBUS_REG_SET_MAX_OP_TEMP_X100`, and updates its internal simulated Modbus register map.
+2.  **HAL Protocol Processing (Logical View)**: `comm.c::COMM_Process()` (called by `COMMUNICATION_STACK_MainTask`) detects incoming Modbus data via `HAL/modbus/src/modbus.c::HAL_MODBUS_ProcessInput()`. `HAL_MODBUS_ProcessInput()` parses the Modbus frame, identifies it as a write command for `MODBUS_REG_SET_MIN_OP_TEMP_X100` and `MODBUS_REG_SET_MAX_OP_TEMP_X100`, and updates its internal simulated Modbus register map.
     * **Fault Detection Example (HAL)**: If `HAL_MODBUS_ProcessInput()` detects a CRC error, it might call `RTE_Service_ComM_ReportError(COMM_PROTOCOL_MODBUS, ERROR_MODBUS_CRC, ...)`
-3.  **Service Layer Data Exchange (Logical View)**: `Service/ComM` then reads these updated registers from `HAL/modbus` (e.g., using `RTE_Service_HAL_MODBUS_ReadHoldingRegister()`). `ComM` then routes this incoming command to the appropriate application module.
+3.  **Service Layer Data Exchange (Logical View)**: `ComM` then reads these updated registers from `modbus` (e.g., using `RTE_Service_HAL_MODBUS_ReadHoldingRegister()`). `ComM` then routes this incoming command to the appropriate application module.
 4.  **RTE Service Call (Logical View)**: `Service/ComM` calls `RTE_Service_DIAGNOSTIC_ProcessCommand(COMMAND_SET_OP_TEMP, new_min_temp, new_max_temp)`.
-5.  **Application Logic (Logical View)**: `Application/diagnostic/src/diagnostic.c::DIAGNOSTIC_ProcessCommand()` identifies the command and then calls `RTE_Service_SYS_MGR_SetOperationalTemperature(new_min_temp, new_max_temp)`.
-6.  **System State Update (Logical View)**: The RTE Service `RTE_Service_SetOperationalTemperature()` internally calls `Application/systemMgr/src/sys_mgr.c::SYS_MGR_SetOperationalTemperature()`. `SYS_MGR_SetOperationalTemperature()` acquires `sys_mgr_state_mutex`, updates `sys_mgr_state.operational_temp_min` and `sys_mgr_state.operational_temp_max`, and releases the mutex.
+5.  **Application Logic (Logical View)**: `diagnostic.c::DIAGNOSTIC_ProcessCommand()` identifies the command and then calls `RTE_Service_SYS_MGR_SetOperationalTemperature(new_min_temp, new_max_temp)`.
+6.  **System State Update (Logical View)**: The RTE Service `RTE_Service_SetOperationalTemperature()` internally calls `sys_mgr.c::SYS_MGR_SetOperationalTemperature()`. `SYS_MGR_SetOperationalTemperature()` acquires `sys_mgr_state_mutex`, updates `sys_mgr_state.operational_temp_min` and `sys_mgr_state.operational_temp_max`, and releases the mutex.
 7.  **Subsequent Control (Process View)**: In the next cycle, `RTE_ActuatorControlTask` will read the *new* operational temperature range from `systemMgr` and adjust actuators accordingly.
 
-### 7.3. Scenario 3: Bluetooth Data Broadcast (System Status)
+### 10.3. Scenario 3: Bluetooth Data Broadcast (System Status)
 
 **Description**: The system periodically broadcasts its current sensor readings and actuator statuses via Bluetooth Low Energy (BLE).
 
 1.  **Communication Task Wakeup (Process View)**: `COMMUNICATION_STACK_MainTask` wakes up (every 100 ms).
-2.  **Service Layer Processing (Logical View)**: `COMMUNICATION_STACK_MainTask` calls `Service/ComM/src/comm.c::COMM_Process()`. `ComM` determines that it's time to broadcast system status via Bluetooth.
+2.  **Service Layer Processing (Logical View)**: `COMMUNICATION_STACK_MainTask` calls `comm.c::COMM_Process()`. `ComM` determines that it's time to broadcast system status via Bluetooth.
 3.  **Data Acquisition (Logical View)**: `Service/ComM` needs to send the latest system data. It calls various RTE services to get this data from application modules:
     * `RTE_Service_GetCurrentSensorReadings()` (for temperature, humidity)
     * `RTE_Service_GetActuatorStates()` (for fan, heater, pump, ventilator status)
@@ -1098,12 +1241,12 @@ The Power Management Modes and SW Modes operate at different levels of abstracti
     * **Fault Detection Example (HAL)**: If `HAL_BLUETOOTH_SendData()` fails (e.g., not connected), it might report an error to `ComM` via `RTE_Service_ComM_ReportError(COMM_PROTOCOL_BLUETOOTH, ERROR_BT_NOT_CONNECTED, ...)`. `ComM` then reports this to `SystemMonitor`.
 6.  **Physical Transmission (Physical View)**: `HAL/Bluetooth/src/bluetooth.c::HAL_BLUETOOTH_SendData()` uses the underlying native Bluetooth APIs to send the data as a GATT notification or indication to connected BLE clients.
 
-### 7.4. Scenario 4: External Diagnostic Query and Fail-Safe Activation
+### 10.4. Scenario 4: External Diagnostic Query and Fail-Safe Activation
 
 **Description**: An external diagnostic tool queries the system's fault status, and then commands a fail-safe mode based on a detected fault.
 
 1.  **Diagnostic Query (External)**: An external tool connects via Wi-Fi and sends a "Get Faults" command.
-2.  **Command Reception & Routing (HAL/Service Layers)**: The `HAL/Wifi` module receives the incoming Wi-Fi packet. It passes the raw data to `Service/ComM` via `RTE_Service_ComM_ReceiveData(COMM_PROTOCOL_WIFI, raw_data)`. `Service/ComM` parses the high-level command and, as per its responsibility, routes it to `Application/diagnostic/src/diagnostic.c::DIAGNOSTIC_ProcessCommand(command_data)`.
+2.  **Command Reception & Routing (HAL/Service Layers)**: The `HAL/Wifi` module receives the incoming Wi-Fi packet. It passes the raw data to `Service/ComM` via `RTE_Service_ComM_ReceiveData(COMM_PROTOCOL_WIFI, raw_data)`. `Service/ComM` parses the high-level command and, as per its responsibility, routes it to `diagnostic.c::DIAGNOSTIC_ProcessCommand(command_data)`.
 3.  **Fault Retrieval (Logical View)**: `DIAGNOSTIC_ProcessCommand()` identifies the "Get Faults" command. It then calls `RTE_Service_SystemMonitor_GetFaultStatus()` to retrieve the current active faults and history from `SystemMonitor`.
 4.  **Fault Reporting (Logical View)**: `Diagnostic` formats the retrieved fault data into a response message. It then calls `RTE_Service_ComM_SendData(COMM_PROTOCOL_WIFI, formatted_response_data)` to send the response. `ComM` handles sending this data via `HAL/Wifi`.
 5.  **Fail-Safe Command (External)**: The external tool, seeing a critical fault (e.g., "Temperature Sensor Failure"), sends a "Activate Fail-Safe" command via Wi-Fi.
@@ -1113,7 +1256,30 @@ The Power Management Modes and SW Modes operate at different levels of abstracti
 9.  **Alarm Indication (Logical View)**: `systemMgr` also triggers appropriate alarms via `RTE_Service_UpdateDisplayAndAlarm()` and `RTE_Service_LIGHT_INDICATION_On(LIGHT_INDICATION_CRITICAL_ALARM)`.
     
 
-## 8. Future Considerations and Improvements
+## 11. System Startup Sequence
+
+**Flow:**
+
+Power On → Bootloader Checks → Application Start  → Ready for Operation
+                    ↳ Load Config from Flash/NVM  
+                    ↳ Init Drivers (HAL)  
+                    ↳ Init Middleware (Modbus, Diagnostics)  
+                    ↳ Run Self-tests  
+                    ↳ Start Scheduler/Task Loop  
+
+
+**Startup Fault Handling:**
+
+- **Critical faults:** Halt startup  
+- **Non-critical faults:** Logged for diagnostics  
+- **Indicators:** LED / Debug Output shows boot status
+
+
+
+## 12. Future Considerations and Improvements
 
 * **Event-Driven Communication**: For more complex inter-task communication, consider using FreeRTOS queues or event groups directly within RTE services, especially for asynchronous data flows or command passing. This would refine the internal RTE implementation without changing its public interface.
+  
 * **Testing Framework**: Develop a more comprehensive automated testing framework for unit, integration, and system tests. This is an external tooling consideration but crucial for development.
+
+

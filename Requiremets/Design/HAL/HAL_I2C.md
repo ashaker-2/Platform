@@ -64,7 +64,7 @@ The HAL_I2C component will consist of the following files:
 
 // In HAL/inc/hal_i2c.h
 ```c
-#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h>   // For uint8_t, uint16_t
 
 // Enum for I2C bus ports (if MCU has multiple I2C peripherals)  
@@ -94,7 +94,7 @@ typedef struct {
  * @brief Initializes the specified I2C bus.  
  * This function should be called once for each I2C bus used during system initialization.  
  * @param config Pointer to the configuration structure for the I2C bus.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_I2C_Init(const HAL_I2C_Config_t *config);
 
@@ -104,7 +104,7 @@ APP_Status_t HAL_I2C_Init(const HAL_I2C_Config_t *config);
  * @param slave_address The 7-bit I2C slave address.  
  * @param data Pointer to the data buffer to write.  
  * @param data_len The number of bytes to write.  
- * @return APP_OK on success, APP_ERROR on failure (e.g., NACK, timeout).  
+ * @return E_OK on success, E_NOK on failure (e.g., NACK, timeout).  
  */  
 APP_Status_t HAL_I2C_MasterWrite(HAL_I2C_Port_t port, uint8_t slave_address,  
                                  const uint8_t *data, uint16_t data_len);
@@ -115,7 +115,7 @@ APP_Status_t HAL_I2C_MasterWrite(HAL_I2C_Port_t port, uint8_t slave_address,
  * @param slave_address The 7-bit I2C slave address.  
  * @param data Pointer to the buffer to store read data.  
  * @param data_len The number of bytes to read.  
- * @return APP_OK on success, APP_ERROR on failure (e.g., NACK, timeout).  
+ * @return E_OK on success, E_NOK on failure (e.g., NACK, timeout).  
  */  
 APP_Status_t HAL_I2C_MasterRead(HAL_I2C_Port_t port, uint8_t slave_address,  
                                 uint8_t *data, uint16_t data_len);
@@ -129,7 +129,7 @@ APP_Status_t HAL_I2C_MasterRead(HAL_I2C_Port_t port, uint8_t slave_address,
  * @param write_len The number of bytes to write.  
  * @param read_data Pointer to the buffer to store read data.  
  * @param read_len The number of bytes to read.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_I2C_MasterWriteRead(HAL_I2C_Port_t port, uint8_t slave_address,  
                                      const uint8_t *write_data, uint16_t write_len,  
@@ -143,23 +143,23 @@ The HAL_I2C module will primarily act as a wrapper around the MCAL_I2C functions
    * Validate the config pointer and its contents (e.g., valid port, sda_gpio_pin, scl_gpio_pin).  
    * Translate HAL_I2C_Speed_t into MCAL_I2C specific baud rate values.  
    * Call MCAL_I2C_Init(mcal_port, mcal_speed, mcal_sda_pin, mcal_scl_pin).  
-   * If MCAL_I2C_Init returns an error, report HAL_I2C_INIT_FAILURE to SystemMonitor and return APP_ERROR.  
-   * Return APP_OK.  
+   * If MCAL_I2C_Init returns an error, report HAL_I2C_INIT_FAILURE to SystemMonitor and return E_NOK.  
+   * Return E_OK.  
 2. **Master Write (HAL_I2C_MasterWrite)**:  
    * Validate port, slave_address, data pointer, and data_len.  
    * Call MCAL_I2C_MasterWrite(mcal_port, mcal_slave_address, mcal_data, mcal_data_len).  
    * If MCAL_I2C_MasterWrite returns an error (e.g., NACK, timeout), report HAL_I2C_WRITE_FAILURE to SystemMonitor.  
-   * Return APP_OK or APP_ERROR based on MCAL return.  
+   * Return E_OK or E_NOK based on MCAL return.  
 3. **Master Read (HAL_I2C_MasterRead)**:  
    * Validate port, slave_address, data pointer, and data_len.  
    * Call MCAL_I2C_MasterRead(mcal_port, mcal_slave_address, mcal_data, mcal_data_len).  
    * If MCAL_I2C_MasterRead returns an error, report HAL_I2C_READ_FAILURE to SystemMonitor.  
-   * Return APP_OK or APP_ERROR.  
+   * Return E_OK or E_NOK.  
 4. **Master Write-Read (HAL_I2C_MasterWriteRead)**:  
    * Validate all input parameters.  
    * Call MCAL_I2C_MasterWriteRead(mcal_port, mcal_slave_address, mcal_write_data, mcal_write_len, mcal_read_data, mcal_read_len).  
    * If MCAL_I2C_MasterWriteRead returns an error, report HAL_I2C_WRITEREAD_FAILURE to SystemMonitor.  
-   * Return APP_OK or APP_ERROR.
+   * Return E_OK or E_NOK.
 
 **Sequence Diagram (Example: HAL_I2C_MasterWrite):**
 ```mermaid
@@ -177,12 +177,12 @@ sequenceDiagram
     alt MCAL_I2C_MasterWrite returns MCAL_ERROR  
         MCAL_I2C--xHAL_I2C: Return MCAL_ERROR  
         HAL_I2C->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_I2C_WRITE_FAILURE, SEVERITY_MEDIUM, ...)  
-        HAL_I2C--xRTE: Return APP_ERROR  
-        RTE--xApp: Return APP_ERROR  
+        HAL_I2C--xRTE: Return E_NOK  
+        RTE--xApp: Return E_NOK  
     else MCAL_I2C_MasterWrite returns MCAL_OK  
         MCAL_I2C-->>HAL_I2C: Return MCAL_OK  
-        HAL_I2C-->>RTE: Return APP_OK  
-        RTE-->>App: Return APP_OK  
+        HAL_I2C-->>RTE: Return E_OK  
+        RTE-->>App: Return E_OK  
     end
 ```
 ### **5.4. Dependencies**
@@ -190,7 +190,7 @@ sequenceDiagram
 * Mcal/i2c/inc/mcal_i2c.h: For calling low-level I2C driver functions.  
 * Application/logger/inc/logger.h: For internal logging.  
 * Rte/inc/Rte.h: For calling RTE_Service_SystemMonitor_ReportFault().  
-* Application/common/inc/app_common.h: For APP_Status_t and APP_OK/APP_ERROR.  
+* Application/common/inc/common.h: For APP_Status_t and E_OK/E_NOK.  
 * HAL/cfg/hal_i2c_cfg.h: For the HAL_I2C_Config_t structure and any predefined bus configurations.
 
 ### **5.5. Error Handling**
@@ -198,7 +198,7 @@ sequenceDiagram
 * **Input Validation**: All public API functions will validate input parameters (e.g., valid port, non-NULL data pointers, non-zero lengths).  
 * **MCAL Error Propagation**: Errors returned by MCAL_I2C functions (e.g., NACK, timeout, bus error) will be caught by HAL_I2C.  
 * **Fault Reporting**: Upon detection of an error (invalid input, MCAL failure), HAL_I2C will report a specific fault ID (e.g., HAL_I2C_INIT_FAILURE, HAL_I2C_WRITE_FAILURE, HAL_I2C_READ_FAILURE, HAL_I2C_WRITEREAD_FAILURE) to SystemMonitor via the RTE service. The severity can be adjusted based on the criticality of the I2C device.  
-* **Return Status**: All public API functions will return APP_ERROR on failure.
+* **Return Status**: All public API functions will return E_NOK on failure.
 
 ### **5.6. Configuration**
 
@@ -248,8 +248,8 @@ const HAL_I2C_Config_t hal_i2c_config_sensors = {
 
 * **Mock MCAL_I2C**: Unit tests for HAL_I2C will mock the MCAL_I2C functions to isolate HAL_I2C's logic.  
 * **Test Cases**:  
-  * HAL_I2C_Init: Test with valid/invalid HAL_I2C_Config_t. Verify MCAL_I2C_Init is called with correct parameters. Test scenarios where MCAL_I2C_Init fails (verify APP_ERROR return and SystemMonitor fault reporting).  
-  * HAL_I2C_MasterWrite: Test with valid data/address. Test NULL data/zero length. Test scenarios where MCAL_I2C_MasterWrite returns NACK/timeout (verify APP_ERROR and fault reporting).  
+  * HAL_I2C_Init: Test with valid/invalid HAL_I2C_Config_t. Verify MCAL_I2C_Init is called with correct parameters. Test scenarios where MCAL_I2C_Init fails (verify E_NOK return and SystemMonitor fault reporting).  
+  * HAL_I2C_MasterWrite: Test with valid data/address. Test NULL data/zero length. Test scenarios where MCAL_I2C_MasterWrite returns NACK/timeout (verify E_NOK and fault reporting).  
   * HAL_I2C_MasterRead: Similar tests for read operations.  
   * HAL_I2C_MasterWriteRead: Test combined operations.  
   * Error reporting: Verify that RTE_Service_SystemMonitor_ReportFault() is called with the correct fault ID and severity on various error conditions.

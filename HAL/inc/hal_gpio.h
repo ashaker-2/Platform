@@ -11,7 +11,7 @@
 #ifndef HAL_GPIO_H
 #define HAL_GPIO_H
 
-#include "app_common.h" // For APP_Status_t and HAL_Status_t
+#include "common.h" // For Status_t and Status_t
 #include <stdint.h>     // For uint8_t
 #include <stdbool.h>    // For bool
 
@@ -28,7 +28,6 @@ typedef enum
     HAL_GPIO_PIN_LIGHT_RELAY,            /**< Logical ID for the main light control relay. */
     HAL_GPIO_PIN_TEMP_SENSOR_ADC_IN,     /**< Logical ID for the temperature sensor analog input. */
     HAL_GPIO_PIN_HUMIDITY_SENSOR_ADC_IN, /**< Logical ID for the humidity sensor analog input. */
-    // Add more logical GPIO pins as needed
     HAL_GPIO_PIN_COUNT /**< Total number of logical GPIO pins. */
 } HAL_GPIO_Pin_t;
 
@@ -74,44 +73,33 @@ typedef void (*HAL_GPIO_InterruptCallback_t)(HAL_GPIO_Pin_t pin);
  * @brief Initializes the HAL GPIO module.
  * This function should be called once during system startup.
  * It prepares the internal data structures and potentially the underlying MCAL.
- * @return HAL_OK on success, HAL_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-HAL_Status_t HAL_GPIO_Init(void);
+Status_t HAL_GPIO_Init(void);
 
-/**
- * @brief Configures a specific GPIO pin.
- * This sets the direction, initial state (for outputs), and pull mode (for inputs).
- * @param pin The logical ID of the GPIO pin to configure.
- * @param direction The desired direction (input or output).
- * @param initial_state The initial state for output pins (HAL_GPIO_STATE_LOW/HIGH). Ignored for inputs.
- * @param pull_mode The pull mode for input pins (HAL_GPIO_PULL_NONE/UP/DOWN). Ignored for outputs.
- * @return HAL_OK on success, HAL_ERROR on failure (e.g., invalid pin, MCAL error).
- */
-HAL_Status_t HAL_GPIO_Config(HAL_GPIO_Pin_t pin, HAL_GPIO_Direction_t direction,
-                             HAL_GPIO_State_t initial_state, HAL_GPIO_PullMode_t pull_mode);
 
 /**
  * @brief Sets the state of an output GPIO pin.
  * @param pin The logical ID of the output GPIO pin.
  * @param state The desired state (HAL_GPIO_STATE_LOW or HAL_GPIO_STATE_HIGH).
- * @return HAL_OK on success, HAL_ERROR on failure (e.g., pin not configured as output, MCAL error).
+ * @return E_OK on success, E_NOK on failure (e.g., pin not configured as output, MCAL error).
  */
-HAL_Status_t HAL_GPIO_Write(HAL_GPIO_Pin_t pin, HAL_GPIO_State_t state);
+Status_t HAL_GPIO_Write(HAL_GPIO_Pin_t pin, HAL_GPIO_State_t state);
 
 /**
  * @brief Toggles the state of an output GPIO pin.
  * @param pin The logical ID of the output GPIO pin.
- * @return HAL_OK on success, HAL_ERROR on failure (e.g., pin not configured as output, MCAL error).
+ * @return E_OK on success, E_NOK on failure (e.g., pin not configured as output, MCAL error).
  */
-HAL_Status_t HAL_GPIO_Toggle(HAL_GPIO_Pin_t pin);
+Status_t HAL_GPIO_Toggle(HAL_GPIO_Pin_t pin);
 
 /**
  * @brief Reads the current state of a GPIO pin.
  * @param pin The logical ID of the GPIO pin to read.
  * @param state_p Pointer to store the read state (HAL_GPIO_STATE_LOW or HAL_GPIO_STATE_HIGH).
- * @return HAL_OK on success, HAL_ERROR on failure (e.g., invalid pin, MCAL error).
+ * @return E_OK on success, E_NOK on failure (e.g., invalid pin, MCAL error).
  */
-HAL_Status_t HAL_GPIO_Read(HAL_GPIO_Pin_t pin, HAL_GPIO_State_t *state_p);
+Status_t HAL_GPIO_Read(HAL_GPIO_Pin_t pin, HAL_GPIO_State_t *state_p);
 
 /**
  * @brief Configures an interrupt for a specific GPIO pin.
@@ -119,23 +107,23 @@ HAL_Status_t HAL_GPIO_Read(HAL_GPIO_Pin_t pin, HAL_GPIO_State_t *state_p);
  * @param interrupt_type The type of interrupt (edge or level).
  * @param callback The function to be called when the interrupt occurs.
  * @param debounce_ms Debounce time in milliseconds (0 for no debouncing).
- * @return HAL_OK on success, HAL_ERROR on failure (e.g., invalid pin, MCAL error).
+ * @return E_OK on success, E_NOK on failure (e.g., invalid pin, MCAL error).
  */
-HAL_Status_t HAL_GPIO_ConfigInterrupt(HAL_GPIO_Pin_t pin, HAL_GPIO_InterruptType_t interrupt_type,
+Status_t HAL_GPIO_ConfigInterrupt(HAL_GPIO_Pin_t pin, HAL_GPIO_InterruptType_t interrupt_type,
                                       HAL_GPIO_InterruptCallback_t callback, uint32_t debounce_ms);
 
 /**
  * @brief Enables the interrupt for a specific GPIO pin.
  * @param pin The logical ID of the GPIO pin.
- * @return HAL_OK on success, HAL_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-HAL_Status_t HAL_GPIO_EnableInterrupt(HAL_GPIO_Pin_t pin);
+Status_t HAL_GPIO_EnableInterrupt(HAL_GPIO_Pin_t pin);
 
 /**
  * @brief Disables the interrupt for a specific GPIO pin.
  * @param pin The logical ID of the GPIO pin.
- * @return HAL_OK on success, HAL_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-HAL_Status_t HAL_GPIO_DisableInterrupt(HAL_GPIO_Pin_t pin);
+Status_t HAL_GPIO_DisableInterrupt(HAL_GPIO_Pin_t pin);
 
 #endif // HAL_GPIO_H

@@ -64,7 +64,7 @@ The OS component will consist of the following files:
 
 // In Service/os/inc/os.h
 ```c
-#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h>   // For uint32_t, uint8_t  
 #include <stdbool.h>  // For bool
 
@@ -83,7 +83,7 @@ typedef void (*OS_TimerCallback_t)(OS_TimerHandle_t xTimer);
 
 /**  
  * @brief Initializes the OS module (primarily internal setup, FreeRTOS is typically started by RTE).  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t OS_Init(void);
 
@@ -97,7 +97,7 @@ APP_Status_t OS_Init(void);
  * @param pvParameters Parameters to pass to the task function.  
  * @param uxPriority The priority of the task.  
  * @param pxCreatedTask Handle to the created task.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t OS_TaskCreate(OS_TaskFunction_t pxTaskCode, const char *const pcName,  
                            const uint16_t usStackDepth, void *const pvParameters,  
@@ -133,14 +133,14 @@ OS_MutexHandle_t OS_MutexCreateRecursive(void);
  * @brief Acquires a recursive mutex.  
  * @param xMutex The handle of the mutex to acquire.  
  * @param xBlockTimeMs The maximum time to wait for the mutex in milliseconds.  
- * @return APP_OK on success, APP_ERROR on failure (e.g., timeout).  
+ * @return E_OK on success, E_NOK on failure (e.g., timeout).  
  */  
 APP_Status_t OS_MutexTakeRecursive(OS_MutexHandle_t xMutex, uint32_t xBlockTimeMs);
 
 /**  
  * @brief Releases a recursive mutex.  
  * @param xMutex The handle of the mutex to release.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t OS_MutexGiveRecursive(OS_MutexHandle_t xMutex);
 
@@ -155,7 +155,7 @@ OS_SemaphoreHandle_t OS_SemaphoreCreateBinary(void);
 /**  
  * @brief Gives a semaphore.  
  * @param xSemaphore The handle of the semaphore to give.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t OS_SemaphoreGive(OS_SemaphoreHandle_t xSemaphore);
 
@@ -163,7 +163,7 @@ APP_Status_t OS_SemaphoreGive(OS_SemaphoreHandle_t xSemaphore);
  * @brief Takes a semaphore.  
  * @param xSemaphore The handle of the semaphore to take.  
  * @param xBlockTimeMs The maximum time to wait for the semaphore in milliseconds.  
- * @return APP_OK on success, APP_ERROR on failure (e.g., timeout).  
+ * @return E_OK on success, E_NOK on failure (e.g., timeout).  
  */  
 APP_Status_t OS_SemaphoreTake(OS_SemaphoreHandle_t xSemaphore, uint32_t xBlockTimeMs);
 
@@ -182,7 +182,7 @@ OS_QueueHandle_t OS_QueueCreate(uint32_t uxQueueLength, uint32_t uxItemSize);
  * @param xQueue The handle of the queue to send to.  
  * @param pvItemToQueue Pointer to the item to send.  
  * @param xBlockTimeMs The maximum time to wait for space in the queue in milliseconds.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t OS_QueueSend(OS_QueueHandle_t xQueue, const void *pvItemToQueue, uint32_t xBlockTimeMs);
 
@@ -191,7 +191,7 @@ APP_Status_t OS_QueueSend(OS_QueueHandle_t xQueue, const void *pvItemToQueue, ui
  * @param xQueue The handle of the queue to receive from.  
  * @param pvBuffer Pointer to the buffer to copy the received item into.  
  * @param xBlockTimeMs The maximum time to wait for an item in the queue in milliseconds.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t OS_QueueReceive(OS_QueueHandle_t xQueue, void *pvBuffer, uint32_t xBlockTimeMs);
 
@@ -214,7 +214,7 @@ OS_TimerHandle_t OS_TimerCreate(const char *const pcTimerName, const uint32_t xT
  * @brief Starts a software timer.  
  * @param xTimer The handle of the timer to start.  
  * @param xBlockTimeMs The maximum time to wait for the command to be sent to the timer service.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t OS_TimerStart(OS_TimerHandle_t xTimer, uint32_t xBlockTimeMs);
 
@@ -222,7 +222,7 @@ APP_Status_t OS_TimerStart(OS_TimerHandle_t xTimer, uint32_t xBlockTimeMs);
  * @brief Stops a software timer.  
  * @param xTimer The handle of the timer to stop.  
  * @param xBlockTimeMs The maximum time to wait for the command to be sent to the timer service.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t OS_TimerStop(OS_TimerHandle_t xTimer, uint32_t xBlockTimeMs);
 
@@ -230,7 +230,7 @@ APP_Status_t OS_TimerStop(OS_TimerHandle_t xTimer, uint32_t xBlockTimeMs);
  * @brief Resets a software timer (restarts its period from now).  
  * @param xTimer The handle of the timer to reset.  
  * @param xBlockTimeMs The maximum time to wait for the command to be sent to the timer service.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t OS_TimerReset(OS_TimerHandle_t xTimer, uint32_t xBlockTimeMs);
 
@@ -251,33 +251,33 @@ void OS_Free(void *pv);
 ```
 ### **5.3. Internal Design**
 
-The OS module's implementation (os.c) will primarily consist of direct calls to the corresponding FreeRTOS APIs. It will handle error checking and return APP_OK/APP_ERROR where appropriate, and potentially log failures.
+The OS module's implementation (os.c) will primarily consist of direct calls to the corresponding FreeRTOS APIs. It will handle error checking and return E_OK/E_NOK where appropriate, and potentially log failures.
 
 1. **Initialization (OS_Init)**:  
    * This function is primarily a placeholder for future OS-specific internal setup or checks. For a basic FreeRTOS wrapper, it might not do much beyond confirming FreeRTOS is ready.  
-   * It should return APP_OK.  
+   * It should return E_OK.  
 2. **Task Management**:  
-   * OS_TaskCreate: Calls xTaskCreate(). Checks pxCreatedTask for NULL after creation and returns APP_ERROR if task creation failed.  
+   * OS_TaskCreate: Calls xTaskCreate(). Checks pxCreatedTask for NULL after creation and returns E_NOK if task creation failed.  
    * OS_TaskDelete: Calls vTaskDelete().  
    * OS_DelayMs: Calls vTaskDelay(pdMS_TO_TICKS(delay_ms)).  
    * OS_GetUptimeMs: Calls xTaskGetTickCount() * portTICK_PERIOD_MS.  
 3. **Mutex Management**:  
    * OS_MutexCreateRecursive: Calls xSemaphoreCreateRecursiveMutex(). Returns NULL if creation fails.  
-   * OS_MutexTakeRecursive: Calls xSemaphoreTakeRecursive(xMutex, pdMS_TO_TICKS(xBlockTimeMs)). Returns APP_OK if pdPASS, APP_ERROR otherwise.  
-   * OS_MutexGiveRecursive: Calls xSemaphoreGiveRecursive(xMutex). Returns APP_OK if pdPASS, APP_ERROR otherwise.  
+   * OS_MutexTakeRecursive: Calls xSemaphoreTakeRecursive(xMutex, pdMS_TO_TICKS(xBlockTimeMs)). Returns E_OK if pdPASS, E_NOK otherwise.  
+   * OS_MutexGiveRecursive: Calls xSemaphoreGiveRecursive(xMutex). Returns E_OK if pdPASS, E_NOK otherwise.  
 4. **Semaphore Management**:  
    * OS_SemaphoreCreateBinary: Calls xSemaphoreCreateBinary(). Returns NULL if creation fails.  
-   * OS_SemaphoreGive: Calls xSemaphoreGive(xSemaphore). Returns APP_OK if pdPASS, APP_ERROR otherwise.  
-   * OS_SemaphoreTake: Calls xSemaphoreTake(xSemaphore, pdMS_TO_TICKS(xBlockTimeMs)). Returns APP_OK if pdPASS, APP_ERROR otherwise.  
+   * OS_SemaphoreGive: Calls xSemaphoreGive(xSemaphore). Returns E_OK if pdPASS, E_NOK otherwise.  
+   * OS_SemaphoreTake: Calls xSemaphoreTake(xSemaphore, pdMS_TO_TICKS(xBlockTimeMs)). Returns E_OK if pdPASS, E_NOK otherwise.  
 5. **Queue Management**:  
    * OS_QueueCreate: Calls xQueueCreate(). Returns NULL if creation fails.  
-   * OS_QueueSend: Calls xQueueSend(xQueue, pvItemToQueue, pdMS_TO_TICKS(xBlockTimeMs)). Returns APP_OK if pdPASS, APP_ERROR otherwise.  
-   * OS_QueueReceive: Calls xQueueReceive(xQueue, pvBuffer, pdMS_TO_TO_TICKS(xBlockTimeMs)). Returns APP_OK if pdPASS, APP_ERROR otherwise.  
+   * OS_QueueSend: Calls xQueueSend(xQueue, pvItemToQueue, pdMS_TO_TICKS(xBlockTimeMs)). Returns E_OK if pdPASS, E_NOK otherwise.  
+   * OS_QueueReceive: Calls xQueueReceive(xQueue, pvBuffer, pdMS_TO_TO_TICKS(xBlockTimeMs)). Returns E_OK if pdPASS, E_NOK otherwise.  
 6. **Software Timer Management**:  
    * OS_TimerCreate: Calls xTimerCreate(). Returns NULL if creation fails.  
-   * OS_TimerStart: Calls xTimerStart(). Returns APP_OK if pdPASS, APP_ERROR otherwise.  
-   * OS_TimerStop: Calls xTimerStop(). Returns APP_OK if pdPASS, APP_ERROR otherwise.  
-   * OS_TimerReset: Calls xTimerReset(). Returns APP_OK if pdPASS, APP_ERROR otherwise.  
+   * OS_TimerStart: Calls xTimerStart(). Returns E_OK if pdPASS, E_NOK otherwise.  
+   * OS_TimerStop: Calls xTimerStop(). Returns E_OK if pdPASS, E_NOK otherwise.  
+   * OS_TimerReset: Calls xTimerReset(). Returns E_OK if pdPASS, E_NOK otherwise.  
 7. **Memory Management**:  
    * OS_Malloc: Calls pvPortMalloc().  
    * OS_Free: Calls vPortFree().
@@ -297,25 +297,25 @@ sequenceDiagram
         FreeRTOS--xOS: Return pdFAIL  
         OS->>Logger: LOGE("OS", "Failed to create task: SensorTask")  
         OS->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_OS_TASK_CREATE_FAILURE, SEVERITY_CRITICAL, ...)  
-        OS--xRTE_AppInitTask: Return APP_ERROR  
+        OS--xRTE_AppInitTask: Return E_NOK  
     else FreeRTOS returns pdPASS  
         FreeRTOS-->>OS: Return pdPASS  
-        OS-->>RTE_AppInitTask: Return APP_OK  
+        OS-->>RTE_AppInitTask: Return E_OK  
     end
 ```
 ### **5.4. Dependencies**
 
 * FreeRTOS.h, task.h, semphr.h, queue.h, timers.h: Core FreeRTOS headers. These are included directly in os.c but are abstracted in os.h using forward declarations.  
-* Application/common/inc/app_common.h: For APP_Status_t.  
+* Application/common/inc/common.h: For APP_Status_t.  
 * Application/logger/inc/logger.h: For internal logging.  
 * Rte/inc/Rte.h: For calling RTE_Service_SystemMonitor_ReportFault() (for critical OS failures).  
 * Service/os/cfg/os_cfg.h: For configuration parameters.
 
 ### **5.5. Error Handling**
 
-* **API Return Values**: All OS_ functions that can fail (e.g., creation, take/send with timeout) return APP_OK or APP_ERROR.  
+* **API Return Values**: All OS_ functions that can fail (e.g., creation, take/send with timeout) return E_OK or E_NOK.  
 * **Logging**: Failures (e.g., task creation failure, mutex acquisition timeout) are logged using LOGE or LOGW.  
-* **Fault Reporting**: For critical OS resource allocation failures (e.g., OS_TaskCreate returning APP_ERROR), the OS module will report a FAULT_ID_OS_RESOURCE_FAILURE to SystemMonitor via RTE.  
+* **Fault Reporting**: For critical OS resource allocation failures (e.g., OS_TaskCreate returning E_NOK), the OS module will report a FAULT_ID_OS_RESOURCE_FAILURE to SystemMonitor via RTE.  
 * **Input Validation**: Basic input validation (e.g., checking for NULL handles) is performed where appropriate.
 
 ### **5.6. Configuration**
@@ -357,12 +357,12 @@ The Service/os/cfg/os_cfg.h file will contain:
 
 * **Mock FreeRTOS**: Unit tests for OS will mock the underlying FreeRTOS API calls (e.g., xTaskCreate, xSemaphoreCreateMutex). This allows testing the wrapper's logic and error handling.  
 * **Test Cases**:  
-  * OS_Init: Verify it returns APP_OK.  
-  * OS_TaskCreate: Test successful task creation, NULL task code, NULL handle pointer, and mocked FreeRTOS failure (verify APP_ERROR and logging).  
+  * OS_Init: Verify it returns E_OK.  
+  * OS_TaskCreate: Test successful task creation, NULL task code, NULL handle pointer, and mocked FreeRTOS failure (verify E_NOK and logging).  
   * OS_DelayMs: Verify vTaskDelay is called with correct tick count.  
   * OS_GetUptimeMs: Verify correct conversion from ticks to milliseconds.  
   * OS_MutexCreateRecursive, OS_SemaphoreCreateBinary, OS_QueueCreate, OS_TimerCreate: Test successful creation and mocked FreeRTOS failures (verify NULL return).  
-  * OS_MutexTakeRecursive, OS_MutexGiveRecursive, OS_SemaphoreTake, OS_SemaphoreGive, OS_QueueSend, OS_QueueReceive, OS_TimerStart, OS_TimerStop, OS_TimerReset: Test successful operations, timeout scenarios, and mocked FreeRTOS failures (verify APP_OK/APP_ERROR returns).  
+  * OS_MutexTakeRecursive, OS_MutexGiveRecursive, OS_SemaphoreTake, OS_SemaphoreGive, OS_QueueSend, OS_QueueReceive, OS_TimerStart, OS_TimerStop, OS_TimerReset: Test successful operations, timeout scenarios, and mocked FreeRTOS failures (verify E_OK/E_NOK returns).  
   * OS_Malloc, OS_Free: Test allocation and deallocation.  
   * Error reporting: Verify RTE_Service_SystemMonitor_ReportFault() is called for critical failures.
 

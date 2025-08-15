@@ -12,9 +12,9 @@
 #include "modbus_cfg.h" // Include configuration header
 
 #include "driver/uart.h"     // ESP-IDF UART driver
-#include "esp_log.h"         // ESP-IDF logging
-#include "freertos/FreeRTOS.h" // For FreeRTOS types (e.g., tick conversion)
-#include "freertos/task.h"   // For vTaskDelay
+// #include "esp_log.h"         // ESP-IDF logging
+// #include "freertos/FreeRTOS.h" // For FreeRTOS types (e.g., tick conversion)
+// #include "freertos/task.h"   // For vTaskDelay
 
 // Define a tag for ESP-IDF logging
 static const char *TAG = "MODBUS";

@@ -14,7 +14,7 @@ const HumCtrl_Config_t humctrl_sensor_configs[HUMCTRL_SENSOR_COUNT] = {
         .id = HUMCTRL_SENSOR_ID_INT_1,
         .type = HUMCTRL_SENSOR_TYPE_ANALOG_ADC,
         .interface_details.analog_adc = {
-            .adc_channel = MCAL_ADC_CHANNEL_5,
+            .adc_channel = 5,
             .voltage_scale_factor = 0.805f // Example: 12-bit ADC, 3.3V ref -> 0.805 mV/count
         },
         .calibration = {
@@ -26,7 +26,7 @@ const HumCtrl_Config_t humctrl_sensor_configs[HUMCTRL_SENSOR_COUNT] = {
         .id = HUMCTRL_SENSOR_ID_EXT_1,
         .type = HUMCTRL_SENSOR_TYPE_I2C,
         .interface_details.i2c = {
-            .i2c_port = MCAL_I2C_PORT_1,
+            .i2c_port = 1,
             .i2c_address = 0x44 // Example address for an SHT3x sensor
         },
         .calibration = {

@@ -11,7 +11,7 @@
 #define HAL_BLUETOOTH_CFG_H
 
 #include "hal_bluetooth.h" // For HAL_BLE_Role_t and other HAL BLE types
-#include "mcal_bluetooth.h" // For MCAL_BLE_Config_t (MCU-specific BLE driver config)
+// #include "bluetooth.h" // For MCAL_BLE_Config_t (MCU-specific BLE driver config)
 
 // --- Default Configuration Parameters ---
 

@@ -14,7 +14,7 @@ Log_Level_t LOGGER_current_log_level = LOGGER_DEFAULT_LOG_LEVEL;
 
 // Define the output function pointer. This should point to the low-level
 // driver function that sends data to the desired output peripheral.
-APP_Status_t LOGGER_uart_output_function(const char* data, uint16_t length) {
+Status_t LOGGER_uart_output_function(const char* data, uint16_t length) {
     // This is a wrapper function for the actual HAL driver
     if (data == NULL && length == 0) {
         // Special case for initialization

@@ -10,7 +10,7 @@
 #define HAL_PWM_CFG_H
 
 #include "hal_pwm.h"   // For HAL_PWM_Channel_t
-#include "mcal_pwm.h"  // For MCAL_PWM_Channel_t, MCAL_PWM_Timer_t etc. (MCU-specific)
+// #include "pwm.h"  // For MCAL_PWM_Channel_t, MCAL_PWM_Timer_t etc. (MCU-specific)
 #include "hal_gpio.h"  // For HAL_GPIO_Pin_t (if PWM output is on a GPIO pin)
 
 // --- Configuration Structure for each Logical PWM Channel ---
@@ -19,8 +19,8 @@
  */
 typedef struct {
     HAL_PWM_Channel_t       logical_id;         /**< The logical ID of the PWM channel. */
-    MCAL_PWM_Channel_t      mcal_channel;       /**< The corresponding MCAL (physical) PWM channel. */
-    MCAL_PWM_Timer_t        mcal_timer;         /**< The MCAL timer associated with this PWM channel. */
+    HAL_PWM_Channel_t      mcal_channel;       /**< The corresponding MCAL (physical) PWM channel. */
+    HAL_PWM_Channel_t        mcal_timer;         /**< The MCAL timer associated with this PWM channel. */
     HAL_GPIO_Pin_t          gpio_pin;           /**< The logical GPIO pin associated with this PWM output. */
     uint32_t                default_frequency_hz; /**< Default PWM frequency in Hertz. */
     uint8_t                 default_duty_cycle_percent; /**< Default initial duty cycle (0-100%). */

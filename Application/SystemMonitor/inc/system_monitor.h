@@ -1,107 +1,93 @@
+/*
+ * SystemMonitor Component Implementation
+ * Environmental Monitoring & Control System
+ * 
+ * This module acts as the central Fault Manager with direct monitoring capabilities
+ * for temperature, humidity, CPU load, stack usage, and component feedback.
+ */
+
+/* ============================================================================
+ * HEADER FILE: Application/SystemMonitor/inc/system_monitor.h
+ * ============================================================================ */
+
 #ifndef SYSTEM_MONITOR_H
 #define SYSTEM_MONITOR_H
 
-#include "app_common.h"
-#include "system_monitor_cfg.h" // For SysMon_MAX_ACTIVE_FAULTS
+#include "common.h"
+#include "system_monitor_cfg.h"
 #include <stdint.h>
 #include <stdbool.h>
 
-/**
- * @file system_monitor.h
- * @brief Public interface for the SystemMonitor (Fault Manager) component.
- *
- * This header defines the public API for the SystemMonitor module, which is
- * responsible for managing fault reports and monitoring system health.
- */
+/* System health metrics */
+typedef struct 
+{
+    uint8_t  cpu_load_percent;
+    uint32_t total_min_free_stack_bytes;
+    uint32_t active_task_count;
+    uint32_t system_uptime_ms;
+} SystemMonitor_HealthMetrics_t;
 
-// --- Fault Severity Definitions ---
+typedef enum 
+{
+    FAULT_Paasive = 0x00,
+    FAULT_Active = 0x01,
+} SysMon_FaultStatus_t;
 
-/**
- * @brief Severity levels for reported faults.
- */
-typedef enum {
-    SEVERITY_NONE = 0,
-    SEVERITY_LOW,      // Minor issue, informational
-    SEVERITY_MEDIUM,   // Non-critical, but requires attention
-    SEVERITY_HIGH,     // Critical, requires immediate action, might trigger fail-safe
-    SEVERITY_CRITICAL  // System-impacting, likely requires reboot or immediate shutdown
-} SystemMonitor_FaultSeverity_t;
 
-/**
- * @brief Structure for a single fault record.
- */
+
+/* Fault status for external queries */
 typedef struct {
-    uint32_t                    id;
-    SystemMonitor_FaultSeverity_t severity;
-    uint32_t                    timestamp_ms;
-    uint32_t                    data;         // Optional fault-specific data
-    bool                        is_active;
-} SystemMonitor_FaultRecord_t;
-
-/**
- * @brief Structure for overall fault status.
- */
-typedef struct {
-    uint32_t                      active_fault_count;
-    uint32_t                      historical_fault_count;
-    SystemMonitor_FaultRecord_t   active_faults[SysMon_MAX_ACTIVE_FAULTS];
+    uint32_t                      total_fault_count;
+    SystemMonitor_FaultRecord_t   *fault_records;  /* Pointer to config fault table */
+    SystemMonitor_HealthMetrics_t health_metrics;
 } SystemMonitor_FaultStatus_t;
 
-
-// --- Public Functions ---
+/* --- Public Function Prototypes --- */
 
 /**
- * @brief Initializes the SystemMonitor module.
- *
- * Clears fault logs, resets system health metrics, and creates the internal mutex.
- *
- * @return APP_OK on success, APP_ERROR on failure (e.g., mutex creation failed).
+ * @brief Initializes the SystemMonitor module
+ * @return APP_OK on success, APP_ERROR on failure
  */
-APP_Status_t SysMon_Init(void);
+Status_t SystemMonitor_Init(void);
 
 /**
- * @brief Reports a fault to the SystemMonitor.
- *
- * This function is called by other modules when they detect an error. It is
- * a thread-safe, non-blocking function.
- *
- * @param fault_id The ID of the fault being reported (from the configured list).
- * @param severity The severity level of the fault.
- * @param data Optional data related to the fault (e.g., sensor ID, error code).
- * @return APP_OK on success, APP_ERROR if the fault could not be recorded.
+ * @brief Reports a fault from external component to SystemMonitor
+ * @param fault_id The ID of the fault being reported
+ * @return APP_OK on success, APP_ERROR on failure
  */
-APP_Status_t SysMon_ReportFault(uint32_t fault_id,
-                                SystemMonitor_FaultSeverity_t severity,
-                                uint32_t data);
+Status_t SysMon_ReportFaultStatus(SystemMonitor_FaultId_t fault_id,SysMon_FaultStatus_t status);
 
 /**
- * @brief Performs periodic system health monitoring and fault evaluation.
- *
- * This function is intended to be called periodically by the SYS_MON_Task.
- * It checks for CPU load, stack usage, and evaluates active faults.
+ * @brief Main periodic function for system monitoring
+ * Called by SYS_MON_Task every SYSMON_MONITOR_PERIOD_MS
  */
 void SysMon_MainFunction(void);
 
 /**
- * @brief Retrieves the current CPU load percentage.
- * @return Current CPU load in percentage (0-100).
+ * @brief Gets current CPU load percentage
+ * @return CPU load (0-100%)
  */
 uint8_t SysMon_GetCPULoad(void);
 
 /**
- * @brief Retrieves the total minimum free stack (High Water Mark) across all tasks.
- * @return Total minimum free stack in bytes.
+ * @brief Gets total minimum free stack across all tasks
+ * @return Minimum free stack in bytes
  */
 uint32_t SysMon_GetTotalMinFreeStack(void);
 
 /**
- * @brief Retrieves the current fault status (active faults).
- *
- * This function is primarily for the Diagnostic module.
- *
- * @param status Pointer to a SystemMonitor_FaultStatus_t structure to fill.
- * @return APP_OK on success, APP_ERROR on failure (e.g., NULL pointer).
+ * @brief Gets comprehensive fault status for diagnostic module
+ * @param status Pointer to status structure to fill
+ * @return APP_OK on success, APP_ERROR on invalid pointer
  */
-APP_Status_t SysMon_GetFaultStatus(SystemMonitor_FaultStatus_t *status);
+Status_t SysMon_GetFaultStatus(SystemMonitor_FaultId_t FaultId , SysMon_FaultStatus_t * FaultStatus);
 
-#endif // SYSTEM_MONITOR_H
+/**
+ * @brief Checks if system is in critical fault state
+ * @return true if critical faults are active
+ */
+Status_t SysMon_ClearAllFaults(void);
+
+
+#endif /* SYSTEM_MONITOR_H */
+

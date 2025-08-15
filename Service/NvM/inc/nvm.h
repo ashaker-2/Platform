@@ -14,7 +14,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <stddef.h> // For size_t
+#include <stddef.h> // For uint16_t
 
 /**
  * @brief Enumeration for NVM Service status codes.
@@ -72,7 +72,7 @@ NVM_Status_t NVM_DeInit(void);
  * @return NVM_STATUS_OK if successful, an error code otherwise.
  * NVM_STATUS_DATA_TOO_LARGE if `buffer_len` is less than the block's configured size.
  */
-NVM_Status_t NVM_Read(uint32_t block_id, void *buffer, size_t buffer_len);
+NVM_Status_t NVM_Read(uint32_t block_id, void *buffer, uint16_t buffer_len);
 
 /**
  * @brief Writes data to a specified NVM block's RAM buffer.
@@ -87,7 +87,7 @@ NVM_Status_t NVM_Read(uint32_t block_id, void *buffer, size_t buffer_len);
  * @return NVM_STATUS_OK if successful, an error code otherwise.
  * NVM_STATUS_DATA_TOO_LARGE if `data_len` exceeds the block's configured size.
  */
-NVM_Status_t NVM_Write(uint32_t block_id, const void *data, size_t data_len);
+NVM_Status_t NVM_Write(uint32_t block_id, const void *data, uint16_t data_len);
 
 /**
  * @brief Commits all pending changes from RAM buffers to physical NVM.

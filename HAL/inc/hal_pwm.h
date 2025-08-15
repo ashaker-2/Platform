@@ -11,7 +11,7 @@
 #ifndef HAL_PWM_H
 #define HAL_PWM_H
 
-#include "app_common.h" // For APP_Status_t and HAL_Status_t
+#include "common.h" // For Status_t and Status_t
 #include <stdint.h>   // For uint8_t, uint32_t
 
 // --- PWM Channel Definitions (Logical IDs) ---
@@ -29,9 +29,9 @@ typedef enum {
  * @brief Initializes the HAL PWM module.
  * This function should be called once during system startup.
  * It prepares the internal data structures and potentially the underlying MCAL.
- * @return HAL_OK on success, HAL_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-HAL_Status_t HAL_PWM_Init(void);
+Status_t HAL_PWM_Init(void);
 
 /**
  * @brief Configures a specific PWM channel.
@@ -40,9 +40,9 @@ HAL_Status_t HAL_PWM_Init(void);
  * @param channel The logical ID of the PWM channel to configure.
  * @param frequency_hz The desired PWM frequency in Hertz.
  * @param initial_duty_cycle The initial duty cycle (0-100 for percentage).
- * @return HAL_OK on success, HAL_ERROR on failure (e.g., invalid channel, MCAL error).
+ * @return E_OK on success, E_NOK on failure (e.g., invalid channel, MCAL error).
  */
-HAL_Status_t HAL_PWM_ConfigChannel(HAL_PWM_Channel_t channel,
+Status_t HAL_PWM_ConfigChannel(HAL_PWM_Channel_t channel,
                                    uint32_t frequency_hz,
                                    uint8_t initial_duty_cycle_percent);
 
@@ -50,24 +50,24 @@ HAL_Status_t HAL_PWM_ConfigChannel(HAL_PWM_Channel_t channel,
  * @brief Sets the duty cycle for a specific PWM channel.
  * @param channel The logical ID of the PWM channel.
  * @param duty_cycle The desired duty cycle (0-100 for percentage).
- * @return HAL_OK on success, HAL_ERROR on failure (e.g., channel not configured, invalid duty cycle, MCAL error).
+ * @return E_OK on success, E_NOK on failure (e.g., channel not configured, invalid duty cycle, MCAL error).
  */
-HAL_Status_t HAL_PWM_SetDutyCycle(HAL_PWM_Channel_t channel, uint8_t duty_cycle_percent);
+Status_t HAL_PWM_SetDutyCycle(HAL_PWM_Channel_t channel, uint8_t duty_cycle_percent);
 
 /**
  * @brief Starts the PWM output on a specific channel.
  * @param channel The logical ID of the PWM channel to start.
- * @return HAL_OK on success, HAL_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-HAL_Status_t HAL_PWM_Start(HAL_PWM_Channel_t channel);
+Status_t HAL_PWM_Start(HAL_PWM_Channel_t channel);
 
 /**
  * @brief Stops the PWM output on a specific channel.
  * The output pin will typically be set to a defined low state.
  * @param channel The logical ID of the PWM channel to stop.
- * @return HAL_OK on success, HAL_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-HAL_Status_t HAL_PWM_Stop(HAL_PWM_Channel_t channel);
+Status_t HAL_PWM_Stop(HAL_PWM_Channel_t channel);
 
 #endif // HAL_PWM_H
 

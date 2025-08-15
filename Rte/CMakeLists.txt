@@ -12,12 +12,18 @@ include(cmake/rte_file_lists.cmake)
 include(../cmake/build_options.cmake)
 
 # Call the macro to define the 'app_fan' library using the settings from fan_build_options.cmake
-add_project_component_library(RTE   # Lib_name
-    "${RTE_SRCS}"                # _srcs
-    "${RTE_CONFIG_SRCS}"         # _srcs_cfg
-    "${RTE_PUBLIC_INC_DIRS}"     # _public_inc_dirs (no extra private inc for fan in this example)
-    "${RTE_PUBLIC_REQUIRES }"    # _requires
-    "${RTE_PRIVATE_REQUIRES}"    # _private_requires (no private dependencies for fan in this example)
-    "${RTE_COMPILE_OPTIONS}"     # _compile_options
-    "${RTE_COMPILE_DEFINITIONS}" # _compile_definitions
+add_library(RTE   # Lib_name
+    ${RTE_SRC}                # _srcs
+    # "${RTE_CONFIG_SRCS}"         # _srcs_cfg
+
+)
+
+
+target_include_directories(RTE PRIVATE
+    ${RTE_PUBLIC_INC_DIRS} 
+    ${GLOBAL_SERVICE_INCLUDE_DIRS}
+    ${GLOBAL_APP_INCLUDE_DIRS} 
+    ${GLOBAL_HAL_INCLUDE_DIRS} 
+    ${GLOBAL_COMMON_INCLUDE_DIRS}
+    
 )

@@ -63,7 +63,7 @@ The Display component will consist of the following files:
 
 // In Application/display/inc/display.h
 ```c
-#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h>   // For uint32_t, uint8_t  
 #include <stdbool.h>  // For bool
 
@@ -83,35 +83,35 @@ typedef enum {
 /**  
  * @brief Initializes the Display module and the underlying LCD hardware.  
  * This function should be called once during system initialization.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t Display_Init(void);
 
 /**  
  * @brief Updates the content on the LCD display based on the current display mode  
  * and system data retrieved from systemMgr. This function is called periodically.  
- * @return APP_OK on successful update, APP_ERROR on communication failure.  
+ * @return E_OK on successful update, E_NOK on communication failure.  
  */  
 APP_Status_t DisplayMgr_Update(void);
 
 /**  
  * @brief Sets the current display mode.  
  * @param mode The desired display mode.  
- * @return APP_OK on success, APP_ERROR if the mode is invalid.  
+ * @return E_OK on success, E_NOK if the mode is invalid.  
  */  
 APP_Status_t DisplayMgr_SetMode(Display_Mode_t mode);
 
 /**  
  * @brief Cycles to the next display mode in a predefined sequence.  
  * This is typically triggered by a user button press (SyRS-02-06-01).  
- * @return APP_OK on success, APP_ERROR if cycling fails.  
+ * @return E_OK on success, E_NOK if cycling fails.  
  */  
 APP_Status_t DisplayMgr_CycleMode(void);
 
 /**  
  * @brief Controls the LCD backlight.  
  * @param enable True to turn backlight ON, false to turn OFF.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t DisplayMgr_SetBacklight(bool enable);
 
@@ -120,7 +120,7 @@ APP_Status_t DisplayMgr_SetBacklight(bool enable);
  * This allows the display to show the correct function name and value.  
  * @param function_id An ID representing the function being configured (e.g., FAN_ID_1, HEATER_ID_MAIN).  
  * @param setpoint_value The current setpoint value to display.  
- * @return APP_OK on success, APP_ERROR on invalid input.  
+ * @return E_OK on success, E_NOK on invalid input.  
  */  
 APP_Status_t DisplayMgr_SetSetpointContext(uint32_t function_id, int32_t setpoint_value);
 
@@ -148,10 +148,10 @@ The Display module will manage its own internal state, including the current dis
 2. **Initialization (Display_Init)**:  
    * Initialize internal state variables.  
    * Call HAL_LCD_Init() (assuming a generic HAL LCD driver, which would internally use HAL_I2C or HAL_GPIO).  
-   * If HAL_LCD_Init() fails, report FAULT_ID_DisplayMgr_INIT_FAILED to SystemMonitor and return APP_ERROR.  
+   * If HAL_LCD_Init() fails, report FAULT_ID_DisplayMgr_INIT_FAILED to SystemMonitor and return E_NOK.  
    * Set s_is_initialized = true;.  
    * Call DisplayMgr_SetMode(DisplayMgr_MODE_VERSION) to show version on startup.  
-   * Return APP_OK.  
+   * Return E_OK.  
 3. **Update Display Content (DisplayMgr_Update / DisplayMgr_MainFunction)**:  
    * If !s_is_initialized, return immediately.  
    * Clear the LCD: HAL_LCD_ClearDisplay().  
@@ -181,16 +181,16 @@ The Display module will manage its own internal state, including the current dis
    * Set s_current_display_mode = mode;.  
    * Reset s_last_mode_change_time_ms = APP_COMMON_GetUptimeMs();.  
    * Log LOGD("Display: Mode set to %d", mode);.  
-   * Return APP_OK.  
+   * Return E_OK.  
 5. **Cycle Display Mode (DisplayMgr_CycleMode)**:  
    * Calculate the next mode: s_current_display_mode = (s_current_display_mode + 1) % DisplayMgr_MODE_COUNT;.  
    * Skip DisplayMgr_MODE_SETPOINT_CONFIG if not actively in a configuration session.  
    * Call DisplayMgr_SetMode(s_current_display_mode).  
-   * Return APP_OK.  
+   * Return E_OK.  
 6. **Control Backlight (DisplayMgr_SetBacklight)**:  
    * Call HAL_LCD_SetBacklight(enable) (assuming HAL LCD driver provides this).  
    * If HAL_LCD_SetBacklight fails, report FAULT_ID_DisplayMgr_BACKLIGHT_ERROR to SystemMonitor.  
-   * Return APP_OK.  
+   * Return E_OK.  
 7. **Set Setpoint Context (DisplayMgr_SetSetpointContext)**:  
    * Store function_id and setpoint_value in internal static variables.  
    * This function is primarily used by systemMgr or diagnostic when entering/exiting a configuration flow.
@@ -209,22 +209,22 @@ sequenceDiagram
     Display->>Display: Check s_current_display_mode (e.g., TEMP_HUM_ALT)  
     Display->>RTE: RTE_Service_SYS_MGR_GetCurrentSensorReadings(&temp, &hum)  
     RTE->>SystemMgr: SYS_MGR_GetCurrentSensorReadings(&temp, &hum)  
-    SystemMgr-->>RTE: Return APP_OK (with data)  
-    RTE-->>Display: Return APP_OK (with data)  
+    SystemMgr-->>RTE: Return E_OK (with data)  
+    RTE-->>Display: Return E_OK (with data)  
     Display->>Display: Format "Temp: XX.X C"  
     Display->>HAL_LCD: HAL_LCD_WriteString(line1, "Temp: XX.X C")  
-    HAL_LCD-->>Display: Return APP_OK  
+    HAL_LCD-->>Display: Return E_OK  
     Display->>HAL_LCD: HAL_LCD_UpdateDisplay()  
-    HAL_LCD-->>Display: Return APP_OK  
+    HAL_LCD-->>Display: Return E_OK  
     alt HAL_LCD_WriteString or HAL_LCD_UpdateDisplay fails  
-        HAL_LCD--xDisplay: Return APP_ERROR  
+        HAL_LCD--xDisplay: Return E_NOK  
         Display->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_DisplayMgr_COMM_ERROR, SEVERITY_LOW, ...)  
     end  
-    Display-->>RTE_DisplayAlarmTask: Return APP_OK
+    Display-->>RTE_DisplayAlarmTask: Return E_OK
 ```
 ### **5.4. Dependencies**
 
-* app_common.h: For APP_Status_t, APP_OK/APP_ERROR, and APP_COMMON_GetUptimeMs().  
+* common.h: For APP_Status_t, E_OK/E_NOK, and APP_COMMON_GetUptimeMs().  
 * logger.h: For internal logging.  
 * Rte.h: For calling RTE_Service_SystemMonitor_ReportFault() and RTE_Service_SYS_MGR_Get...() functions.  
 * hal_lcd.h (conceptual): A generic HAL interface for the LCD, which would abstract I2C or GPIO details. This hal_lcd.h would internally use HAL_I2C or HAL_GPIO.  
@@ -236,7 +236,7 @@ sequenceDiagram
 * **Communication Errors**: If any HAL_LCD_... function fails during display updates (e.g., HAL_LCD_WriteString), DisplayMgr_Update() reports FAULT_ID_DisplayMgr_COMM_ERROR to SystemMonitor.  
 * **Backlight Errors**: If HAL_LCD_SetBacklight() fails, DisplayMgr_SetBacklight() reports FAULT_ID_DisplayMgr_BACKLIGHT_ERROR to SystemMonitor.  
 * **Input Validation**: Public API functions validate input parameters (e.g., valid Display_Mode_t).  
-* **Return Status**: All public API functions return APP_ERROR on failure.
+* **Return Status**: All public API functions return E_NOK on failure.
 
 ### **5.6. Configuration**
 

@@ -1,7 +1,7 @@
 #ifndef PUMPCTRL_H
 #define PUMPCTRL_H
 
-#include "app_common.h"
+#include "common.h"
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -26,9 +26,9 @@ typedef enum {
  * @brief Initializes the PumpCtrl module and all configured pump control hardware.
  * All module-internal variables and pump states are initialized to a safe,
  * known state (e.g., OFF).
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-APP_Status_t PumpCtrl_Init(void);
+Status_t PumpCtrl_Init(void);
 
 /**
  * @brief Commands a desired pump state (ON/OFF).
@@ -36,20 +36,20 @@ APP_Status_t PumpCtrl_Init(void);
  * is performed periodically by PumpCtrl_MainFunction.
  * @param actuatorId The unique ID of the pump to control.
  * @param state The desired state (PumpCtrl_STATE_ON or PumpCtrl_STATE_OFF).
- * @return APP_OK on successful command update, APP_ERROR if the actuatorId is invalid
+ * @return E_OK on successful command update, E_NOK if the actuatorId is invalid
  * or the state is invalid.
  */
-APP_Status_t PumpCtrl_SetState(uint32_t actuatorId, PumpCtrl_State_t state);
+Status_t PumpCtrl_SetState(uint32_t actuatorId, PumpCtrl_State_t state);
 
 /**
  * @brief Gets the last commanded state, or the actual measured state if feedback is implemented.
  * This is a non-blocking getter function.
  * @param actuatorId The unique ID of the pump to retrieve data from.
  * @param state Pointer to store the current ON/OFF state.
- * @return APP_OK on successful retrieval, APP_ERROR if the actuatorId is invalid,
+ * @return E_OK on successful retrieval, E_NOK if the actuatorId is invalid,
  * or the pointer is NULL.
  */
-APP_Status_t PumpCtrl_GetState(uint32_t actuatorId, PumpCtrl_State_t *state);
+Status_t PumpCtrl_GetState(uint32_t actuatorId, PumpCtrl_State_t *state);
 
 // --- Internal Periodic Runnable Prototype (called by RTE) ---
 /**

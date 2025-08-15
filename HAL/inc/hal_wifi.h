@@ -209,7 +209,7 @@ HAL_WIFI_State_t HAL_WIFI_GetState(void);
  * @param buffer_size Size of the ip_address_buffer.
  * @return HAL_WIFI_STATUS_OK if IP address retrieved, HAL_WIFI_STATUS_ERROR if not available or error.
  */
-HAL_WIFI_Status_t HAL_WIFI_GetIPAddress(char *ip_address_buffer, size_t buffer_size);
+HAL_WIFI_Status_t HAL_WIFI_GetIPAddress(char *ip_address_buffer, uint16_t buffer_size);
 
 /**
  * @brief Gets the current MAC address of the device.

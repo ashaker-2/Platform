@@ -69,7 +69,7 @@ The PumpCtrl component will consist of the following files:
 
 // In Application/pump/inc/pumpctrl.h
 ```c
-#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h> // For uint32_t  
 #include <stdbool.h> // For bool
 
@@ -85,7 +85,7 @@ typedef enum {
  * @brief Initializes the PumpCtrl module and all configured pump control hardware.  
  * All module-internal variables and pump states are initialized to a safe,  
  * known state (e.g., OFF).  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t PumpCtrl_Init(void);
 
@@ -95,7 +95,7 @@ APP_Status_t PumpCtrl_Init(void);
  * is performed periodically by PumpCtrl_MainFunction.  
  * @param actuatorId The unique ID of the pump to control.  
  * @param state The desired state (PumpCtrl_STATE_ON or PumpCtrl_STATE_OFF).  
- * @return APP_OK on successful command update, APP_ERROR if the actuatorId is invalid  
+ * @return E_OK on successful command update, E_NOK if the actuatorId is invalid  
  * or the state is invalid.  
  */  
 APP_Status_t PumpCtrl_SetState(uint32_t actuatorId, PumpCtrl_State_t state);
@@ -105,7 +105,7 @@ APP_Status_t PumpCtrl_SetState(uint32_t actuatorId, PumpCtrl_State_t state);
  * This is a non-blocking getter function.  
  * @param actuatorId The unique ID of the pump to retrieve data from.  
  * @param state Pointer to store the current ON/OFF state.  
- * @return APP_OK on successful retrieval, APP_ERROR if the actuatorId is invalid,  
+ * @return E_OK on successful retrieval, E_NOK if the actuatorId is invalid,  
  * or the pointer is NULL.  
  */  
 APP_Status_t PumpCtrl_GetState(uint32_t actuatorId, PumpCtrl_State_t *state);
@@ -146,14 +146,14 @@ The PumpCtrl module will manage its own pump control cycle for multiple pumps.
          * If PumpCtrl_FEEDBACK_TYPE_CURRENT_SENSOR: Call MCAL_ADC_Init() for the pump_config.feedback_adc_channel.  
        * If any underlying MCAL/HAL initialization fails, report FAULT_ID_PumpCtrl_INIT_FAILED to SystemMonitor with pump_config.id as data. Log an error.  
    * s_is_initialized = true; on overall success.  
-   * Return APP_OK.  
+   * Return E_OK.  
 3. **Set Commanded State (PumpCtrl_SetState)**:  
-   * If !s_is_initialized, return APP_ERROR and log a warning.  
-   * Validate actuatorId. If actuatorId >= PumpCtrl_COUNT, return APP_ERROR and log a warning.  
-   * Validate state. If state is not PumpCtrl_STATE_ON or PumpCtrl_STATE_OFF, return APP_ERROR.  
+   * If !s_is_initialized, return E_NOK and log a warning.  
+   * Validate actuatorId. If actuatorId >= PumpCtrl_COUNT, return E_NOK and log a warning.  
+   * Validate state. If state is not PumpCtrl_STATE_ON or PumpCtrl_STATE_OFF, return E_NOK.  
    * Update s_commanded_states[actuatorId] = state;.  
    * Log LOGD("PumpCtrl %d commanded to %s", actuatorId, (state == PumpCtrl_STATE_ON) ? "ON" : "OFF");  
-   * Return APP_OK.  
+   * Return E_OK.  
 4. **Periodic Control & Feedback (PumpCtrl_MainFunction)**:  
    * This function is called periodically by a generic RTE task (e.g., RTE_PeriodicTask_HighPrio_100ms).  
    * If !s_is_initialized, return immediately.  
@@ -171,10 +171,10 @@ The PumpCtrl module will manage its own pump control cycle for multiple pumps.
            * **Feedback Validation**: Compare s_actual_states[pump_config.id] with s_commanded_states[pump_config.id]. If there's a discrepancy (e.g., commanded ON but no flow/current detected), report FAULT_ID_PumpCtrl_FEEDBACK_MISMATCH to SystemMonitor with pump_config.id as data (severity MEDIUM).  
        * If any MCAL/HAL call fails during control, report FAULT_ID_PumpCtrl_CONTROL_FAILED to SystemMonitor with pump_config.id as data (severity HIGH). Log an error.  
 5. **Get Current State (PumpCtrl_GetState)**:  
-   * Validate pointer (state). If NULL, return APP_ERROR and log a warning.  
-   * Validate actuatorId. If actuatorId >= PumpCtrl_COUNT, return APP_ERROR and log a warning.  
+   * Validate pointer (state). If NULL, return E_NOK and log a warning.  
+   * Validate actuatorId. If actuatorId >= PumpCtrl_COUNT, return E_NOK and log a warning.  
    * Copy s_actual_states[actuatorId] to *state.  
-   * Return APP_OK.
+   * Return E_OK.
 
 **Sequence Diagram (Example: systemMgr commands pump state, PumpCtrl applies it):**
 ```mermaid
@@ -190,17 +190,17 @@ sequenceDiagram
     RTE->>PumpCtrl: PumpCtrl_SetState(PUMP_ID_HUMIDITY, PumpCtrl_STATE_ON)  
     PumpCtrl->>PumpCtrl: Update s_commanded_states[PUMP_ID_HUMIDITY] = PumpCtrl_STATE_ON  
     PumpCtrl->>Logger: LOGD("PumpCtrl %d commanded to ON", PUMP_ID_HUMIDITY)  
-    PumpCtrl-->>RTE: Return APP_OK  
-    RTE-->>SystemMgr: Return APP_OK
+    PumpCtrl-->>RTE: Return E_OK  
+    RTE-->>SystemMgr: Return E_OK
 
     Note over RTE: (Later, RTE's periodic task runs)  
     RTE->>PumpCtrl: PumpCtrl_MainFunction()  
     PumpCtrl->>PumpCtrl: Retrieve commanded state for PUMP_ID_HUMIDITY (ON)  
     PumpCtrl->>MCAL_GPIO: MCAL_GPIO_WritePin(GPIO_PIN_PUMP_RELAY, GPIO_STATE_HIGH)  
-    MCAL_GPIO-->>PumpCtrl: Return APP_OK  
+    MCAL_GPIO-->>PumpCtrl: Return E_OK  
     alt MCAL_GPIO_WritePin fails  
         PumpCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_PumpCtrl_CONTROL_FAILED, SEVERITY_HIGH, PUMP_ID_HUMIDITY)  
-        SystemMonitor-->>PumpCtrl: Return APP_OK  
+        SystemMonitor-->>PumpCtrl: Return E_OK  
     end  
     Note over PumpCtrl: (Optional: Read feedback, update s_actual_states)  
     RTE-->>PumpCtrl: (Return from PumpCtrl_MainFunction)
@@ -209,12 +209,12 @@ sequenceDiagram
     SystemMgr->>RTE: RTE_Service_PUMP_GetState(PUMP_ID_HUMIDITY, &current_state)  
     RTE->>PumpCtrl: PumpCtrl_GetState(PUMP_ID_HUMIDITY, &current_state)  
     PumpCtrl->>PumpCtrl: Retrieve s_actual_states[PUMP_ID_HUMIDITY]  
-    PumpCtrl-->>RTE: Return APP_OK (current_state=ON)  
-    RTE-->>SystemMgr: Return APP_OK
+    PumpCtrl-->>RTE: Return E_OK (current_state=ON)  
+    RTE-->>SystemMgr: Return E_OK
 ```
 ### **5.4. Dependencies**
 
-* Application/common/inc/app_common.h: For APP_Status_t.  
+* Application/common/inc/common.h: For APP_Status_t.  
 * Application/logger/inc/logger.h: For logging errors and warnings.  
 * Application/SystemMonitor/inc/system_monitor.h: For SystemMonitor_FaultId_t (e.g., FAULT_ID_PumpCtrl_INIT_FAILED, FAULT_ID_PumpCtrl_CONTROL_FAILED, FAULT_ID_PumpCtrl_FEEDBACK_MISMATCH).  
 * Rte/inc/Rte.h: For calling RTE_Service_SystemMonitor_ReportFault().  

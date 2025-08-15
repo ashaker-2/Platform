@@ -1,7 +1,7 @@
 #ifndef HEATERCTRL_H
 #define HEATERCTRL_H
 
-#include "app_common.h"
+#include "common.h"
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -24,24 +24,24 @@ typedef enum {
 /**
  * @brief Initializes the HeaterCtrl module and the configured heater hardware.
  * The heater is set to a safe, known state (OFF).
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-APP_Status_t HeaterCtrl_Init(void);
+Status_t HeaterCtrl_Init(void);
 
 /**
  * @brief Commands a desired heater state.
  * This function directly applies the commanded state to the hardware.
  * @param state The desired state (HEATERCTRL_STATE_ON or HEATERCTRL_STATE_OFF).
- * @return APP_OK on success, APP_ERROR on failure (e.g., hardware driver error).
+ * @return E_OK on success, E_NOK on failure (e.g., hardware driver error).
  */
-APP_Status_t HeaterCtrl_SetState(HeaterCtrl_State_t state);
+Status_t HeaterCtrl_SetState(HeaterCtrl_State_t state);
 
 /**
  * @brief Gets the last commanded state of the heater.
  * This is a non-blocking getter function.
  * @param state Pointer to store the current state.
- * @return APP_OK on success, APP_ERROR on failure (e.g., NULL pointer).
+ * @return E_OK on success, E_NOK on failure (e.g., NULL pointer).
  */
-APP_Status_t HeaterCtrl_GetState(HeaterCtrl_State_t *state);
+Status_t HeaterCtrl_GetState(HeaterCtrl_State_t *state);
 
 #endif // HEATERCTRL_H

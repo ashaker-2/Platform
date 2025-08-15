@@ -11,7 +11,7 @@
 #ifndef HAL_BLUETOOTH_H
 #define HAL_BLUETOOTH_H
 
-#include "app_common.h" // For APP_Status_t and HAL_Status_t
+#include "common.h" // For Status_t and Status_t
 #include <stdint.h>     // For uint8_t, uint16_t, uint32_t
 #include <stdbool.h>    // For bool
 
@@ -116,9 +116,9 @@ typedef void (*HAL_BLE_ScanResultCallback_t)(const uint8_t *peer_address, int8_t
  * This function should be called once during system startup.
  * It prepares the internal data structures and the underlying MCAL Bluetooth driver.
  * @param role The desired initial BLE role (Peripheral or Central).
- * @return HAL_OK on success, HAL_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-HAL_Status_t HAL_BLE_Init(HAL_BLE_Role_t role);
+Status_t HAL_BLE_Init(HAL_BLE_Role_t role);
 
 /**
  * @brief Registers callback functions for BLE events.
@@ -126,9 +126,9 @@ HAL_Status_t HAL_BLE_Init(HAL_BLE_Role_t role);
  * @param data_received_cb Callback for incoming data. Can be NULL.
  * @param connection_cb Callback for connection/disconnection events. Can be NULL.
  * @param scan_result_cb Callback for scan results (only for Central role). Can be NULL.
- * @return HAL_OK on success, HAL_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-HAL_Status_t HAL_BLE_RegisterCallbacks(HAL_BLE_StateChangeCallback_t state_change_cb,
+Status_t HAL_BLE_RegisterCallbacks(HAL_BLE_StateChangeCallback_t state_change_cb,
                                        HAL_BLE_DataReceivedCallback_t data_received_cb,
                                        HAL_BLE_ConnectionCallback_t connection_cb,
                                        HAL_BLE_ScanResultCallback_t scan_result_cb);
@@ -136,50 +136,50 @@ HAL_Status_t HAL_BLE_RegisterCallbacks(HAL_BLE_StateChangeCallback_t state_chang
 /**
  * @brief Starts BLE advertising (Peripheral role).
  * @param adv_params Pointer to the advertising parameters.
- * @return HAL_OK on success, HAL_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-HAL_Status_t HAL_BLE_StartAdvertising(const HAL_BLE_AdvParams_t *adv_params);
+Status_t HAL_BLE_StartAdvertising(const HAL_BLE_AdvParams_t *adv_params);
 
 /**
  * @brief Stops BLE advertising.
- * @return HAL_OK on success, HAL_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-HAL_Status_t HAL_BLE_StopAdvertising(void);
+Status_t HAL_BLE_StopAdvertising(void);
 
 /**
  * @brief Starts BLE scanning (Central role).
  * @param scan_params Pointer to the scan parameters.
- * @return HAL_OK on success, HAL_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-HAL_Status_t HAL_BLE_StartScanning(const HAL_BLE_ScanParams_t *scan_params);
+Status_t HAL_BLE_StartScanning(const HAL_BLE_ScanParams_t *scan_params);
 
 /**
  * @brief Stops BLE scanning.
- * @return HAL_OK on success, HAL_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-HAL_Status_t HAL_BLE_StopScanning(void);
+Status_t HAL_BLE_StopScanning(void);
 
 /**
  * @brief Initiates a connection to a peer device (Central role).
  * @param peer_address Pointer to the 6-byte Bluetooth address of the peer.
  * @param conn_params Pointer to the connection parameters.
- * @return HAL_OK on success, HAL_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-HAL_Status_t HAL_BLE_Connect(const uint8_t *peer_address, const HAL_BLE_ConnParams_t *conn_params);
+Status_t HAL_BLE_Connect(const uint8_t *peer_address, const HAL_BLE_ConnParams_t *conn_params);
 
 /**
  * @brief Disconnects from the currently connected peer.
- * @return HAL_OK on success, HAL_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-HAL_Status_t HAL_BLE_Disconnect(void);
+Status_t HAL_BLE_Disconnect(void);
 
 /**
  * @brief Sends data over the established BLE connection.
  * @param data_p Pointer to the data buffer to send.
  * @param length The number of bytes to send.
- * @return HAL_OK on success, HAL_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-HAL_Status_t HAL_BLE_SendData(const uint8_t *data_p, uint16_t length);
+Status_t HAL_BLE_SendData(const uint8_t *data_p, uint16_t length);
 
 /**
  * @brief Gets the current BLE state.

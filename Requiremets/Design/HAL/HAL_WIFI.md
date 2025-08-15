@@ -76,7 +76,7 @@ The HAL_WIFI component will consist of the following files:
 
 // In HAL/Wifi/inc/hal_wifi.h
 ```c
-#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h>   // For uint32_t, uint8_t  
 #include <stdbool.h>  // For bool
 
@@ -113,7 +113,7 @@ typedef void (*HAL_WIFI_ConnectionCallback_t)(HAL_WIFI_Status_t status);
 /**  
  * @brief Initializes the HAL_WIFI module and the native Wi-Fi stack.  
  * This function should be called once during system initialization.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_WIFI_Init(void);
 
@@ -121,7 +121,7 @@ APP_Status_t HAL_WIFI_Init(void);
  * @brief Registers callback functions for incoming socket data and connection state changes.  
  * @param rx_callback Function to call when data is received on a socket.  
  * @param conn_callback Function to call when connection state changes.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_WIFI_RegisterCallbacks(HAL_WIFI_RxCallback_t rx_callback,  
                                         HAL_WIFI_ConnectionCallback_t conn_callback);
@@ -129,7 +129,7 @@ APP_Status_t HAL_WIFI_RegisterCallbacks(HAL_WIFI_RxCallback_t rx_callback,
 /**  
  * @brief Sets the Wi-Fi operational mode (STA, AP, APSTA, OFF).  
  * @param mode The desired Wi-Fi mode.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_WIFI_SetMode(HAL_WIFI_Mode_t mode);
 
@@ -137,13 +137,13 @@ APP_Status_t HAL_WIFI_SetMode(HAL_WIFI_Mode_t mode);
  * @brief Connects to a Wi-Fi Access Point in STA mode.  
  * @param ssid The SSID of the Access Point.  
  * @param password The password for the Access Point.  
- * @return APP_OK if connection initiated, APP_ERROR on failure.  
+ * @return E_OK if connection initiated, E_NOK on failure.  
  */  
 APP_Status_t HAL_WIFI_ConnectAP(const char *ssid, const char *password);
 
 /**  
  * @brief Disconnects from the current Wi-Fi Access Point.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_WIFI_DisconnectAP(void);
 
@@ -152,13 +152,13 @@ APP_Status_t HAL_WIFI_DisconnectAP(void);
  * @param ssid The SSID for the AP.  
  * @param password The password for the AP.  
  * @param channel The channel for the AP (1-13).  
- * @return APP_OK if AP started, APP_ERROR on failure.  
+ * @return E_OK if AP started, E_NOK on failure.  
  */  
 APP_Status_t HAL_WIFI_StartAP(const char *ssid, const char *password, uint8_t channel);
 
 /**  
  * @brief Stops the Wi-Fi Access Point.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_WIFI_StopAP(void);
 
@@ -172,7 +172,7 @@ int32_t HAL_WIFI_CreateTcpSocket(void);
  * @brief Connects a TCP socket to a remote address.  
  * @param socket_id The ID of the socket.  
  * @param remote_addr Pointer to the remote address structure.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_WIFI_TcpConnect(int32_t socket_id, const HAL_WIFI_Addr_t *remote_addr);
 
@@ -198,7 +198,7 @@ int32_t HAL_WIFI_SocketReceive(int32_t socket_id, uint8_t *buffer, uint16_t buff
 /**  
  * @brief Closes a socket.  
  * @param socket_id The ID of the socket.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_WIFI_CloseSocket(int32_t socket_id);
 
@@ -234,15 +234,15 @@ The HAL_WIFI module will wrap the native Wi-Fi SDK's APIs and manage network eve
    * Initialize the TCP/IP stack (e.g., esp_netif_init()).  
    * Initialize the Wi-Fi driver (e.g., esp_wifi_init()).  
    * Register Wi-Fi and IP event handlers with the native SDK (e.g., esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &hal_wifi_event_handler, NULL)). These hal_wifi_event_handler functions will be internal static functions in hal_wifi.c.  
-   * If any step fails, report FAULT_ID_HAL_WIFI_INIT_FAILURE to SystemMonitor and return APP_ERROR.  
+   * If any step fails, report FAULT_ID_HAL_WIFI_INIT_FAILURE to SystemMonitor and return E_NOK.  
    * Set s_is_initialized = true;.  
    * Log LOGI("HAL_WIFI: Initialized successfully.");.  
-   * Return APP_OK.  
+   * Return E_OK.  
 3. **Register Callbacks (HAL_WIFI_RegisterCallbacks)**:  
    * Validate rx_callback and conn_callback are not NULL.  
    * s_rx_callback = rx_callback;  
    * s_conn_callback = conn_callback;  
-   * Return APP_OK.  
+   * Return E_OK.  
 4. **Set Mode (HAL_WIFI_SetMode)**:  
    * Validate s_is_initialized.  
    * Call native SDK mode setting function (e.g., esp_wifi_set_mode(mode)).  
@@ -261,7 +261,7 @@ The HAL_WIFI module will wrap the native Wi-Fi SDK's APIs and manage network eve
    * Report FAULT_ID_HAL_WIFI_AP_FAILURE on error.  
 7. **Socket Management (HAL_WIFI_CreateTcpSocket, HAL_WIFI_TcpConnect, HAL_WIFI_SocketSend, HAL_WIFI_SocketReceive, HAL_WIFI_CloseSocket)**:  
    * These functions will wrap the underlying TCP/IP stack's socket APIs (e.g., socket(), connect(), send(), recv(), close()).  
-   * Error checks and APP_ERROR / -1 returns on failure.  
+   * Error checks and E_NOK / -1 returns on failure.  
    * HAL_WIFI_SocketReceive will typically be non-blocking and return 0 if no data is available. If data is received, it will call s_rx_callback.  
    * Report FAULT_ID_HAL_WIFI_SOCKET_FAILURE on socket errors.  
 8. **Process (HAL_WIFI_Process)**:  
@@ -294,7 +294,7 @@ sequenceDiagram
     HAL_WIFI->>Native_WIFI_Stack: esp_wifi_connect()  
     Native_WIFI_Stack-->>HAL_WIFI: Return OK  
     HAL_WIFI->>HAL_WIFI: Update s_current_wifi_status = HAL_WIFI_STATUS_CONNECTING  
-    HAL_WIFI-->>ComM: Return APP_OK
+    HAL_WIFI-->>ComM: Return E_OK
 
     Note over Native_WIFI_Stack,HAL_WIFI: Asynchronous Events  
     Native_WIFI_Stack->>HAL_WIFI: hal_wifi_event_handler(WIFI_EVENT_STA_CONNECTED, ...)  
@@ -312,7 +312,7 @@ sequenceDiagram
 * **Native Wi-Fi SDK Headers**: (e.g., esp_wifi.h, esp_event.h, esp_netif.h, lwip/sockets.h for ESP-IDF). These are the direct interface to the MCU's Wi-Fi capabilities and TCP/IP stack.  
 * Application/logger/inc/logger.h: For internal logging.  
 * Rte/inc/Rte.h: For calling RTE_Service_SystemMonitor_ReportFault().  
-* Application/common/inc/app_common.h: For APP_Status_t, APP_OK/APP_ERROR.  
+* Application/common/inc/common.h: For APP_Status_t, E_OK/E_NOK.  
 * HAL/Wifi/cfg/hal_wifi_cfg.h: For configuration parameters.  
 * Service/ComM/inc/comm.h: For ComM's callback types (though HAL_WIFI defines its own function pointer types).
 
@@ -321,7 +321,7 @@ sequenceDiagram
 * **Native SDK Error Codes**: Errors returned by native Wi-Fi SDK functions will be caught by HAL_WIFI.  
 * **Fault Reporting**: Upon detection of an error (e.g., stack initialization failure, connection failure, socket error), HAL_WIFI will report a specific fault ID (e.g., FAULT_ID_HAL_WIFI_INIT_FAILURE, FAULT_ID_HAL_WIFI_CONN_FAILURE, FAULT_ID_HAL_WIFI_SOCKET_FAILURE) to SystemMonitor via the RTE service.  
 * **Input Validation**: Public API functions will validate input parameters.  
-* **Return Status**: All public API functions will return APP_ERROR on failure. Socket functions return -1 on error.
+* **Return Status**: All public API functions will return E_NOK on failure. Socket functions return -1 on error.
 
 ### **5.6. Configuration**
 
@@ -370,7 +370,7 @@ The HAL/Wifi/cfg/hal_wifi_cfg.h file will contain:
 
 * **Mock Native Wi-Fi SDK**: Unit tests for HAL_WIFI will heavily mock the native Wi-Fi SDK APIs to isolate HAL_WIFI's logic. This includes mocking esp_wifi_init(), esp_event_handler_register(), esp_wifi_connect(), socket(), send(), recv(), and simulating incoming events via the registered internal event handlers.  
 * **Test Cases**:  
-  * HAL_WIFI_Init: Test successful initialization and mocked native SDK failures (verify APP_ERROR and fault reporting).  
+  * HAL_WIFI_Init: Test successful initialization and mocked native SDK failures (verify E_NOK and fault reporting).  
   * HAL_WIFI_RegisterCallbacks: Test valid/invalid callbacks.  
   * HAL_WIFI_SetMode: Test setting various modes and mocked failures.  
   * HAL_WIFI_ConnectAP/DisconnectAP: Test connection initiation, disconnection. Simulate WIFI_EVENT_STA_CONNECTED, IP_EVENT_STA_GOT_IP, WIFI_EVENT_STA_DISCONNECTED events. Test mocked failures.  

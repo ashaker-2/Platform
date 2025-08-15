@@ -74,7 +74,7 @@ The SECURITY component will consist of the following files:
 ```c
 // In Service/security/inc/security.h
 
-#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h>   // For uint32_t, uint8_t  
 #include <stdbool.h>  // For bool
 
@@ -93,7 +93,7 @@ typedef enum {
 
 /**  
  * @brief Initializes the Security module, including cryptographic hardware/libraries.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t SECURITY_Init(void);
 
@@ -102,7 +102,7 @@ APP_Status_t SECURITY_Init(void);
 /**  
  * @brief Initializes a new hash calculation context.  
  * @param context Pointer to a SECURITY_HashContext_t to initialize.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t SECURITY_InitHashContext(SECURITY_HashContext_t *context);
 
@@ -111,7 +111,7 @@ APP_Status_t SECURITY_InitHashContext(SECURITY_HashContext_t *context);
  * @param context The hash context.  
  * @param data Pointer to the data to hash.  
  * @param len Length of the data.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t SECURITY_UpdateHash(SECURITY_HashContext_t context, const uint8_t *data, uint32_t len);
 
@@ -121,7 +121,7 @@ APP_Status_t SECURITY_UpdateHash(SECURITY_HashContext_t context, const uint8_t *
  * @param context The hash context.  
  * @param hash_output Buffer to store the resulting hash.  
  * @param output_len The expected length of the hash output (e.g., 32 for SHA-256).  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t SECURITY_FinalizeHash(SECURITY_HashContext_t context, uint8_t *hash_output, uint32_t output_len);
 
@@ -134,7 +134,7 @@ APP_Status_t SECURITY_FinalizeHash(SECURITY_HashContext_t context, uint8_t *hash
  * @param hash_len Length of the hash.  
  * @param signature The digital signature to verify.  
  * @param signature_len Length of the signature.  
- * @return APP_OK if signature is valid, APP_ERROR if invalid or on failure.  
+ * @return E_OK if signature is valid, E_NOK if invalid or on failure.  
  */  
 APP_Status_t SECURITY_VerifySignature(SECURITY_KeyId_t key_id,  
                                       const uint8_t *hash_to_verify, uint32_t hash_len,  
@@ -151,7 +151,7 @@ APP_Status_t SECURITY_VerifySignature(SECURITY_KeyId_t key_id,
  * @param ciphertext_len_ptr Pointer to store the length of encrypted data.  
  * @param auth_tag_output Optional buffer for authentication tag (e.g., for AEAD modes).  
  * @param auth_tag_len_ptr Optional pointer to store auth tag length.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t SECURITY_Encrypt(SECURITY_KeyId_t key_id,  
                               const uint8_t *plaintext, uint32_t plaintext_len,  
@@ -167,7 +167,7 @@ APP_Status_t SECURITY_Encrypt(SECURITY_KeyId_t key_id,
  * @param auth_tag_len Length of auth tag.  
  * @param plaintext_output Buffer for decrypted data.  
  * @param plaintext_len_ptr Pointer to store the length of decrypted data.  
- * @return APP_OK on successful authentication and decryption, APP_ERROR on failure (e.g., invalid tag, decryption error).  
+ * @return E_OK on successful authentication and decryption, E_NOK on failure (e.g., invalid tag, decryption error).  
  */  
 APP_Status_t SECURITY_AuthenticateAndDecrypt(SECURITY_KeyId_t key_id,  
                                              const uint8_t *ciphertext, uint32_t ciphertext_len,  
@@ -178,7 +178,7 @@ APP_Status_t SECURITY_AuthenticateAndDecrypt(SECURITY_KeyId_t key_id,
  * @brief Generates a cryptographically secure random number.  
  * @param buffer Pointer to the buffer to fill with random bytes.  
  * @param len Number of bytes to generate.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t SECURITY_GenerateRandom(uint8_t *buffer, uint32_t len);
 ```
@@ -194,17 +194,17 @@ The SECURITY module will wrap a chosen cryptographic library (e.g., mbedTLS, tin
    * Initialize the chosen cryptographic library (e.g., mbedtls_platform_setup(), esp_crypto_init()).  
    * Perform any necessary self-tests for the crypto hardware/library.  
    * Load any persistent keys (e.g., SECURITY_KEY_ID_OTA_PUBLIC_KEY) from Nvm or internal Flash.  
-   * If any step fails, report FAULT_ID_SECURITY_INIT_FAILURE to SystemMonitor and return APP_ERROR.  
+   * If any step fails, report FAULT_ID_SECURITY_INIT_FAILURE to SystemMonitor and return E_NOK.  
    * Set s_is_initialized = true;.  
-   * Return APP_OK.  
+   * Return E_OK.  
 3. **Hashing (SECURITY_InitHashContext, SECURITY_UpdateHash, SECURITY_FinalizeHash)**:  
    * These functions will directly wrap the chosen library's hash API (e.g., mbedtls_sha256_init(), mbedtls_sha256_starts_ret(), mbedtls_sha256_update_ret(), mbedtls_sha256_finish_ret()).  
-   * Error checks and APP_ERROR returns on failure.  
+   * Error checks and E_NOK returns on failure.  
    * SECURITY_InitHashContext will allocate and initialize the context. SECURITY_FinalizeHash will free it.  
 4. **Signature Verification (SECURITY_VerifySignature)**:  
    * Retrieve the public key associated with key_id.  
    * Call the underlying library's signature verification function (e.g., mbedtls_rsa_rsassa_pkcs1_v15_verify() or esp_ecdsa_verify()).  
-   * Return APP_OK or APP_ERROR based on the verification result. Report FAULT_ID_SECURITY_VERIFICATION_FAILURE on mismatch or internal error.  
+   * Return E_OK or E_NOK based on the verification result. Report FAULT_ID_SECURITY_VERIFICATION_FAILURE on mismatch or internal error.  
 5. **Encryption/Decryption/Authentication**:  
    * These functions will wrap the chosen library's symmetric (e.g., AES-GCM for Authenticated Encryption with Associated Data - AEAD) or asymmetric (e.g., RSA) APIs.  
    * Key retrieval based on key_id.  
@@ -227,20 +227,20 @@ sequenceDiagram
     Security->>FreeRTOS: pvPortMalloc for context  
     Security->>CryptoLib: crypto_lib_hash_init(&internal_context)  
     CryptoLib-->>Security: Return OK  
-    Security-->>OTA: Return APP_OK (ota_hash_context)
+    Security-->>OTA: Return E_OK (ota_hash_context)
 
     loop For each data chunk  
         OTA->>Security: SECURITY_UpdateHash(ota_hash_context, data_chunk, len)  
         Security->>CryptoLib: crypto_lib_hash_update(&internal_context, data_chunk, len)  
         CryptoLib-->>Security: Return OK  
-        Security-->>OTA: Return APP_OK  
+        Security-->>OTA: Return E_OK  
     end
 
     OTA->>Security: SECURITY_FinalizeHash(ota_hash_context, &calculated_hash, HASH_LEN)  
     Security->>CryptoLib: crypto_lib_hash_finalize(&internal_context, &calculated_hash)  
     CryptoLib-->>Security: Return OK  
     Security->>FreeRTOS: vPortFree(context)  
-    Security-->>OTA: Return APP_OK (calculated_hash)
+    Security-->>OTA: Return E_OK (calculated_hash)
 
     OTA->>Security: SECURITY_VerifySignature(SECURITY_KEY_ID_OTA_PUBLIC_KEY, calculated_hash, HASH_LEN, signature, SIG_LEN)  
     Security->>Security: Retrieve OTA Public Key  
@@ -248,15 +248,15 @@ sequenceDiagram
     alt CryptoLib returns Verification_Failed  
         CryptoLib--xSecurity: Return FAIL  
         Security->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_SECURITY_VERIFICATION_FAILURE, SEVERITY_HIGH, ...)  
-        Security--xOTA: Return APP_ERROR  
+        Security--xOTA: Return E_NOK  
     else CryptoLib returns Verification_Success  
         CryptoLib-->>Security: Return SUCCESS  
-        Security-->>OTA: Return APP_OK  
+        Security-->>OTA: Return E_OK  
     end
 ```
 ### **5.4. Dependencies**
 
-* Application/common/inc/app_common.h: For APP_Status_t.  
+* Application/common/inc/common.h: For APP_Status_t.  
 * Application/logger/inc/logger.h: For internal logging.  
 * Rte/inc/Rte.h: For calling RTE_Service_SystemMonitor_ReportFault().  
 * Application/SystemMonitor/inc/system_monitor.h: For FAULT_ID_SECURITY_... definitions.  
@@ -270,7 +270,7 @@ sequenceDiagram
 * **Input Validation**: All public API functions will validate input parameters (e.g., NULL pointers, invalid lengths).  
 * **Cryptographic Library Errors**: Errors returned by the underlying cryptographic library or hardware accelerator will be caught by SECURITY.  
 * **Fault Reporting**: Upon detection of an error (invalid input, crypto library failure, verification mismatch), SECURITY will report a specific fault ID (e.g., FAULT_ID_SECURITY_INIT_FAILURE, FAULT_ID_SECURITY_VERIFICATION_FAILURE, FAULT_ID_SECURITY_ENCRYPTION_FAILURE, FAULT_ID_SECURITY_RNG_FAILURE) to SystemMonitor via the RTE service.  
-* **Return Status**: All public API functions will return APP_ERROR on failure. SECURITY_VerifySignature specifically returns APP_ERROR if the signature is invalid.
+* **Return Status**: All public API functions will return E_NOK on failure. SECURITY_VerifySignature specifically returns E_NOK if the signature is invalid.
 
 ### **5.6. Configuration**
 
@@ -321,18 +321,18 @@ The Service/security/cfg/security_cfg.h file will contain:
 
 * **Mock Cryptographic Library/Hardware**: Unit tests for SECURITY will mock the underlying cryptographic library's APIs (e.g., mbedtls_sha256_init, esp_crypto_aes_encrypt) to isolate SECURITY's logic.  
 * **Test Cases**:  
-  * SECURITY_Init: Test successful initialization and mocked failures (verify APP_ERROR and fault reporting).  
+  * SECURITY_Init: Test successful initialization and mocked failures (verify E_NOK and fault reporting).  
   * **Hashing**:  
     * Test SECURITY_InitHashContext, SECURITY_UpdateHash, SECURITY_FinalizeHash with various data sizes (empty, small, large, multi-chunk).  
     * Verify the calculated hash matches known good values for standard algorithms (e.g., SHA-256 of "hello world").  
     * Test mocked failures from the underlying crypto library.  
   * **Signature Verification**:  
     * Test SECURITY_VerifySignature with valid hash/signature pairs and the correct public key.  
-    * Test with invalid hash, invalid signature, or wrong public key (verify APP_ERROR return).  
+    * Test with invalid hash, invalid signature, or wrong public key (verify E_NOK return).  
     * Test mocked failures from the underlying crypto library.  
   * **Encryption/Decryption/Authentication**:  
     * Test SECURITY_Encrypt and SECURITY_AuthenticateAndDecrypt with known plaintext/ciphertext/key/tag combinations.  
-    * Verify that SECURITY_AuthenticateAndDecrypt returns APP_ERROR if the authentication tag is invalid or data is tampered with.  
+    * Verify that SECURITY_AuthenticateAndDecrypt returns E_NOK if the authentication tag is invalid or data is tampered with.  
     * Test various data lengths.  
     * Test mocked failures.  
   * SECURITY_GenerateRandom: Test that it produces different outputs and handles errors.  

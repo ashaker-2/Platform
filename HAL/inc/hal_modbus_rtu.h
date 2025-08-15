@@ -12,7 +12,7 @@
 #ifndef HAL_MODBUS_RTU_H
 #define HAL_MODBUS_RTU_H
 
-#include "app_common.h" // For APP_Status_t and HAL_Status_t
+#include "common.h" // For Status_t and Status_t
 #include <stdint.h>   // For uint8_t, uint16_t
 #include <stdbool.h>  // For bool
 
@@ -79,18 +79,18 @@ typedef void (*HAL_ModbusRTU_ErrorCallback_t)(uint16_t error_code);
  * This function should be called once during system startup.
  * It configures the underlying UART and prepares the Modbus RTU state machine.
  * @param config_p Pointer to the Modbus RTU configuration parameters.
- * @return HAL_OK on success, HAL_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-HAL_Status_t HAL_ModbusRTU_Init(const HAL_ModbusRTU_Config_t *config_p);
+Status_t HAL_ModbusRTU_Init(const HAL_ModbusRTU_Config_t *config_p);
 
 /**
  * @brief Registers callback functions for Modbus RTU events.
  * @param frame_received_cb Callback for received frames. Can be NULL.
  * @param transmission_complete_cb Callback for transmission completion. Can be NULL.
  * @param error_cb Callback for error events. Can be NULL.
- * @return HAL_OK on success, HAL_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-HAL_Status_t HAL_ModbusRTU_RegisterCallbacks(HAL_ModbusRTU_FrameReceivedCallback_t frame_received_cb,
+Status_t HAL_ModbusRTU_RegisterCallbacks(HAL_ModbusRTU_FrameReceivedCallback_t frame_received_cb,
                                              HAL_ModbusRTU_TransmissionCompleteCallback_t transmission_complete_cb,
                                              HAL_ModbusRTU_ErrorCallback_t error_cb);
 
@@ -99,9 +99,9 @@ HAL_Status_t HAL_ModbusRTU_RegisterCallbacks(HAL_ModbusRTU_FrameReceivedCallback
  * This function calculates the CRC and transmits the complete frame over UART.
  * @param frame_p Pointer to the data to send (excluding CRC).
  * @param length The length of the data to send (excluding CRC).
- * @return HAL_OK on success, HAL_ERROR on failure (e.g., busy, invalid parameters).
+ * @return E_OK on success, E_NOK on failure (e.g., busy, invalid parameters).
  */
-HAL_Status_t HAL_ModbusRTU_SendFrame(const uint8_t *frame_p, uint16_t length);
+Status_t HAL_ModbusRTU_SendFrame(const uint8_t *frame_p, uint16_t length);
 
 /**
  * @brief Gets the current Modbus RTU communication state.

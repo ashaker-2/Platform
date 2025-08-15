@@ -37,7 +37,7 @@ typedef enum
 typedef struct
 {
     uint32_t id;                        /**< Unique identifier for this NVM block (from NVM_BlockId_t). */
-    size_t size;                        /**< Size of the data block in bytes. */
+    uint16_t size;                        /**< Size of the data block in bytes. */
     const void *default_value_ptr;      /**< Pointer to the default values for this block.
                                              This data will be written if the NVM is formatted or corrupted. */
 } NVM_BlockConfig_t;

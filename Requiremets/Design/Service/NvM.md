@@ -65,7 +65,7 @@ The Nvm component will consist of the following files:
 
 // In Service/nvm/inc/nvm.h
 ```c
-#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h>   // For uint32_t, uint8_t  
 #include <stdbool.h>  // For bool
 
@@ -88,7 +88,7 @@ typedef enum {
 /**  
  * @brief Initializes the Nvm module and the underlying non-volatile memory.  
  * This includes verifying data integrity and loading defaults if needed.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t Nvm_Init(void);
 
@@ -97,7 +97,7 @@ APP_Status_t Nvm_Init(void);
  * @param param_id The ID of the parameter to read.  
  * @param data_buffer Pointer to the buffer where the read data will be stored.  
  * @param buffer_len The size of the provided buffer.  
- * @return APP_OK on success, APP_ERROR on failure (e.g., invalid ID, read error, data corruption).  
+ * @return E_OK on success, E_NOK on failure (e.g., invalid ID, read error, data corruption).  
  */  
 APP_Status_t NVM_ReadParam(Nvm_ParamId_t param_id, void *data_buffer, uint16_t buffer_len);
 
@@ -107,7 +107,7 @@ APP_Status_t NVM_ReadParam(Nvm_ParamId_t param_id, void *data_buffer, uint16_t b
  * @param param_id The ID of the parameter to write.  
  * @param data_buffer Pointer to the data to write.  
  * @param data_len The number of bytes to write.  
- * @return APP_OK on success, APP_ERROR on failure (e.g., invalid ID, write error, memory full).  
+ * @return E_OK on success, E_NOK on failure (e.g., invalid ID, write error, memory full).  
  */  
 APP_Status_t NVM_WriteParam(Nvm_ParamId_t param_id, const void *data_buffer, uint16_t data_len);
 ```
@@ -125,29 +125,29 @@ The Nvm module will manage memory allocation within the non-volatile storage, ha
      * (Optional) A version number for data structure changes.  
    * A "header" or "lookup table" might be stored at a fixed location to quickly find the start address and size of each parameter block.  
 2. **Initialization (Nvm_Init)**:  
-   * Call MCAL_FLASH_Init() (and/or MCAL_EEPROM_Init()). If this fails, report NVM_INIT_FAILURE to SystemMonitor via RTE and return APP_ERROR.  
+   * Call MCAL_FLASH_Init() (and/or MCAL_EEPROM_Init()). If this fails, report NVM_INIT_FAILURE to SystemMonitor via RTE and return E_NOK.  
    * **Read Storage Header/Lookup Table**: Attempt to read the main storage header/lookup table from a known Flash/EEPROM address.  
    * **Integrity Check**: Calculate the checksum of the header. If invalid, or if the header is empty/corrupted:  
      * Report NVM_DATA_CORRUPTED to SystemMonitor via RTE.  
      * **Load Defaults**: Initialize the storage with all default parameters as defined in nvm_cfg.h. This involves calling NVM_WriteParam for each default.  
    * Else (header is valid):  
      * Mark s_is_initialized = true;.  
-   * Return APP_OK.  
+   * Return E_OK.  
 3. **Read Parameter (NVM_ReadParam)**:  
-   * If !s_is_initialized, return APP_ERROR.  
+   * If !s_is_initialized, return E_NOK.  
    * Validate param_id, data_buffer, buffer_len.  
    * **Find Parameter Location**: Look up the param_id in the internal storage map (or by reading the header). This gives the memory address and stored length.  
    * **Read Raw Data**: Call MCAL_FLASH_Read(address, temp_buffer, stored_len + checksum_len).  
    * **Verify Checksum**: Calculate the checksum of the read data and compare it with the stored checksum.  
    * If checksum matches and stored_len <= buffer_len:  
      * Copy data from temp_buffer to data_buffer.  
-     * Set response_code = APP_OK;.  
+     * Set response_code = E_OK;.  
    * Else (checksum mismatch or buffer too small):  
      * Report NVM_DATA_CORRUPTED (for checksum) or NVM_BUFFER_TOO_SMALL (for size) to SystemMonitor via RTE.  
-     * Set response_code = APP_ERROR;.  
+     * Set response_code = E_NOK;.  
    * Return response_code.  
 4. **Write Parameter (NVM_WriteParam)**:  
-   * If !s_is_initialized, return APP_ERROR.  
+   * If !s_is_initialized, return E_NOK.  
    * Validate param_id, data_buffer, data_len.  
    * **Prepare Data Block**: Create a temporary buffer containing param_id, data_len, data_buffer content, and calculated checksum.  
    * **Find Write Location**: Determine the optimal location to write the new block. This might involve:  
@@ -157,7 +157,7 @@ The Nvm module will manage memory allocation within the non-volatile storage, ha
    * **Write Raw Data**: Call MCAL_FLASH_Write(address, prepared_block, total_block_len).  
    * **Update Storage Header/Lookup Table**: After a successful write, update the main storage header/lookup table to reflect the new location/length of the parameter. This update itself should be atomic or redundant to prevent corruption of the lookup table.  
    * If any MCAL_FLASH_Write or header update fails, report NVM_WRITE_FAILURE to SystemMonitor via RTE.  
-   * Return APP_OK or APP_ERROR.
+   * Return E_OK or E_NOK.
 
 **Sequence Diagram (Example: NVM_ReadParam):**
 ```mermaid
@@ -173,22 +173,22 @@ sequenceDiagram
     Nvm->>Nvm: Validate parameters  
     Nvm->>Nvm: Look up address for NVM_PARAM_OP_TEMP_RANGE  
     Nvm->>MCAL_FLASH: MCAL_FLASH_Read(address, temp_buffer, size_with_checksum)  
-    MCAL_FLASH-->>Nvm: Return APP_OK (with raw data)  
+    MCAL_FLASH-->>Nvm: Return E_OK (with raw data)  
     Nvm->>Nvm: Calculate checksum of read data  
     alt Checksum mismatch or buffer too small  
         Nvm->>RTE: RTE_Service_SystemMonitor_ReportFault(NVM_DATA_CORRUPTED, SEVERITY_HIGH, NVM_PARAM_OP_TEMP_RANGE)  
-        RTE--xNvm: Return APP_ERROR  
-        Nvm--xRTE: Return APP_ERROR  
-        RTE--xAppModule: Return APP_ERROR  
+        RTE--xNvm: Return E_NOK  
+        Nvm--xRTE: Return E_NOK  
+        RTE--xAppModule: Return E_NOK  
     else Checksum matches and buffer is sufficient  
         Nvm->>Nvm: Copy data from temp_buffer to data_buffer  
-        Nvm-->>RTE: Return APP_OK  
-        RTE-->>AppModule: Return APP_OK  
+        Nvm-->>RTE: Return E_OK  
+        RTE-->>AppModule: Return E_OK  
     end
 ```
 ### **5.4. Dependencies**
 
-* Application/common/inc/app_common.h: For APP_Status_t and APP_OK/APP_ERROR.  
+* Application/common/inc/common.h: For APP_Status_t and E_OK/E_NOK.  
 * Application/logger/inc/logger.h: For internal logging.  
 * Rte/inc/Rte.h: For calling RTE_Service_SystemMonitor_ReportFault().  
 * Application/SystemMonitor/inc/system_monitor.h: For FAULT_ID_NVM_... definitions.  
@@ -200,10 +200,10 @@ sequenceDiagram
 
 * **Input Validation**: All public API functions will validate input parameters (e.g., valid param_id, non-NULL pointers, non-zero lengths).  
 * **MCAL Error Propagation**: Errors returned by MCAL_FLASH (or MCAL_EEPROM) functions will be caught by Nvm.  
-* **Data Integrity Checks**: Checksums (or other error detection codes) will be used to verify data integrity upon reading. If data is corrupted, Nvm_Init will load defaults, and NVM_ReadParam will return APP_ERROR and report a fault.  
+* **Data Integrity Checks**: Checksums (or other error detection codes) will be used to verify data integrity upon reading. If data is corrupted, Nvm_Init will load defaults, and NVM_ReadParam will return E_NOK and report a fault.  
 * **Fault Reporting**: Upon detection of an error (invalid input, MCAL failure, data corruption), Nvm will report a specific fault ID (e.g., NVM_INIT_FAILURE, NVM_READ_FAILURE, NVM_WRITE_FAILURE, NVM_DATA_CORRUPTED) to SystemMonitor via the RTE service.  
 * **Power-Loss Robustness**: Write operations should be designed to be atomic or use techniques (e.g., write-erase-verify cycles, redundant writes) to ensure data integrity even if power is lost during the write process. This is largely dependent on the underlying MCAL_FLASH implementation.  
-* **Return Status**: All public API functions will return APP_ERROR on failure.
+* **Return Status**: All public API functions will return E_NOK on failure.
 
 ### **5.6. Configuration**
 

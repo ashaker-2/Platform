@@ -1,7 +1,7 @@
 #ifndef TEMPCTRL_H
 #define TEMPCTRL_H
 
-#include "app_common.h"
+#include "common.h"
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -21,9 +21,9 @@
  * All module-internal variables and sensor data storage are initialized to a safe,
  * known state (e.g., zeroes or NaN).
  *
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-APP_Status_t TempCtrl_Init(void);
+Status_t TempCtrl_Init(void);
 
 /**
  * @brief Gets the last successfully read and stored temperature value for a specific sensor.
@@ -33,10 +33,14 @@ APP_Status_t TempCtrl_Init(void);
  *
  * @param sensorId The unique ID of the sensor to retrieve data from.
  * @param temperature_c Pointer to store the latest temperature value in Celsius.
- * @return APP_OK on successful retrieval, APP_ERROR if the sensorId is invalid,
+ * @return E_OK on successful retrieval, E_NOK if the sensorId is invalid,
  * the pointer is NULL, or no valid data is available for that sensor.
  */
-APP_Status_t TempCtrl_GetSensorTemp(uint32_t sensorId, float *temperature_c);
+Status_t TempCtrl_GetSensorTemp(uint32_t sensorId, float *temperature_c);
+
+
+
+Status_t TempCtrl_GetAvgTemp(uint32_t * pu32AverageTemp);
 
 // --- Internal Periodic Runnable Prototype (called by RTE) ---
 

@@ -14,7 +14,7 @@ const LightCtrl_Config_t light_configs[LightCtrl_COUNT] = {
         .id = LIGHT_ID_STATUS,
         .type = LightCtrl_TYPE_RELAY,
         .control_details.relay = {
-            .relay_gpio_pin = MCAL_GPIO_PIN_21
+            .relay_gpio_pin = 21
         },
         .feedback_type = LightCtrl_FEEDBACK_TYPE_NONE
     },
@@ -22,11 +22,11 @@ const LightCtrl_Config_t light_configs[LightCtrl_COUNT] = {
         .id = LIGHT_ID_CABINET,
         .type = LightCtrl_TYPE_PWM,
         .control_details.pwm = {
-            .pwm_channel = MCAL_PWM_CHANNEL_2
+            .pwm_channel = 2
         },
         .feedback_type = LightCtrl_FEEDBACK_TYPE_CURRENT_SENSOR,
         .feedback_details.analog_adc = {
-            .adc_channel = MCAL_ADC_CHANNEL_4,
+            .adc_channel = 3,
             .voltage_to_brightness_slope = 30.0f, // Example value
             .voltage_to_brightness_offset = 0.0f
         }
@@ -35,7 +35,7 @@ const LightCtrl_Config_t light_configs[LightCtrl_COUNT] = {
         .id = LIGHT_ID_READING,
         .type = LightCtrl_TYPE_PWM,
         .control_details.pwm = {
-            .pwm_channel = MCAL_PWM_CHANNEL_3
+            .pwm_channel = 3
         },
         .feedback_type = LightCtrl_FEEDBACK_TYPE_NONE
     }

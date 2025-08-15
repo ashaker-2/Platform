@@ -63,7 +63,7 @@ The Logger component will consist of the following files:
 
 // In Application/logger/inc/logger.h
 ```c
-#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h>   // For uint32_t  
 #include <stdarg.h>   // For va_list
 
@@ -81,7 +81,7 @@ typedef enum {
 /**  
  * @brief Initializes the Logger module and its underlying output mechanism.  
  * This function should be called very early in system startup.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t LOGGER_Init(void);
 
@@ -129,16 +129,16 @@ The Logger module will use a combination of a global log level, a mutex for thre
    ```
    * LOGGER_Init() will initialize these variables and create the mutex.  
 2. **Initialization (LOGGER_Init)**:  
-   * Create s_logger_mutex using xSemaphoreCreateMutex(). If creation fails, return APP_ERROR immediately (as logging won't be possible).  
+   * Create s_logger_mutex using xSemaphoreCreateMutex(). If creation fails, return E_NOK immediately (as logging won't be possible).  
    * Acquire mutex.  
    * Initialize the underlying output interface. This could be:  
      * HAL_UART_Init(LOGGER_UART_PORT, LOGGER_UART_BAUD_RATE); (if using HAL_UART)  
      * Or directly MCAL_UART_Init(LOGGER_UART_PORT, LOGGER_UART_BAUD_RATE); (if no HAL_UART exists yet for logging).  
-   * If output interface initialization fails, release mutex, set s_is_initialized = false;, and return APP_ERROR.  
+   * If output interface initialization fails, release mutex, set s_is_initialized = false;, and return E_NOK.  
    * Set s_global_log_level = LOGGER_DEFAULT_LOG_LEVEL; (from config).  
    * Release mutex.  
    * Set s_is_initialized = true;.  
-   * Return APP_OK.  
+   * Return E_OK.  
 3. **Set Global Log Level (LOGGER_SetGlobalLevel)**:  
    * Acquire s_logger_mutex.  
    * Validate level (ensure it's within LOG_LEVEL_NONE to LOG_LEVEL_VERBOSE).  
@@ -175,19 +175,19 @@ sequenceDiagram
     Logger->>Logger: Get task name (pcTaskGetName)  
     Logger->>Logger: Format message into s_log_buffer (snprintf)  
     Logger->>HAL_UART: HAL_UART_Transmit(LOGGER_UART_PORT, s_log_buffer, strlen(s_log_buffer))  
-    alt HAL_UART_Transmit returns APP_ERROR  
-        HAL_UART--xLogger: Return APP_ERROR  
+    alt HAL_UART_Transmit returns E_NOK  
+        HAL_UART--xLogger: Return E_NOK  
         Logger->>Logger: (Internal error handling, e.g., increment error counter)  
         Note over Logger: Avoid direct SystemMonitor call to prevent deadlock  
-    else HAL_UART_Transmit returns APP_OK  
-        HAL_UART-->>Logger: Return APP_OK  
+    else HAL_UART_Transmit returns E_OK  
+        HAL_UART-->>Logger: Return E_OK  
     end  
     Logger->>FreeRTOS: xSemaphoreGive(s_logger_mutex)  
     Logger-->>AppModule: Return (from macro, if applicable)
 ```
 ### **5.4. Dependencies**
 
-* Application/common/inc/app_common.h: For APP_Status_t, APP_OK/APP_ERROR, and APP_COMMON_GetUptimeMs().  
+* Application/common/inc/common.h: For APP_Status_t, E_OK/E_NOK, and APP_COMMON_GetUptimeMs().  
 * HAL/inc/hal_uart.h (or Mcal/uart/inc/mcal_uart.h): For the underlying UART output.  
 * freertos/FreeRTOS.h, freertos/task.h, freertos/semphr.h: For mutex and task name retrieval.  
 * stdarg.h, stdio.h, string.h: For vsnprintf, strlen.  
@@ -195,7 +195,7 @@ sequenceDiagram
 
 ### **5.5. Error Handling**
 
-* **Initialization Failure**: If xSemaphoreCreateMutex() or the underlying UART initialization fails, LOGGER_Init() returns APP_ERROR. Subsequent LOGGER_Log calls will immediately return if s_is_initialized is false.  
+* **Initialization Failure**: If xSemaphoreCreateMutex() or the underlying UART initialization fails, LOGGER_Init() returns E_NOK. Subsequent LOGGER_Log calls will immediately return if s_is_initialized is false.  
 * **Thread Safety**: A FreeRTOS mutex (s_logger_mutex) protects the shared log buffer and the output interface to prevent corruption from concurrent access.  
 * **Output Failures**: If the underlying HAL_UART_Transmit (or MCAL_UART_Transmit) fails, LOGGER_Log will not attempt to report this to SystemMonitor directly to avoid circular dependencies or potential deadlocks. Instead, it might increment an internal error counter or attempt a very basic, unbuffered raw output if a fallback is available. The primary goal is to ensure Logger itself doesn't cause system instability.  
 * **Buffer Overflow**: snprintf is used to prevent buffer overflows, truncating messages if they exceed LOGGER_MAX_LOG_MESSAGE_SIZE.  

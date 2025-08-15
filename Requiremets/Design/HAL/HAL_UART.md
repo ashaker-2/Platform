@@ -110,7 +110,7 @@ typedef void (*HAL_UART_TxCallback_t)(HAL_UART_PortId_t port_id);
 /**
  * @brief Initializes all configured UART peripherals based on the predefined array.
  * This function should be called once during system initialization.
- * @return APP_OK on success, APP_ERROR if any UART fails to initialize.
+ * @return E_OK on success, E_NOK if any UART fails to initialize.
  */
 APP_Status_t HAL_UART_Init(void);
 
@@ -119,7 +119,7 @@ APP_Status_t HAL_UART_Init(void);
  * @param port_id The ID of the UART port to use.
  * @param data Pointer to the data to transmit.
  * @param length The number of bytes to transmit.
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
 APP_Status_t HAL_UART_Transmit(HAL_UART_PortId_t port_id, const uint8_t *data, uint16_t length);
 
@@ -131,7 +131,7 @@ APP_Status_t HAL_UART_Transmit(HAL_UART_PortId_t port_id, const uint8_t *data, u
  * @param buffer_size The maximum number of bytes to read into the buffer.
  * @param timeout_ms Timeout in milliseconds.
  * @param bytes_read Pointer to store the actual number of bytes read.
- * @return APP_OK on success, APP_ERROR on timeout or other failure.
+ * @return E_OK on success, E_NOK on timeout or other failure.
  */
 APP_Status_t HAL_UART_Receive(HAL_UART_PortId_t port_id, uint8_t *buffer, uint16_t buffer_size,
                               uint32_t timeout_ms, uint16_t *bytes_read);
@@ -140,7 +140,7 @@ APP_Status_t HAL_UART_Receive(HAL_UART_PortId_t port_id, uint8_t *buffer, uint16
  * @brief Registers a callback function for UART receive events.
  * @param port_id The ID of the UART port.
  * @param callback The function to call when receive events occur.
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
 APP_Status_t HAL_UART_RegisterRxCallback(HAL_UART_PortId_t port_id, HAL_UART_RxCallback_t callback);
 
@@ -148,21 +148,21 @@ APP_Status_t HAL_UART_RegisterRxCallback(HAL_UART_PortId_t port_id, HAL_UART_RxC
  * @brief Registers a callback function for UART transmit events.
  * @param port_id The ID of the UART port.
  * @param callback The function to call when transmit events occur.
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
 APP_Status_t HAL_UART_RegisterTxCallback(HAL_UART_PortId_t port_id, HAL_UART_TxCallback_t callback);
 
 /**
  * @brief Enables UART interrupts for a specific port.
  * @param port_id The ID of the UART port.
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
 APP_Status_t HAL_UART_EnableInterrupts(HAL_UART_PortId_t port_id);
 
 /**
  * @brief Disables UART interrupts for a specific port.
  * @param port_id The ID of the UART port.
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
 APP_Status_t HAL_UART_DisableInterrupts(HAL_UART_PortId_t port_id);
 ```
@@ -177,7 +177,7 @@ APP_Status_t HAL_UART_DisableInterrupts(HAL_UART_PortId_t port_id);
 - Reports `HAL_UART_INIT_FAILURE` to SystemMonitor if init fails.
 - Continues initializing remaining ports.
 - Registers ISR handlers if required.
-- Returns `APP_OK` if all ports succeed, else `APP_ERROR`.
+- Returns `E_OK` if all ports succeed, else `E_NOK`.
 
 #### Transmission (`HAL_UART_Transmit`)
 - Validates parameters.
@@ -225,11 +225,11 @@ sequenceDiagram
     HAL_UART->>MCAL_UART: MCAL_UART_Transmit(port_id, data, length)
     alt Success
         MCAL_UART-->>HAL_UART: Return OK
-        HAL_UART-->>App: Return APP_OK
+        HAL_UART-->>App: Return E_OK
     else Failure
         MCAL_UART--xHAL_UART: Return Error
         HAL_UART->>SystemMonitor: Report HAL_UART_TX_FAILURE
-        HAL_UART--xApp: Return APP_ERROR
+        HAL_UART--xApp: Return E_NOK
     end
 ```
 
@@ -246,8 +246,8 @@ The `HAL_UART` module depends on the following components and headers:
 - **`Rte/inc/Rte.h`**  
   Provides access to the RTE service interface, particularly `RTE_Service_SystemMonitor_ReportFault()` for reporting communication or hardware faults detected in the HAL layer.
 
-- **`Application/common/inc/app_common.h`**  
-  Defines common data types used across the application, such as `APP_Status_t`, `APP_OK`, and `APP_ERROR`.
+- **`Application/common/inc/common.h`**  
+  Defines common data types used across the application, such as `APP_Status_t`, `E_OK`, and `E_NOK`.
 
 - **`HAL/cfg/hal_uart_cfg.h`**  
   Contains static configuration for UART peripherals, including:
@@ -276,7 +276,7 @@ The `HAL_UART` module depends on the following components and headers:
   - `HAL_UART_INTERRUPT_FAILURE`
 
 - **Return Status**  
-  All public APIs return `APP_ERROR` on failure. `HAL_UART_Init` returns `APP_ERROR` if any port fails to initialize.
+  All public APIs return `E_NOK` on failure. `HAL_UART_Init` returns `E_NOK` if any port fails to initialize.
 
 ---
 
@@ -323,7 +323,7 @@ Unit tests will use mocked `MCAL_UART` functions to isolate and verify `HAL_UART
 - **`HAL_UART_Init`**  
   - Validate full initialization with a valid config array.
   - Simulate MCAL failures and verify:
-    - `APP_ERROR` return
+    - `E_NOK` return
     - Fault reported via `SystemMonitor`.
 
 - **`HAL_UART_Transmit`**  

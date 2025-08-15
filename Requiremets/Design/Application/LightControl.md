@@ -69,7 +69,7 @@ The LightCtrl component will consist of the following files:
 
 // In Application/lightControl/inc/lightctrl.h
 ```c
-#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h> // For uint32_t  
 #include <stdbool.h> // For bool
 
@@ -89,7 +89,7 @@ typedef enum {
  * @brief Initializes the LightCtrl module and all configured light control hardware.  
  * All module-internal variables and light states are initialized to a safe,  
  * known state (e.g., OFF or 0% brightness).  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t LightCtrl_Init(void);
 
@@ -101,7 +101,7 @@ APP_Status_t LightCtrl_Init(void);
  * @param state The desired state (LightCtrl_STATE_ON or LightCtrl_STATE_OFF).  
  * @param brightness_percent For PWM lights: desired brightness in percentage (0-100).  
  * For relay lights: this parameter is ignored.  
- * @return APP_OK on successful command update, APP_ERROR if the actuatorId is invalid  
+ * @return E_OK on successful command update, E_NOK if the actuatorId is invalid  
  * or the state/brightness_percent is out of range.  
  */  
 APP_Status_t LightCtrl_SetState(uint32_t actuatorId, LightCtrl_State_t state, uint8_t brightness_percent);
@@ -112,7 +112,7 @@ APP_Status_t LightCtrl_SetState(uint32_t actuatorId, LightCtrl_State_t state, ui
  * @param actuatorId The unique ID of the light to retrieve data from.  
  * @param state Pointer to store the current ON/OFF state.  
  * @param brightness_percent Pointer to store the current brightness in percentage (0-100), relevant for PWM.  
- * @return APP_OK on successful retrieval, APP_ERROR if the actuatorId is invalid,  
+ * @return E_OK on successful retrieval, E_NOK if the actuatorId is invalid,  
  * or any pointer is NULL.  
  */  
 APP_Status_t LightCtrl_GetState(uint32_t actuatorId, LightCtrl_State_t *state, uint8_t *brightness_percent);
@@ -160,16 +160,16 @@ The LightCtrl module will manage its own light control cycle for multiple lights
          * If LightCtrl_FEEDBACK_TYPE_LIGHT_SENSOR: Call MCAL_ADC_Init() for the light_config.feedback_adc_channel.  
        * If any underlying MCAL/HAL initialization fails, report FAULT_ID_LightCtrl_INIT_FAILED to SystemMonitor with light_config.id as data. Log an error.  
    * s_is_initialized = true; on overall success.  
-   * Return APP_OK.  
+   * Return E_OK.  
 3. **Set Commanded State/Brightness (LightCtrl_SetState)**:  
-   * If !s_is_initialized, return APP_ERROR and log a warning.  
-   * Validate actuatorId. If actuatorId >= LightCtrl_COUNT, return APP_ERROR and log a warning.  
-   * Validate state (ON/OFF). If invalid, return APP_ERROR.  
-   * Validate brightness_percent (0-100). If out of range, clamp or return APP_ERROR.  
+   * If !s_is_initialized, return E_NOK and log a warning.  
+   * Validate actuatorId. If actuatorId >= LightCtrl_COUNT, return E_NOK and log a warning.  
+   * Validate state (ON/OFF). If invalid, return E_NOK.  
+   * Validate brightness_percent (0-100). If out of range, clamp or return E_NOK.  
    * Update s_commanded_states[actuatorId] = state;.  
    * Update s_commanded_brightness_percent[actuatorId] = brightness_percent;.  
    * Log LOGD("LightCtrl %d commanded to %s, brightness %d%%", actuatorId, (state == LightCtrl_STATE_ON) ? "ON" : "OFF", brightness_percent);  
-   * Return APP_OK.  
+   * Return E_OK.  
 4. **Periodic Control & Feedback (LightCtrl_MainFunction)**:  
    * This function is called periodically by a generic RTE task (e.g., RTE_PeriodicTask_MediumPrio_100ms).  
    * If !s_is_initialized, return immediately.  
@@ -193,11 +193,11 @@ The LightCtrl module will manage its own light control cycle for multiple lights
            * **Feedback Validation**: Compare s_actual_brightness_percent[light_config.id] with s_commanded_brightness_percent[light_config.id] (if PWM) or s_actual_states[light_config.id] with s_commanded_states[light_config.id]. If there's a significant deviation or unexpected state, report FAULT_ID_LightCtrl_FEEDBACK_MISMATCH to SystemMonitor with light_config.id as data (severity MEDIUM).  
        * If any MCAL/HAL call fails during control, report FAULT_ID_LightCtrl_CONTROL_FAILED to SystemMonitor with light_config.id as data (severity HIGH). Log an error.  
 5. **Get Current State/Brightness (LightCtrl_GetState)**:  
-   * Validate pointers (state, brightness_percent). If NULL, return APP_ERROR and log a warning.  
-   * Validate actuatorId. If actuatorId >= LightCtrl_COUNT, return APP_ERROR and log a warning.  
+   * Validate pointers (state, brightness_percent). If NULL, return E_NOK and log a warning.  
+   * Validate actuatorId. If actuatorId >= LightCtrl_COUNT, return E_NOK and log a warning.  
    * Copy s_actual_states[actuatorId] to *state.  
    * Copy s_actual_brightness_percent[actuatorId] to *brightness_percent.  
-   * Return APP_OK.
+   * Return E_OK.
 
 **Sequence Diagram (Example: systemMgr commands light state, LightCtrl applies it):**
 ```mermaid
@@ -215,22 +215,22 @@ sequenceDiagram
     LightCtrl->>LightCtrl: Update s_commanded_states[LIGHT_ID_ROOM_MAIN] = ON  
     LightCtrl->>LightCtrl: Update s_commanded_brightness_percent[LIGHT_ID_ROOM_MAIN] = 70  
     LightCtrl->>Logger: LOGD("LightCtrl %d commanded to ON, brightness 70%%", LIGHT_ID_ROOM_MAIN)  
-    LightCtrl-->>RTE: Return APP_OK  
-    RTE-->>SystemMgr: Return APP_OK
+    LightCtrl-->>RTE: Return E_OK  
+    RTE-->>SystemMgr: Return E_OK
 
     Note over RTE: (Later, RTE's periodic task runs)  
     RTE->>LightCtrl: LightCtrl_MainFunction()  
     LightCtrl->>LightCtrl: Retrieve commanded state/brightness for LIGHT_ID_ROOM_MAIN (ON, 70%)  
     alt Light is PWM type  
         LightCtrl->>MCAL_PWM: MCAL_PWM_SetDutyCycle(PWM_CHANNEL_LIGHT_MAIN, 70)  
-        MCAL_PWM-->>LightCtrl: Return APP_OK  
+        MCAL_PWM-->>LightCtrl: Return E_OK  
     else Light is Relay type  
         LightCtrl->>MCAL_GPIO: MCAL_GPIO_WritePin(GPIO_PIN_LIGHT_RELAY, GPIO_STATE_HIGH)  
-        MCAL_GPIO-->>LightCtrl: Return APP_OK  
+        MCAL_GPIO-->>LightCtrl: Return E_OK  
     end  
     alt MCAL control fails  
         LightCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_LightCtrl_CONTROL_FAILED, SEVERITY_HIGH, LIGHT_ID_ROOM_MAIN)  
-        SystemMonitor-->>LightCtrl: Return APP_OK  
+        SystemMonitor-->>LightCtrl: Return E_OK  
     end  
     Note over LightCtrl: (Optional: Read feedback, update s_actual_brightness_percent/s_actual_states)  
     RTE-->>LightCtrl: (Return from LightCtrl_MainFunction)
@@ -239,12 +239,12 @@ sequenceDiagram
     SystemMgr->>RTE: RTE_Service_LIGHT_GetState(LIGHT_ID_ROOM_MAIN, &current_state, &current_brightness)  
     RTE->>LightCtrl: LightCtrl_GetState(LIGHT_ID_ROOM_MAIN, &current_state, &current_brightness)  
     LightCtrl->>LightCtrl: Retrieve s_actual_states[LIGHT_ID_ROOM_MAIN] and s_actual_brightness_percent[LIGHT_ID_ROOM_MAIN]  
-    LightCtrl-->>RTE: Return APP_OK (current_state=ON, current_brightness=70)  
-    RTE-->>SystemMgr: Return APP_OK
+    LightCtrl-->>RTE: Return E_OK (current_state=ON, current_brightness=70)  
+    RTE-->>SystemMgr: Return E_OK
 ```
 ### **5.4. Dependencies**
 
-* Application/common/inc/app_common.h: For APP_Status_t.  
+* Application/common/inc/common.h: For APP_Status_t.  
 * Application/logger/inc/logger.h: For logging errors and warnings.  
 * Application/SystemMonitor/inc/system_monitor.h: For SystemMonitor_FaultId_t (e.g., FAULT_ID_LightCtrl_INIT_FAILED, FAULT_ID_LightCtrl_CONTROL_FAILED, FAULT_ID_LightCtrl_FEEDBACK_MISMATCH).  
 * Rte/inc/Rte.h: For calling RTE_Service_SystemMonitor_ReportFault().  

@@ -70,7 +70,7 @@ The FanCtrl component will consist of the following files:
 
 // In Application/fan/inc/fanctrl.h
 ```c
-#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h> // For uint32_t  
 #include <stdbool.h> // For bool
 
@@ -91,7 +91,7 @@ typedef enum {
  * @brief Initializes the FanCtrl module and all configured fan control hardware.  
  * All module-internal variables and fan states are initialized to a safe,  
  * known state (e.g., OFF or 0% speed).  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t FanCtrl_Init(void);
 
@@ -102,7 +102,7 @@ APP_Status_t FanCtrl_Init(void);
  * @param actuatorId The unique ID of the fan to control.  
  * @param speed_percent For PWM fans: desired speed in percentage (0-100).  
  * For relay fans: interpreted as ON (if > 0) or OFF (if 0).  
- * @return APP_OK on successful command update, APP_ERROR if the actuatorId is invalid  
+ * @return E_OK on successful command update, E_NOK if the actuatorId is invalid  
  * or the speed_percent is out of range.  
  */  
 APP_Status_t FanCtrl_SetSpeed(uint32_t actuatorId, uint8_t speed_percent);
@@ -113,7 +113,7 @@ APP_Status_t FanCtrl_SetSpeed(uint32_t actuatorId, uint8_t speed_percent);
  * @param actuatorId The unique ID of the fan to retrieve data from.  
  * @param speed_percent Pointer to store the current speed in percentage (0-100).  
  * @param state Pointer to store the current ON/OFF state.  
- * @return APP_OK on successful retrieval, APP_ERROR if the actuatorId is invalid,  
+ * @return E_OK on successful retrieval, E_NOK if the actuatorId is invalid,  
  * or any pointer is NULL.  
  */  
 APP_Status_t FanCtrl_GetSpeed(uint32_t actuatorId, uint8_t *speed_percent, FanCtrl_State_t *state);
@@ -158,14 +158,14 @@ The FanCtrl module will manage its own fan control cycle for multiple fans.
          * If FANCTRL_FEEDBACK_TYPE_ANALOG_ADC: Call MCAL_ADC_Init() for the fan_config.feedback_adc_channel.  
        * If any underlying MCAL/HAL initialization fails, report FAULT_ID_FANCTRL_INIT_FAILED to SystemMonitor with fan_config.id as data. Log an error.  
    * s_is_initialized = true; on overall success.  
-   * Return APP_OK.  
+   * Return E_OK.  
 3. **Set Commanded Speed/State (FANCTRL_SetSpeed)**:  
-   * If !s_is_initialized, return APP_ERROR and log a warning.  
-   * Validate actuatorId. If actuatorId >= FANCTRL_COUNT, return APP_ERROR and log a warning.  
-   * Validate speed_percent (0-100). If out of range, clamp or return APP_ERROR.  
+   * If !s_is_initialized, return E_NOK and log a warning.  
+   * Validate actuatorId. If actuatorId >= FANCTRL_COUNT, return E_NOK and log a warning.  
+   * Validate speed_percent (0-100). If out of range, clamp or return E_NOK.  
    * Update s_commanded_speeds_percent[actuatorId] = speed_percent;.  
    * Log LOGD("FanCtrl %d commanded to %d%%", actuatorId, speed_percent);  
-   * Return APP_OK.  
+   * Return E_OK.  
 4. **Periodic Control & Feedback (FANCTRL_MainFunction)**:  
    * This function is called periodically by a generic RTE task (e.g., RTE_PeriodicTask_HighPrio_100ms).  
    * If !s_is_initialized, return immediately.  
@@ -185,11 +185,11 @@ The FanCtrl module will manage its own fan control cycle for multiple fans.
            * **Feedback Validation**: Compare s_actual_speeds_percent[fan_config.id] with s_commanded_speeds_percent[fan_config.id]. If there's a significant deviation or unexpected state (e.g., commanded ON but actual OFF), report FAULT_ID_FANCTRL_FEEDBACK_MISMATCH to SystemMonitor with fan_config.id as data (severity MEDIUM).  
        * If any MCAL/HAL call fails during control, report FAULT_ID_FANCTRL_CONTROL_FAILED to SystemMonitor with fan_config.id as data (severity HIGH). Log an error.  
 5. **Get Current Speed/State (FANCTRL_GetSpeed)**:  
-   * Validate pointers (speed_percent, state). If NULL, return APP_ERROR and log a warning.  
-   * Validate actuatorId. If actuatorId >= FANCTRL_COUNT, return APP_ERROR and log a warning.  
+   * Validate pointers (speed_percent, state). If NULL, return E_NOK and log a warning.  
+   * Validate actuatorId. If actuatorId >= FANCTRL_COUNT, return E_NOK and log a warning.  
    * Copy s_actual_speeds_percent[actuatorId] to *speed_percent.  
    * Copy s_actual_states[actuatorId] to *state.  
-   * Return APP_OK.
+   * Return E_OK.
 
 **Sequence Diagram (Example: systemMgr commands fan speed, FanCtrl applies it):**
 ```mermaid
@@ -205,17 +205,17 @@ sequenceDiagram
     RTE->>FanCtrl: FANCTRL_SetSpeed(FAN_ID_MAIN_EXHAUST, 75)  
     FanCtrl->>FanCtrl: Update s_commanded_speeds_percent[FAN_ID_MAIN_EXHAUST] = 75  
     FanCtrl->>Logger: LOGD("FanCtrl %d commanded to 75%%", FAN_ID_MAIN_EXHAUST)  
-    FanCtrl-->>RTE: Return APP_OK  
-    RTE-->>SystemMgr: Return APP_OK
+    FanCtrl-->>RTE: Return E_OK  
+    RTE-->>SystemMgr: Return E_OK
 
     Note over RTE: (Later, RTE's periodic task runs)  
     RTE->>FanCtrl: FANCTRL_MainFunction()  
     FanCtrl->>FanCtrl: Retrieve commanded speed for FAN_ID_MAIN_EXHAUST (75%)  
     FanCtrl->>MCAL_PWM: MCAL_PWM_SetDutyCycle(PWM_CHANNEL_FAN_EXHAUST, 75)  
-    MCAL_PWM-->>FanCtrl: Return APP_OK  
+    MCAL_PWM-->>FanCtrl: Return E_OK  
     alt MCAL_PWM_SetDutyCycle fails  
         FanCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_FANCTRL_CONTROL_FAILED, SEVERITY_HIGH, FAN_ID_MAIN_EXHAUST)  
-        SystemMonitor-->>FanCtrl: Return APP_OK  
+        SystemMonitor-->>FanCtrl: Return E_OK  
     end  
     Note over FanCtrl: (Optional: Read feedback, update s_actual_speeds_percent/s_actual_states)  
     RTE-->>FanCtrl: (Return from FANCTRL_MainFunction)
@@ -224,12 +224,12 @@ sequenceDiagram
     SystemMgr->>RTE: RTE_Service_FAN_GetSpeed(FAN_ID_MAIN_EXHAUST, &current_speed, &current_state)  
     RTE->>FanCtrl: FANCTRL_GetSpeed(FAN_ID_MAIN_EXHAUST, &current_speed, &current_state)  
     FanCtrl->>FanCtrl: Retrieve s_actual_speeds_percent[FAN_ID_MAIN_EXHAUST] and s_actual_states[FAN_ID_MAIN_EXHAUST]  
-    FanCtrl-->>RTE: Return APP_OK (current_speed=75, current_state=ON)  
-    RTE-->>SystemMgr: Return APP_OK
+    FanCtrl-->>RTE: Return E_OK (current_speed=75, current_state=ON)  
+    RTE-->>SystemMgr: Return E_OK
 ```
 ### **5.4. Dependencies**
 
-* Application/common/inc/app_common.h: For APP_Status_t.  
+* Application/common/inc/common.h: For APP_Status_t.  
 * Application/logger/inc/logger.h: For logging errors and warnings.  
 * Application/SystemMonitor/inc/system_monitor.h: For SystemMonitor_FaultId_t (e.g., FAULT_ID_FANCTRL_INIT_FAILED, FAULT_ID_FANCTRL_CONTROL_FAILED, FAULT_ID_FANCTRL_FEEDBACK_MISMATCH).  
 * Rte/inc/Rte.h: For calling RTE_Service_SystemMonitor_ReportFault().  

@@ -1,10 +1,10 @@
 #ifndef PUMPCTRL_CFG_H
 #define PUMPCTRL_CFG_H
 
-#include "app_common.h"
+#include "common.h"
 #include "system_monitor.h" // For fault IDs
-#include "mcal_gpio.h"
-#include "mcal_adc.h"
+#include "hal_gpio.h"
+#include "hal_adc.h"
 #include <stdint.h>
 
 /**

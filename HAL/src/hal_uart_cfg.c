@@ -41,7 +41,7 @@ const HAL_UART_ChannelConfig_t g_hal_uart_channel_configs[HAL_UART_CHANNEL_MAX] 
         .flow_control_enable = false,
         .rx_buffer_size    = 256,   // Example: 256 bytes RX buffer
         .tx_buffer_size    = 128,   // Example: 128 bytes TX buffer
-        .rx_callback       = NULL   // No specific callback for UART0 in this example
+        // .rx_callback       = NULL   // No specific callback for UART0 in this example
         // .tx_pin = GPIO_NUM_1, // Example GPIO pin, uncomment if HAL handles pinmux
         // .rx_pin = GPIO_NUM_3,
     },
@@ -56,7 +56,7 @@ const HAL_UART_ChannelConfig_t g_hal_uart_channel_configs[HAL_UART_CHANNEL_MAX] 
         .flow_control_enable = false,
         .rx_buffer_size    = 128,
         .tx_buffer_size    = 64,
-        .rx_callback       = NULL   // No specific callback for UART1 in this example
+        // .rx_callback       = NULL   // No specific callback for UART1 in this example
         // .tx_pin = GPIO_NUM_10,
         // .rx_pin = GPIO_NUM_9,
     },
@@ -71,7 +71,7 @@ const HAL_UART_ChannelConfig_t g_hal_uart_channel_configs[HAL_UART_CHANNEL_MAX] 
         .flow_control_enable = true, // Enable hardware flow control
         .rx_buffer_size    = 512,
         .tx_buffer_size    = 256,
-        .rx_callback       = NULL   // No specific callback for UART2 in this example
+        // .rx_callback       = NULL   // No specific callback for UART2 in this example
         // .tx_pin = GPIO_NUM_17,
         // .rx_pin = GPIO_NUM_16,
         // .rts_pin = GPIO_NUM_18,

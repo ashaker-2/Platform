@@ -1,7 +1,7 @@
 #ifndef SYS_MGR_CFG_H
 #define SYS_MGR_CFG_H
 
-#include "app_common.h"
+#include "common.h"
 #include "system_monitor.h" // For fault IDs
 #include <stdint.h>
 

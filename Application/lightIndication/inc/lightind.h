@@ -1,7 +1,7 @@
 #ifndef LIGHTIND_H
 #define LIGHTIND_H
 
-#include "app_common.h"
+#include "common.h"
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -27,32 +27,32 @@ typedef enum
 /**
  * @brief Initializes the LightInd module and all configured indicator hardware.
  * All indicators are set to a safe, known state (e.g., OFF).
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-APP_Status_t LightInd_Init(void);
+Status_t LightInd_Init(void);
 
 /**
  * @brief Turns a specific light indicator ON.
  * @param indicatorId The unique ID of the indicator to control.
- * @return APP_OK on success, APP_ERROR on failure (e.g., invalid ID).
+ * @return E_OK on success, E_NOK on failure (e.g., invalid ID).
  */
-APP_Status_t LightInd_On(uint32_t indicatorId);
+Status_t LightInd_On(uint32_t indicatorId);
 
 /**
  * @brief Turns a specific light indicator OFF.
  * @param indicatorId The unique ID of the indicator to control.
- * @return APP_OK on success, APP_ERROR on failure (e.g., invalid ID).
+ * @return E_OK on success, E_NOK on failure (e.g., invalid ID).
  */
-APP_Status_t LightInd_Off(uint32_t indicatorId);
+Status_t LightInd_Off(uint32_t indicatorId);
 
 /**
  * @brief Sets a specific light indicator to a blinking state.
  * @param indicatorId The unique ID of the indicator to control.
  * @param on_time_ms The duration of the 'ON' phase in milliseconds.
  * @param off_time_ms The duration of the 'OFF' phase in milliseconds.
- * @return APP_OK on success, APP_ERROR on failure (e.g., invalid ID).
+ * @return E_OK on success, E_NOK on failure (e.g., invalid ID).
  */
-APP_Status_t LightInd_Blink(uint32_t indicatorId, uint32_t on_time_ms, uint32_t off_time_ms);
+Status_t LightInd_Blink(uint32_t indicatorId, uint32_t on_time_ms, uint32_t off_time_ms);
 
 // --- Internal Periodic Runnable Prototype (called by RTE) ---
 /**

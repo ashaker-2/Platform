@@ -117,7 +117,7 @@ typedef struct {
  * @brief Initializes the ADC peripheral and all configured channels.
  * This function should be called once during system initialization.
  * It iterates through the `hal_adc_initial_config` array.
- * @return APP_OK on success, APP_ERROR if any part of initialization fails.
+ * @return E_OK on success, E_NOK if any part of initialization fails.
  */
 APP_Status_t HAL_ADC_Init(void);
 
@@ -126,14 +126,14 @@ APP_Status_t HAL_ADC_Init(void);
  * @param unit The ADC unit to use.
  * @param channel The ADC channel to read.
  * @param raw_value Pointer to store the raw digital value.
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
 APP_Status_t HAL_ADC_ReadChannel(HAL_ADC_Unit_t unit, HAL_ADC_Channel_t channel, uint32_t *raw_value);
 
 /**
  * @brief Performs calibration for a specific ADC unit (if supported by MCAL).
  * @param unit The ADC unit to calibrate.
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
 APP_Status_t HAL_ADC_Calibrate(HAL_ADC_Unit_t unit);
 
@@ -143,7 +143,7 @@ The `HAL_ADC` module will primarily act as a wrapper around the `MCAL_ADC` funct
 
 1.  **Initialization (`HAL_ADC_Init`)**:
 
-    * This function will **first initialize the global ADC peripheral settings** (e.g., resolution) by calling `MCAL_ADC_Init(mcal_resolution)`. If this fails, it reports `HAL_ADC_DRIVER_FAILURE` and returns `APP_ERROR`.
+    * This function will **first initialize the global ADC peripheral settings** (e.g., resolution) by calling `MCAL_ADC_Init(mcal_resolution)`. If this fails, it reports `HAL_ADC_DRIVER_FAILURE` and returns `E_NOK`.
 
     * It will then **loop through the `hal_adc_initial_config` array** defined in `HAL/cfg/hal_adc_cfg.h`.
 
@@ -155,9 +155,9 @@ The `HAL_ADC` module will primarily act as a wrapper around the `MCAL_ADC` funct
 
         * Call `MCAL_ADC_ConfigChannel(mcal_unit, mcal_channel, mcal_attenuation)`.
 
-        * If `MCAL_ADC_ConfigChannel` returns an error for *any* channel, report `HAL_ADC_CONFIG_FAILURE` to `SystemMonitor`. The function should continue to attempt to initialize remaining channels but will ultimately return `APP_ERROR` if any configuration fails.
+        * If `MCAL_ADC_ConfigChannel` returns an error for *any* channel, report `HAL_ADC_CONFIG_FAILURE` to `SystemMonitor`. The function should continue to attempt to initialize remaining channels but will ultimately return `E_NOK` if any configuration fails.
 
-    * If all channels are initialized successfully, return `APP_OK`.
+    * If all channels are initialized successfully, return `E_OK`.
 
 2.  **Read Channel (`HAL_ADC_ReadChannel`)**:
 
@@ -192,12 +192,12 @@ sequenceDiagram
     alt MCAL_ADC_ReadChannel returns MCAL_ERROR
         MCAL_ADC--xHAL_ADC: Return MCAL_ERROR
         HAL_ADC->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_ADC_CONVERSION_ERROR, SEVERITY_LOW, ...)
-        HAL_ADC--xRTE: Return APP_ERROR
-        RTE--xApp: Return APP_ERROR
+        HAL_ADC--xRTE: Return E_NOK
+        RTE--xApp: Return E_NOK
     else MCAL_ADC_ReadChannel returns MCAL_OK
         MCAL_ADC-->>HAL_ADC: Return MCAL_OK
-        HAL_ADC-->>RTE: Return APP_OK
-        RTE-->>App: Return APP_OK
+        HAL_ADC-->>RTE: Return E_OK
+        RTE-->>App: Return E_OK
     end
 ```
 
@@ -209,7 +209,7 @@ sequenceDiagram
 
 * **`Rte/inc/Rte.h`**: For calling `RTE_Service_SystemMonitor_ReportFault()`.
 
-* **`Application/common/inc/app_common.h`**: For `APP_Status_t` and `APP_OK`/`APP_ERROR`.
+* **`Application/common/inc/common.h`**: For `APP_Status_t` and `E_OK`/`E_NOK`.
 
 * **`HAL/cfg/hal_adc_cfg.h`**: For the `hal_adc_initial_config` array and `HAL_ADC_ChannelConfig_t` structure.
 
@@ -221,7 +221,7 @@ sequenceDiagram
 
 * **Fault Reporting**: Upon detection of an error (invalid input, MCAL failure), `HAL_ADC` will report a specific fault ID (e.g., `HAL_ADC_DRIVER_FAILURE`, `HAL_ADC_CONFIG_FAILURE`, `HAL_ADC_CONVERSION_ERROR`, `HAL_ADC_CALIBRATION_FAILURE`) to `SystemMonitor` via the RTE service.
 
-* **Return Status**: All public API functions will return `APP_ERROR` on failure. `HAL_ADC_Init` will return `APP_ERROR` if *any* critical initialization step or channel configuration fails.
+* **Return Status**: All public API functions will return `E_NOK` on failure. `HAL_ADC_Init` will return `E_NOK` if *any* critical initialization step or channel configuration fails.
 
 ### 5.6. Configuration
 
@@ -266,7 +266,7 @@ extern const uint32_t hal_adc_initial_config_size;
 
 * **Test Cases**:
 
-    * `HAL_ADC_Init`: Test with a valid `hal_adc_initial_config` array. Verify `MCAL_ADC_Init` and `MCAL_ADC_ConfigChannel` calls. Test scenarios where MCAL calls fail (verify `APP_ERROR` return and `SystemMonitor` fault reporting).
+    * `HAL_ADC_Init`: Test with a valid `hal_adc_initial_config` array. Verify `MCAL_ADC_Init` and `MCAL_ADC_ConfigChannel` calls. Test scenarios where MCAL calls fail (verify `E_NOK` return and `SystemMonitor` fault reporting).
 
     * `HAL_ADC_ReadChannel`: Test valid/invalid unit/channel. Verify correct `MCAL_ADC_ReadChannel` calls and return values. Test error propagation from MCAL.
 
@@ -292,6 +292,6 @@ extern const uint32_t hal_adc_initial_config_size;
 
 * **Power Modes**: Ensure ADC behaves correctly during power mode transitions (e.g., low-power states, re-initialization on wake-up).
 
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
 APP_Status_t HAL_ADC_Calibrate(HAL_ADC_Unit_t unit);

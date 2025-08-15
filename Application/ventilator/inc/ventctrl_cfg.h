@@ -1,11 +1,11 @@
 #ifndef VENTCTRL_CFG_H
 #define VENTCTRL_CFG_H
 
-#include "app_common.h"
+#include "common.h"
 #include "system_monitor.h" // For fault IDs
-#include "mcal_gpio.h"
-#include "mcal_pwm.h"
-#include "mcal_adc.h"
+#include "hal_gpio.h"
+#include "hal_pwm.h"
+#include "hal_adc.h"
 #include <stdint.h>
 
 /**

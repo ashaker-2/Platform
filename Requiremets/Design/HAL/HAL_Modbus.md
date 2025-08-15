@@ -67,7 +67,7 @@ The HAL_Modbus component will consist of the following files:
 ```c
 // In HAL/Modbus/inc/hal_modbus.h
 
-#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h>   // For uint32_t, uint8_t  
 #include <stdbool.h>  // For bool
 
@@ -80,14 +80,14 @@ typedef void (*HAL_MODBUS_RxCallback_t)(const uint8_t *frame_data, uint16_t fram
 /**  
  * @brief Initializes the HAL_Modbus module and the underlying MCAL_UART.  
  * This function should be called once during system initialization.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_MODBUS_Init(void);
 
 /**  
  * @brief Registers a callback function to be invoked when a complete, valid Modbus frame is received.  
  * @param callback The function pointer to the callback.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_MODBUS_RegisterRxCallback(HAL_MODBUS_RxCallback_t callback);
 
@@ -96,7 +96,7 @@ APP_Status_t HAL_MODBUS_RegisterRxCallback(HAL_MODBUS_RxCallback_t callback);
  * The frame_data must include address, function code, data, and CRC.  
  * @param frame_data Pointer to the Modbus frame data.  
  * @param frame_len Length of the Modbus frame.  
- * @return APP_OK on successful transmission, APP_ERROR on failure.  
+ * @return E_OK on successful transmission, E_NOK on failure.  
  */  
 APP_Status_t HAL_MODBUS_TransmitFrame(const uint8_t *frame_data, uint16_t frame_len);
 
@@ -121,24 +121,24 @@ The HAL_Modbus module will manage the UART communication, internal receive buffe
    ```
 2. **Initialization (HAL_MODBUS_Init)**:  
    * Initialize s_rx_buffer_idx = 0;, s_last_byte_time_us = 0;.  
-   * Call MCAL_UART_Init(HAL_MODBUS_UART_PORT, HAL_MODBUS_BAUD_RATE, HAL_MODBUS_PARITY, HAL_MODBUS_STOP_BITS). If this fails, report FAULT_ID_HAL_MODBUS_UART_INIT_FAILURE to SystemMonitor and return APP_ERROR.  
+   * Call MCAL_UART_Init(HAL_MODBUS_UART_PORT, HAL_MODBUS_BAUD_RATE, HAL_MODBUS_PARITY, HAL_MODBUS_STOP_BITS). If this fails, report FAULT_ID_HAL_MODBUS_UART_INIT_FAILURE to SystemMonitor and return E_NOK.  
    * Set s_is_initialized = true;.  
-   * Return APP_OK.  
+   * Return E_OK.  
 3. **Register Rx Callback (HAL_MODBUS_RegisterRxCallback)**:  
    * Validate callback is not NULL.  
    * s_rx_callback = callback;  
-   * Return APP_OK.  
+   * Return E_OK.  
 4. **Transmit Frame (HAL_MODBUS_TransmitFrame)**:  
-   * If !s_is_initialized, return APP_ERROR.  
+   * If !s_is_initialized, return E_NOK.  
    * Validate frame_data and frame_len (e.g., frame_len <= HAL_MODBUS_MAX_FRAME_SIZE).  
    * Call MCAL_UART_Transmit(HAL_MODBUS_UART_PORT, frame_data, frame_len).  
    * If MCAL_UART_Transmit returns an error, report FAULT_ID_HAL_MODBUS_TX_FAILURE to SystemMonitor.  
-   * Return APP_OK or APP_ERROR based on MCAL_UART_Transmit result.  
+   * Return E_OK or E_NOK based on MCAL_UART_Transmit result.  
 5. **Process Rx (HAL_MODBUS_ProcessRx)**:  
    * If !s_is_initialized, return immediately.  
    * Get current time: uint32_t current_time_us = APP_COMMON_GetUptimeUs(); (assuming APP_COMMON provides microsecond uptime).  
    * **Read Bytes from UART**:  
-     * Loop while MCAL_UART_ReadByte(HAL_MODBUS_UART_PORT, &received_byte) returns APP_OK:  
+     * Loop while MCAL_UART_ReadByte(HAL_MODBUS_UART_PORT, &received_byte) returns E_OK:  
        * Reset timeout timer: s_last_byte_time_us = current_time_us;  
        * Add byte to buffer: s_rx_buffer[s_rx_buffer_idx++] = received_byte;  
        * Check for buffer overflow: If s_rx_buffer_idx >= HAL_MODBUS_MAX_FRAME_SIZE, report FAULT_ID_HAL_MODBUS_RX_OVERFLOW, reset s_rx_buffer_idx = 0;, and discard current frame.  
@@ -174,10 +174,10 @@ sequenceDiagram
         ComM->>HAL_MODBUS: HAL_MODBUS_ProcessRx()  
         HAL_MODBUS->>MCAL_UART: MCAL_UART_ReadByte()  
         alt Byte available  
-            MCAL_UART-->>HAL_MODBUS: Return APP_OK (byte)  
+            MCAL_UART-->>HAL_MODBUS: Return E_OK (byte)  
             HAL_MODBUS->>HAL_MODBUS: Store byte in s_rx_buffer, update s_rx_buffer_idx, reset s_last_byte_time_us  
         else No byte available  
-            MCAL_UART-->>HAL_MODBUS: Return APP_ERROR (no data)  
+            MCAL_UART-->>HAL_MODBUS: Return E_NOK (no data)  
             alt s_rx_buffer_idx > 0 AND timeout elapsed (3.5 char times)  
                 HAL_MODBUS->>HAL_MODBUS: Calculate CRC16  
                 alt CRC matches  
@@ -197,7 +197,7 @@ sequenceDiagram
 * Mcal/uart/inc/mcal_uart.h: For low-level UART driver functions (MCAL_UART_Init, MCAL_UART_Transmit, MCAL_UART_ReadByte).  
 * Application/logger/inc/logger.h: For internal logging.  
 * Rte/inc/Rte.h: For calling RTE_Service_SystemMonitor_ReportFault().  
-* Application/common/inc/app_common.h: For APP_Status_t, APP_OK/APP_ERROR, and APP_COMMON_GetUptimeUs().  
+* Application/common/inc/common.h: For APP_Status_t, E_OK/E_NOK, and APP_COMMON_GetUptimeUs().  
 * HAL/Modbus/cfg/hal_modbus_cfg.h: For configuration parameters.
 
 ### **5.5. Error Handling**
@@ -208,7 +208,7 @@ sequenceDiagram
 * **Frame Timeout**: If a complete frame is not received within the specified timeout, FAULT_ID_HAL_MODBUS_FRAME_TIMEOUT is reported.  
 * **Receive Buffer Overflow**: If s_rx_buffer_idx exceeds HAL_MODBUS_MAX_FRAME_SIZE, FAULT_ID_HAL_MODBUS_RX_OVERFLOW is reported, and the current frame is discarded.  
 * **Fault Reporting**: All critical errors are reported to SystemMonitor via RTE_Service_SystemMonitor_ReportFault().  
-* **Return Status**: Public API functions return APP_ERROR on failure.
+* **Return Status**: Public API functions return E_NOK on failure.
 
 ### **5.6. Configuration**
 
@@ -264,7 +264,7 @@ The HAL/Modbus/cfg/hal_modbus_cfg.h file will contain:
 * **Mock MCAL_UART**: Unit tests for HAL_Modbus will mock the MCAL_UART functions (MCAL_UART_Init, MCAL_UART_Transmit, MCAL_UART_ReadByte) to isolate HAL_Modbus's logic.  
 * **Mock APP_COMMON_GetUptimeUs**: To simulate time passing for timeout tests.  
 * **Test Cases**:  
-  * HAL_MODBUS_Init: Test successful initialization and mocked MCAL_UART_Init failure (verify APP_ERROR and fault reporting).  
+  * HAL_MODBUS_Init: Test successful initialization and mocked MCAL_UART_Init failure (verify E_NOK and fault reporting).  
   * HAL_MODBUS_RegisterRxCallback: Test valid/invalid callback.  
   * HAL_MODBUS_TransmitFrame: Test with valid/invalid frame lengths, NULL data. Verify MCAL_UART_Transmit is called with correct data. Test MCAL_UART_Transmit failure.  
   * HAL_MODBUS_ProcessRx:  

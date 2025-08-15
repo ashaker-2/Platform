@@ -71,7 +71,7 @@ The HAL_Bluetooth component will consist of the following files:
 
 // In HAL/Bluetooth/inc/hal_bluetooth.h
 ```c
-#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h>   // For uint32_t, uint8_t  
 #include <stdbool.h>  // For bool
 
@@ -92,7 +92,7 @@ typedef void (*HAL_BLUETOOTH_ConnectionCallback_t)(bool connected);
 /**  
  * @brief Initializes the HAL_Bluetooth module and the native BLE stack.  
  * This function should be called once during system initialization.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_BLUETOOTH_Init(void);
 
@@ -100,20 +100,20 @@ APP_Status_t HAL_BLUETOOTH_Init(void);
  * @brief Registers callback functions for incoming data and connection state changes.  
  * @param rx_callback Function to call when data is received on a characteristic.  
  * @param conn_callback Function to call when connection state changes.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_BLUETOOTH_RegisterCallbacks(HAL_BLUETOOTH_RxCallback_t rx_callback,  
                                              HAL_BLUETOOTH_ConnectionCallback_t conn_callback);
 
 /**  
  * @brief Starts BLE advertising to make the device discoverable.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_BLUETOOTH_StartAdvertising(void);
 
 /**  
  * @brief Stops BLE advertising.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_BLUETOOTH_StopAdvertising(void);
 
@@ -122,7 +122,7 @@ APP_Status_t HAL_BLUETOOTH_StopAdvertising(void);
  * @param characteristic_uuid The UUID of the characteristic to notify.  
  * @param data Pointer to the data to send.  
  * @param len Length of the data.  
- * @return APP_OK on successful transmission, APP_ERROR on failure.  
+ * @return E_OK on successful transmission, E_NOK on failure.  
  */  
 APP_Status_t HAL_BLUETOOTH_SendNotification(uint16_t characteristic_uuid, const uint8_t *data, uint16_t len);
 
@@ -132,7 +132,7 @@ APP_Status_t HAL_BLUETOOTH_SendNotification(uint16_t characteristic_uuid, const 
  * @param characteristic_uuid The UUID of the characteristic to indicate.  
  * @param data Pointer to the data to send.  
  * @param len Length of the data.  
- * @return APP_OK on successful transmission, APP_ERROR on failure.  
+ * @return E_OK on successful transmission, E_NOK on failure.  
  */  
 APP_Status_t HAL_BLUETOOTH_SendIndication(uint16_t characteristic_uuid, const uint8_t *data, uint16_t len);
 
@@ -165,15 +165,15 @@ The HAL_Bluetooth module will wrap the native Bluetooth SDK's APIs. It will mana
    * Initialize the native Bluetooth controller and host stack (e.g., esp_bt_controller_init(), esp_bluedroid_init(), esp_bluedroid_enable()).  
    * Register GAP and GATT callbacks with the native SDK (e.g., esp_ble_gap_register_callback(hal_bluetooth_gap_event_handler), esp_ble_gatts_register_callback(hal_bluetooth_gatts_event_handler)). These hal_bluetooth_..._event_handler functions will be internal static functions in hal_bluetooth.c.  
    * Configure and create GATT services and characteristics as defined in hal_bluetooth_cfg.h (e.g., esp_ble_gatts_create_service(), esp_ble_gatts_add_char()).  
-   * If any step fails, report FAULT_ID_HAL_BLUETOOTH_INIT_FAILURE to SystemMonitor and return APP_ERROR.  
+   * If any step fails, report FAULT_ID_HAL_BLUETOOTH_INIT_FAILURE to SystemMonitor and return E_NOK.  
    * Set s_is_initialized = true;.  
    * Log LOGI("HAL_Bluetooth: Initialized successfully.");.  
-   * Return APP_OK.  
+   * Return E_OK.  
 3. **Register Callbacks (HAL_BLUETOOTH_RegisterCallbacks)**:  
    * Validate rx_callback and conn_callback are not NULL.  
    * s_rx_callback = rx_callback;  
    * s_conn_callback = conn_callback;  
-   * Return APP_OK.  
+   * Return E_OK.  
 4. **Advertising Control (HAL_BLUETOOTH_StartAdvertising, HAL_BLUETOOTH_StopAdvertising)**:  
    * Validate s_is_initialized.  
    * Configure advertising parameters (e.g., esp_ble_adv_params_t) and advertising data (e.g., esp_ble_adv_data_t) as defined in hal_bluetooth_cfg.h.  
@@ -182,7 +182,7 @@ The HAL_Bluetooth module will wrap the native Bluetooth SDK's APIs. It will mana
    * Report FAULT_ID_HAL_BLUETOOTH_ADV_FAILURE on error.  
 5. **Data Transmission (HAL_BLUETOOTH_SendNotification, HAL_BLUETOOTH_SendIndication)**:  
    * Validate s_is_initialized, characteristic_uuid, data, len.  
-   * Check if any clients are connected (s_connected_client_count > 0). If not, log debug and return APP_OK (no one to send to).  
+   * Check if any clients are connected (s_connected_client_count > 0). If not, log debug and return E_OK (no one to send to).  
    * Retrieve the GATT handle for the given characteristic_uuid.  
    * Call native SDK functions (e.g., esp_ble_gatts_send_indicate(), esp_ble_gatts_send_notify()).  
    * Report FAULT_ID_HAL_BLUETOOTH_TX_FAILURE on error.  
@@ -219,7 +219,7 @@ sequenceDiagram
     ComM->>ComM: Check if data is sensitive (e.g., config data)  
     alt If sensitive data and security enabled  
         ComM->>Security: RTE_Service_SECURITY_AuthenticateAndDecrypt(data, len, &decrypted_data, &decrypted_len)  
-        Security-->>ComM: Return APP_OK/APP_ERROR  
+        Security-->>ComM: Return E_OK/E_NOK  
         alt Authentication/Decryption fails  
             ComM->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_COMM_SECURITY_FAILURE, ...)  
             ComM->>ComM: Discard data, return  
@@ -235,7 +235,7 @@ sequenceDiagram
 * **Native Bluetooth SDK Headers**: (e.g., esp_bt.h, esp_gap_ble_api.h, esp_gatts_api.h for ESP-IDF). These are the direct interface to the MCU's Bluetooth capabilities.  
 * Application/logger/inc/logger.h: For internal logging.  
 * Rte/inc/Rte.h: For calling RTE_Service_SystemMonitor_ReportFault().  
-* Application/common/inc/app_common.h: For APP_Status_t, APP_OK/APP_ERROR.  
+* Application/common/inc/common.h: For APP_Status_t, E_OK/E_NOK.  
 * HAL/Bluetooth/cfg/hal_bluetooth_cfg.h: For configuration parameters.  
 * Service/ComM/inc/comm.h: For ComM's callback types (though HAL_BLUETOOTH defines its own function pointer types).
 
@@ -244,7 +244,7 @@ sequenceDiagram
 * **Native SDK Error Codes**: Errors returned by native Bluetooth SDK functions will be caught by HAL_Bluetooth.  
 * **Fault Reporting**: Upon detection of an error (e.g., stack initialization failure, advertising start failure, GATT operation error), HAL_Bluetooth will report a specific fault ID (e.g., FAULT_ID_HAL_BLUETOOTH_INIT_FAILURE, FAULT_ID_HAL_BLUETOOTH_ADV_FAILURE, FAULT_ID_HAL_BLUETOOTH_TX_FAILURE) to SystemMonitor via the RTE service.  
 * **Input Validation**: Public API functions will validate input parameters.  
-* **Return Status**: All public API functions will return APP_ERROR on failure.
+* **Return Status**: All public API functions will return E_NOK on failure.
 
 ### **5.6. Configuration**
 
@@ -302,7 +302,7 @@ The HAL/Bluetooth/cfg/hal_bluetooth_cfg.h file will contain:
 
 * **Mock Native Bluetooth SDK**: Unit tests for HAL_Bluetooth will heavily mock the native Bluetooth SDK APIs to isolate HAL_Bluetooth's logic. This includes mocking esp_bt_controller_init(), esp_ble_gap_register_callback(), esp_ble_gatts_create_service(), esp_ble_gap_start_advertising(), esp_ble_gatts_send_notify(), and simulating incoming events via the registered internal event handlers.  
 * **Test Cases**:  
-  * HAL_BLUETOOTH_Init: Test successful initialization and mocked native SDK failures (verify APP_ERROR and fault reporting).  
+  * HAL_BLUETOOTH_Init: Test successful initialization and mocked native SDK failures (verify E_NOK and fault reporting).  
   * HAL_BLUETOOTH_RegisterCallbacks: Test valid/invalid callbacks.  
   * HAL_BLUETOOTH_StartAdvertising/StopAdvertising: Test starting/stopping advertising. Verify native SDK calls. Test mocked failures.  
   * HAL_BLUETOOTH_SendNotification/SendIndication: Test sending data with valid/invalid UUIDs, data, and lengths. Test when no clients are connected. Test mocked native SDK failures.  

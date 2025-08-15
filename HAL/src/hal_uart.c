@@ -71,36 +71,36 @@ static bool prv_HAL_UART_PlatformIsRxReady(HAL_UART_Channel_t channel);
  */
 HAL_UART_Status_t HAL_UART_Init(HAL_UART_Channel_t channel, const HAL_UART_Config_t *config, HAL_UART_RxCpltCallback_t rx_callback)
 {
-    if (channel >= HAL_UART_MAX_CHANNELS || config == NULL)
-    {
-        return HAL_UART_INVALID_PARAM;
-    }
+    // if (channel >= HAL_UART_MAX_CHANNELS || config == NULL)
+    // {
+    //     return HAL_UART_INVALID_PARAM;
+    // }
 
-    if (uart_channel_states[channel].is_initialized)
-    {
-        // Already initialized, de-initialize first or return error
-        return HAL_UART_ERROR; // Or HAL_UART_DeInit(channel) and then re-init
-    }
+    // if (uart_channel_states[channel].is_initialized)
+    // {
+    //     // Already initialized, de-initialize first or return error
+    //     return HAL_UART_ERROR; // Or HAL_UART_DeInit(channel) and then re-init
+    // }
 
-    // Copy configuration
-    memcpy(&uart_channel_states[channel].config, config, sizeof(HAL_UART_Config_t));
-    uart_channel_states[channel].rx_callback = rx_callback;
+    // // Copy configuration
+    // memcpy(&uart_channel_states[channel].config, config, sizeof(HAL_UART_Config_t));
+    // uart_channel_states[channel].rx_callback = rx_callback;
 
-    // Allocate buffers if sizes are specified
-    if (prv_HAL_UART_AllocateBuffers(channel) != HAL_UART_OK)
-    {
-        return HAL_UART_ERROR;
-    }
+    // // Allocate buffers if sizes are specified
+    // if (prv_HAL_UART_AllocateBuffers(channel) != HAL_UART_OK)
+    // {
+    //     return HAL_UART_ERROR;
+    // }
 
-    // --- Platform-specific Initialization ---
-    // This is where calls to ESP32 IDF UART functions would go, e.g.:
-    // uart_config_t uart_config = { ... };
-    // uart_param_config(channel, &uart_config);
-    // uart_set_pin(channel, TX_PIN, RX_PIN, RTS_PIN, CTS_PIN);
-    // uart_driver_install(channel, rx_buffer_size, tx_buffer_size, 0, NULL, 0);
-    prv_HAL_UART_PlatformInit(channel, config);
+    // // --- Platform-specific Initialization ---
+    // // This is where calls to ESP32 IDF UART functions would go, e.g.:
+    // // uart_config_t uart_config = { ... };
+    // // uart_param_config(channel, &uart_config);
+    // // uart_set_pin(channel, TX_PIN, RX_PIN, RTS_PIN, CTS_PIN);
+    // // uart_driver_install(channel, rx_buffer_size, tx_buffer_size, 0, NULL, 0);
+    // prv_HAL_UART_PlatformInit(channel, config);
 
-    uart_channel_states[channel].is_initialized = true;
+    // uart_channel_states[channel].is_initialized = true;
 
     return HAL_UART_OK;
 }
@@ -114,25 +114,25 @@ HAL_UART_Status_t HAL_UART_Init(HAL_UART_Channel_t channel, const HAL_UART_Confi
  */
 HAL_UART_Status_t HAL_UART_DeInit(HAL_UART_Channel_t channel)
 {
-    if (channel >= HAL_UART_MAX_CHANNELS)
-    {
-        return HAL_UART_INVALID_PARAM;
-    }
+    // if (channel >= HAL_UART_MAX_CHANNELS)
+    // {
+    //     return HAL_UART_INVALID_PARAM;
+    // }
 
-    if (!uart_channel_states[channel].is_initialized)
-    {
-        return HAL_UART_NOT_INITIALIZED;
-    }
+    // if (!uart_channel_states[channel].is_initialized)
+    // {
+    //     return HAL_UART_NOT_INITIALIZED;
+    // }
 
-    // --- Platform-specific De-initialization ---
-    // This is where calls to ESP32 IDF UART functions would go, e.g.:
-    // uart_driver_delete(channel);
-    prv_HAL_UART_PlatformDeInit(channel);
+    // // --- Platform-specific De-initialization ---
+    // // This is where calls to ESP32 IDF UART functions would go, e.g.:
+    // // uart_driver_delete(channel);
+    // prv_HAL_UART_PlatformDeInit(channel);
 
-    prv_HAL_UART_FreeBuffers(channel);
+    // prv_HAL_UART_FreeBuffers(channel);
 
-    memset(&uart_channel_states[channel], 0, sizeof(UART_Channel_State_t)); // Clear state
-    uart_channel_states[channel].is_initialized = false;
+    // memset(&uart_channel_states[channel], 0, sizeof(UART_Channel_State_t)); // Clear state
+    // uart_channel_states[channel].is_initialized = false;
 
     return HAL_UART_OK;
 }
@@ -148,26 +148,26 @@ HAL_UART_Status_t HAL_UART_DeInit(HAL_UART_Channel_t channel)
  */
 HAL_UART_Status_t HAL_UART_TransmitByte(HAL_UART_Channel_t channel, uint8_t data)
 {
-    if (channel >= HAL_UART_MAX_CHANNELS || !uart_channel_states[channel].is_initialized)
-    {
-        return HAL_UART_INVALID_PARAM;
-    }
+    // if (channel >= HAL_UART_MAX_CHANNELS || !uart_channel_states[channel].is_initialized)
+    // {
+    //     return HAL_UART_INVALID_PARAM;
+    // }
 
-    // Simple polling transmit. A real implementation might use a TX buffer/DMA.
-    uint32_t timeout_counter = 0;
-    while (!prv_HAL_UART_PlatformIsTxReady(channel) && timeout_counter < HAL_UART_DEFAULT_TIMEOUT_MS)
-    {
-        // Delay or yield here
-        // vTaskDelay(1); // Example for FreeRTOS
-        timeout_counter++;
-    }
+    // // Simple polling transmit. A real implementation might use a TX buffer/DMA.
+    // uint32_t timeout_counter = 0;
+    // while (!prv_HAL_UART_PlatformIsTxReady(channel) && timeout_counter < HAL_UART_DEFAULT_TIMEOUT_MS)
+    // {
+    //     // Delay or yield here
+    //     // vTaskDelay(1); // Example for FreeRTOS
+    //     timeout_counter++;
+    // }
 
-    if (!prv_HAL_UART_PlatformIsTxReady(channel))
-    {
-        return HAL_UART_TIMEOUT;
-    }
+    // if (!prv_HAL_UART_PlatformIsTxReady(channel))
+    // {
+    //     return HAL_UART_TIMEOUT;
+    // }
 
-    prv_HAL_UART_PlatformTransmitByte(channel, data);
+    // prv_HAL_UART_PlatformTransmitByte(channel, data);
 
     return HAL_UART_OK;
 }
@@ -184,21 +184,21 @@ HAL_UART_Status_t HAL_UART_TransmitByte(HAL_UART_Channel_t channel, uint8_t data
  */
 HAL_UART_Status_t HAL_UART_Transmit(HAL_UART_Channel_t channel, const uint8_t *data_buffer, uint32_t length)
 {
-    if (channel >= HAL_UART_MAX_CHANNELS || !uart_channel_states[channel].is_initialized || data_buffer == NULL)
-    {
-        return HAL_UART_INVALID_PARAM;
-    }
+    // if (channel >= HAL_UART_MAX_CHANNELS || !uart_channel_states[channel].is_initialized || data_buffer == NULL)
+    // {
+    //     return HAL_UART_INVALID_PARAM;
+    // }
 
-    HAL_UART_Status_t status = HAL_UART_OK;
-    for (uint32_t i = 0; i < length; i++)
-    {
-        status = HAL_UART_TransmitByte(channel, data_buffer[i]);
-        if (status != HAL_UART_OK)
-        {
-            break; // Exit on first error
-        }
-    }
-    return status;
+    // HAL_UART_Status_t status = HAL_UART_OK;
+    // for (uint32_t i = 0; i < length; i++)
+    // {
+    //     status = HAL_UART_TransmitByte(channel, data_buffer[i]);
+    //     if (status != HAL_UART_OK)
+    //     {
+    //         break; // Exit on first error
+    //     }
+    // }
+    // return status;
 }
 
 /**
@@ -213,35 +213,35 @@ HAL_UART_Status_t HAL_UART_Transmit(HAL_UART_Channel_t channel, const uint8_t *d
  */
 HAL_UART_Status_t HAL_UART_ReceiveByte(HAL_UART_Channel_t channel, uint8_t *data, uint32_t timeout_ms)
 {
-    if (channel >= HAL_UART_MAX_CHANNELS || !uart_channel_states[channel].is_initialized || data == NULL)
-    {
-        return HAL_UART_INVALID_PARAM;
-    }
+    // if (channel >= HAL_UART_MAX_CHANNELS || !uart_channel_states[channel].is_initialized || data == NULL)
+    // {
+    //     return HAL_UART_INVALID_PARAM;
+    // }
 
-    uint32_t start_time = 0; // In a real RTOS, use a tick counter
-    // Get current time here
+    // uint32_t start_time = 0; // In a real RTOS, use a tick counter
+    // // Get current time here
 
-    while (!prv_HAL_UART_PlatformIsRxReady(channel))
-    {
-        if (timeout_ms > 0)
-        {
-            // Check timeout
-            // if (get_current_time() - start_time >= timeout_ms) {
-            //     return HAL_UART_TIMEOUT;
-            // }
-        }
-        else
-        {
-            return HAL_UART_RX_BUFFER_EMPTY; // Non-blocking, no data available
-        }
-        // Delay or yield here
-        // vTaskDelay(1); // Example for FreeRTOS
-    }
+    // while (!prv_HAL_UART_PlatformIsRxReady(channel))
+    // {
+    //     if (timeout_ms > 0)
+    //     {
+    //         // Check timeout
+    //         // if (get_current_time() - start_time >= timeout_ms) {
+    //         //     return HAL_UART_TIMEOUT;
+    //         // }
+    //     }
+    //     else
+    //     {
+    //         return HAL_UART_RX_BUFFER_EMPTY; // Non-blocking, no data available
+    //     }
+    //     // Delay or yield here
+    //     // vTaskDelay(1); // Example for FreeRTOS
+    // }
 
-    if (prv_HAL_UART_PlatformReceiveByte(channel, data))
-    {
-        return HAL_UART_OK;
-    }
+    // if (prv_HAL_UART_PlatformReceiveByte(channel, data))
+    // {
+    //     return HAL_UART_OK;
+    // }
     return HAL_UART_ERROR; // Should not happen if IsRxReady returned true
 }
 
@@ -258,21 +258,21 @@ HAL_UART_Status_t HAL_UART_ReceiveByte(HAL_UART_Channel_t channel, uint8_t *data
  */
 HAL_UART_Status_t HAL_UART_Receive(HAL_UART_Channel_t channel, uint8_t *data_buffer, uint32_t length, uint32_t timeout_ms)
 {
-    if (channel >= HAL_UART_MAX_CHANNELS || !uart_channel_states[channel].is_initialized || data_buffer == NULL)
-    {
-        return HAL_UART_INVALID_PARAM;
-    }
+    // if (channel >= HAL_UART_MAX_CHANNELS || !uart_channel_states[channel].is_initialized || data_buffer == NULL)
+    // {
+    //     return HAL_UART_INVALID_PARAM;
+    // }
 
-    HAL_UART_Status_t status = HAL_UART_OK;
-    for (uint32_t i = 0; i < length; i++)
-    {
-        status = HAL_UART_ReceiveByte(channel, &data_buffer[i], timeout_ms);
-        if (status != HAL_UART_OK)
-        {
-            break; // Exit on first error
-        }
-    }
-    return status;
+    // HAL_UART_Status_t status = HAL_UART_OK;
+    // for (uint32_t i = 0; i < length; i++)
+    // {
+    //     status = HAL_UART_ReceiveByte(channel, &data_buffer[i], timeout_ms);
+    //     if (status != HAL_UART_OK)
+    //     {
+    //         break; // Exit on first error
+    //     }
+    // }
+    // return status;
 }
 
 /**
@@ -282,20 +282,20 @@ HAL_UART_Status_t HAL_UART_Receive(HAL_UART_Channel_t channel, uint8_t *data_buf
  */
 HAL_UART_Status_t HAL_UART_FlushTxBuffer(HAL_UART_Channel_t channel)
 {
-    if (channel >= HAL_UART_MAX_CHANNELS || !uart_channel_states[channel].is_initialized)
-    {
-        return HAL_UART_INVALID_PARAM;
-    }
+    // if (channel >= HAL_UART_MAX_CHANNELS || !uart_channel_states[channel].is_initialized)
+    // {
+    //     return HAL_UART_INVALID_PARAM;
+    // }
 
-    // --- Platform-specific flush TX buffer ---
-    // e.g., uart_flush_tx_buffer(channel);
-    // For this simple polling example, there's no internal buffer to flush.
-    // If a software buffer is used, reset head/tail pointers.
-    if (uart_channel_states[channel].tx_buffer != NULL)
-    {
-        uart_channel_states[channel].tx_buffer_head = 0;
-        uart_channel_states[channel].tx_buffer_tail = 0;
-    }
+    // // --- Platform-specific flush TX buffer ---
+    // // e.g., uart_flush_tx_buffer(channel);
+    // // For this simple polling example, there's no internal buffer to flush.
+    // // If a software buffer is used, reset head/tail pointers.
+    // if (uart_channel_states[channel].tx_buffer != NULL)
+    // {
+    //     uart_channel_states[channel].tx_buffer_head = 0;
+    //     uart_channel_states[channel].tx_buffer_tail = 0;
+    // }
 
     return HAL_UART_OK;
 }
@@ -307,19 +307,19 @@ HAL_UART_Status_t HAL_UART_FlushTxBuffer(HAL_UART_Channel_t channel)
  */
 HAL_UART_Status_t HAL_UART_FlushRxBuffer(HAL_UART_Channel_t channel)
 {
-    if (channel >= HAL_UART_MAX_CHANNELS || !uart_channel_states[channel].is_initialized)
-    {
-        return HAL_UART_INVALID_PARAM;
-    }
+    // if (channel >= HAL_UART_MAX_CHANNELS || !uart_channel_states[channel].is_initialized)
+    // {
+    //     return HAL_UART_INVALID_PARAM;
+    // }
 
-    // --- Platform-specific flush RX buffer ---
-    // e.g., uart_flush_rx_buffer(channel);
-    // If a software buffer is used, reset head/tail pointers.
-    if (uart_channel_states[channel].rx_buffer != NULL)
-    {
-        uart_channel_states[channel].rx_buffer_head = 0;
-        uart_channel_states[channel].rx_buffer_tail = 0;
-    }
+    // // --- Platform-specific flush RX buffer ---
+    // // e.g., uart_flush_rx_buffer(channel);
+    // // If a software buffer is used, reset head/tail pointers.
+    // if (uart_channel_states[channel].rx_buffer != NULL)
+    // {
+    //     uart_channel_states[channel].rx_buffer_head = 0;
+    //     uart_channel_states[channel].rx_buffer_tail = 0;
+    // }
 
     return HAL_UART_OK;
 }
@@ -331,23 +331,23 @@ HAL_UART_Status_t HAL_UART_FlushRxBuffer(HAL_UART_Channel_t channel)
  */
 uint32_t HAL_UART_GetRxBufferSize(HAL_UART_Channel_t channel)
 {
-    if (channel >= HAL_UART_MAX_CHANNELS || !uart_channel_states[channel].is_initialized)
-    {
-        return 0; // Or return an error code if enum supports it
-    }
+    // if (channel >= HAL_UART_MAX_CHANNELS || !uart_channel_states[channel].is_initialized)
+    // {
+    //     return 0; // Or return an error code if enum supports it
+    // }
 
-    // This would typically query the platform's internal buffer or our software buffer
-    if (uart_channel_states[channel].rx_buffer_size > 0)
-    {
-        if (uart_channel_states[channel].rx_buffer_head >= uart_channel_states[channel].rx_buffer_tail)
-        {
-            return uart_channel_states[channel].rx_buffer_head - uart_channel_states[channel].rx_buffer_tail;
-        }
-        else
-        {
-            return uart_channel_states[channel].rx_buffer_size - (uart_channel_states[channel].rx_buffer_tail - uart_channel_states[channel].rx_buffer_head);
-        }
-    }
+    // // This would typically query the platform's internal buffer or our software buffer
+    // if (uart_channel_states[channel].rx_buffer_size > 0)
+    // {
+    //     if (uart_channel_states[channel].rx_buffer_head >= uart_channel_states[channel].rx_buffer_tail)
+    //     {
+    //         return uart_channel_states[channel].rx_buffer_head - uart_channel_states[channel].rx_buffer_tail;
+    //     }
+    //     else
+    //     {
+    //         return uart_channel_states[channel].rx_buffer_size - (uart_channel_states[channel].rx_buffer_tail - uart_channel_states[channel].rx_buffer_head);
+    //     }
+    // }
     return 0;
 }
 
@@ -360,29 +360,29 @@ uint32_t HAL_UART_GetRxBufferSize(HAL_UART_Channel_t channel)
  */
 static HAL_UART_Status_t prv_HAL_UART_AllocateBuffers(HAL_UART_Channel_t channel)
 {
-    // In a real system, use dynamic memory allocation (e.g., malloc) or static arrays.
-    // For simplicity, this example assumes static allocation or that the platform
-    // handles buffer allocation internally (e.g., ESP-IDF's uart_driver_install).
+    // // In a real system, use dynamic memory allocation (e.g., malloc) or static arrays.
+    // // For simplicity, this example assumes static allocation or that the platform
+    // // handles buffer allocation internally (e.g., ESP-IDF's uart_driver_install).
 
-    // Example for software buffers (if not using platform's internal buffers/DMA)
-    if (uart_channel_states[channel].config.rx_buffer_size > 0)
-    {
-        // Allocate rx_buffer
-        // uart_channel_states[channel].rx_buffer = (uint8_t *)malloc(uart_channel_states[channel].config.rx_buffer_size);
-        // if (uart_channel_states[channel].rx_buffer == NULL) return HAL_UART_ERROR;
-        // uart_channel_states[channel].rx_buffer_size = uart_channel_states[channel].config.rx_buffer_size;
-        // uart_channel_states[channel].rx_buffer_head = 0;
-        // uart_channel_states[channel].rx_buffer_tail = 0;
-    }
-    if (uart_channel_states[channel].config.tx_buffer_size > 0)
-    {
-        // Allocate tx_buffer
-        // uart_channel_states[channel].tx_buffer = (uint8_t *)malloc(uart_channel_states[channel].config.tx_buffer_size);
-        // if (uart_channel_states[channel].tx_buffer == NULL) return HAL_UART_ERROR;
-        // uart_channel_states[channel].tx_buffer_size = uart_channel_states[channel].config.tx_buffer_size;
-        // uart_channel_states[channel].tx_buffer_head = 0;
-        // uart_channel_states[channel].tx_buffer_tail = 0;
-    }
+    // // Example for software buffers (if not using platform's internal buffers/DMA)
+    // if (uart_channel_states[channel].config.rx_buffer_size > 0)
+    // {
+    //     // Allocate rx_buffer
+    //     // uart_channel_states[channel].rx_buffer = (uint8_t *)malloc(uart_channel_states[channel].config.rx_buffer_size);
+    //     // if (uart_channel_states[channel].rx_buffer == NULL) return HAL_UART_ERROR;
+    //     // uart_channel_states[channel].rx_buffer_size = uart_channel_states[channel].config.rx_buffer_size;
+    //     // uart_channel_states[channel].rx_buffer_head = 0;
+    //     // uart_channel_states[channel].rx_buffer_tail = 0;
+    // }
+    // if (uart_channel_states[channel].config.tx_buffer_size > 0)
+    // {
+    //     // Allocate tx_buffer
+    //     // uart_channel_states[channel].tx_buffer = (uint8_t *)malloc(uart_channel_states[channel].config.tx_buffer_size);
+    //     // if (uart_channel_states[channel].tx_buffer == NULL) return HAL_UART_ERROR;
+    //     // uart_channel_states[channel].tx_buffer_size = uart_channel_states[channel].config.tx_buffer_size;
+    //     // uart_channel_states[channel].tx_buffer_head = 0;
+    //     // uart_channel_states[channel].tx_buffer_tail = 0;
+    // }
     return HAL_UART_OK;
 }
 
@@ -413,25 +413,25 @@ static void prv_HAL_UART_FreeBuffers(HAL_UART_Channel_t channel)
  */
 static void prv_HAL_UART_PlatformInit(HAL_UART_Channel_t channel, const HAL_UART_Config_t *config)
 {
-    // Placeholder for platform-specific UART initialization.
-    // Example for ESP32 IDF:
-    /*
-    uart_config_t uart_cfg = {
-        .baud_rate = config->baud_rate,
-        .data_bits = (config->data_bits == 7) ? UART_DATA_7_BITS : UART_DATA_8_BITS,
-        .parity = config->parity_enable ? (config->even_parity ? UART_PARITY_EVEN : UART_PARITY_ODD) : UART_PARITY_DISABLE,
-        .stop_bits = (config->stop_bits == 1) ? UART_STOP_BITS_1 : UART_STOP_BITS_2,
-        .flow_ctrl = config->flow_control_enable ? UART_HW_FLOWCTRL_CTS_RTS : UART_HW_FLOWCTRL_DISABLE,
-        .rx_flow_ctrl_thresh = 122, // Example threshold
-        .source_clk = UART_SCLK_APB,
-    };
-    uart_param_config(channel, &uart_cfg);
-    // Set UART pins (example, replace with actual pins)
-    uart_set_pin(channel, GPIO_NUM_1, GPIO_NUM_3, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-    uart_driver_install(channel, config->rx_buffer_size, config->tx_buffer_size, 0, NULL, 0);
-    */
-    (void)channel; // Suppress unused parameter warning
-    (void)config;  // Suppress unused parameter warning
+    // // Placeholder for platform-specific UART initialization.
+    // // Example for ESP32 IDF:
+    // /*
+    // uart_config_t uart_cfg = {
+    //     .baud_rate = config->baud_rate,
+    //     .data_bits = (config->data_bits == 7) ? UART_DATA_7_BITS : UART_DATA_8_BITS,
+    //     .parity = config->parity_enable ? (config->even_parity ? UART_PARITY_EVEN : UART_PARITY_ODD) : UART_PARITY_DISABLE,
+    //     .stop_bits = (config->stop_bits == 1) ? UART_STOP_BITS_1 : UART_STOP_BITS_2,
+    //     .flow_ctrl = config->flow_control_enable ? UART_HW_FLOWCTRL_CTS_RTS : UART_HW_FLOWCTRL_DISABLE,
+    //     .rx_flow_ctrl_thresh = 122, // Example threshold
+    //     .source_clk = UART_SCLK_APB,
+    // };
+    // uart_param_config(channel, &uart_cfg);
+    // // Set UART pins (example, replace with actual pins)
+    // uart_set_pin(channel, GPIO_NUM_1, GPIO_NUM_3, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    // uart_driver_install(channel, config->rx_buffer_size, config->tx_buffer_size, 0, NULL, 0);
+    // */
+    // (void)channel; // Suppress unused parameter warning
+    // (void)config;  // Suppress unused parameter warning
 }
 
 /**
@@ -446,7 +446,7 @@ static void prv_HAL_UART_PlatformDeInit(HAL_UART_Channel_t channel)
     // Placeholder for platform-specific UART de-initialization.
     // Example for ESP32 IDF:
     // uart_driver_delete(channel);
-    (void)channel; // Suppress unused parameter warning
+    // (void)channel; // Suppress unused parameter warning
 }
 
 /**
@@ -459,8 +459,8 @@ static void prv_HAL_UART_PlatformTransmitByte(HAL_UART_Channel_t channel, uint8_
     // Placeholder for platform-specific byte transmission.
     // Example for ESP32 IDF:
     // uart_write_bytes(channel, (const char*)&data, 1);
-    (void)channel; // Suppress unused parameter warning
-    (void)data;    // Suppress unused parameter warning
+    // (void)channel; // Suppress unused parameter warning
+    // (void)data;    // Suppress unused parameter warning
 }
 
 /**
@@ -474,9 +474,9 @@ static bool prv_HAL_UART_PlatformReceiveByte(HAL_UART_Channel_t channel, uint8_t
     // Placeholder for platform-specific byte reception.
     // Example for ESP32 IDF:
     // int len = uart_read_bytes(channel, data, 1, 0); // Non-blocking read
-    // return len > 0;
-    (void)channel; // Suppress unused parameter warning
-    (void)data;    // Suppress unused parameter warning
+    // // return len > 0;
+    // (void)channel; // Suppress unused parameter warning
+    // (void)data;    // Suppress unused parameter warning
     return false; // Always return false in placeholder
 }
 
@@ -489,8 +489,8 @@ static bool prv_HAL_UART_PlatformIsTxReady(HAL_UART_Channel_t channel)
 {
     // Placeholder for platform-specific TX ready check.
     // Example for ESP32 IDF:
-    // return uart_get_tx_buffer_free_size(channel) > 0;
-    (void)channel; // Suppress unused parameter warning
+    // // return uart_get_tx_buffer_free_size(channel) > 0;
+    // (void)channel; // Suppress unused parameter warning
     return true; // Always return true in placeholder for immediate transmit
 }
 
@@ -503,10 +503,10 @@ static bool prv_HAL_UART_PlatformIsRxReady(HAL_UART_Channel_t channel)
 {
     // Placeholder for platform-specific RX ready check.
     // Example for ESP32 IDF:
-    // size_t buffered_len;
+    // uint16_t buffered_len;
     // uart_get_buffered_data_len(channel, &buffered_len);
     // return buffered_len > 0;
-    (void)channel; // Suppress unused parameter warning
+    // (void)channel; // Suppress unused parameter warning
     return false; // Always return false in placeholder
 }
 

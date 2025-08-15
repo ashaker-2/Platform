@@ -11,16 +11,22 @@
 #ifndef HAL_ADC_H
 #define HAL_ADC_H
 
-#include "app_common.h" // For APP_Status_t and HAL_Status_t
+#include "common.h" // For Status_t and Status_t
 #include <stdint.h>     // For uint16_t, uint32_t
 
 // --- ADC Channel Definitions (Logical IDs) ---
 // These are logical IDs that map to physical ADC channels in hal_adc_cfg.c
 typedef enum
 {
-    HAL_ADC_CHANNEL_TEMP_SENSOR = 0, /**< Logical ID for the temperature sensor ADC channel. */
-    HAL_ADC_CHANNEL_HUMIDITY_SENSOR, /**< Logical ID for the humidity sensor ADC channel. */
-    // Add more logical ADC channels as needed
+    HAL_ADC1_CHANNEL_0,
+    HAL_ADC1_CHANNEL_1,
+    HAL_ADC1_CHANNEL_2,
+    HAL_ADC1_CHANNEL_3,
+    HAL_ADC1_CHANNEL_4,
+    HAL_ADC1_CHANNEL_5,
+    HAL_ADC1_CHANNEL_6,
+    HAL_ADC1_CHANNEL_7,
+
     HAL_ADC_CHANNEL_COUNT /**< Total number of logical ADC channels. */
 } HAL_ADC_Channel_t;
 
@@ -48,30 +54,18 @@ typedef enum
  * @brief Initializes the HAL ADC module.
  * This function should be called once during system startup.
  * It prepares the internal data structures and potentially the underlying MCAL.
- * @return HAL_OK on success, HAL_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-HAL_Status_t HAL_ADC_Init(void);
-
-/**
- * @brief Configures a specific ADC channel.
- * This sets the resolution, attenuation, and any other channel-specific settings.
- * @param channel The logical ID of the ADC channel to configure.
- * @param resolution The desired ADC resolution.
- * @param attenuation The desired input attenuation (voltage range).
- * @return HAL_OK on success, HAL_ERROR on failure (e.g., invalid channel, MCAL error).
- */
-HAL_Status_t HAL_ADC_ConfigChannel(HAL_ADC_Channel_t channel,
-                                   HAL_ADC_Resolution_t resolution,
-                                   HAL_ADC_Attenuation_t attenuation);
+Status_t HAL_ADC_Init(void);
 
 /**
  * @brief Reads the raw analog value from a specific ADC channel.
  * The returned value is the raw digital count based on the configured resolution.
  * @param channel The logical ID of the ADC channel to read.
  * @param raw_value_p Pointer to store the raw ADC value.
- * @return HAL_OK on success, HAL_ERROR on failure (e.g., channel not configured, MCAL error).
+ * @return E_OK on success, E_NOK on failure (e.g., channel not configured, MCAL error).
  */
-HAL_Status_t HAL_ADC_ReadChannel(HAL_ADC_Channel_t channel, uint16_t *raw_value_p);
+Status_t HAL_ADC_ReadChannel(HAL_ADC_Channel_t channel, uint16_t *raw_value_p);
 
 /**
  * @brief Converts a raw ADC value to millivolts (mV).
@@ -80,8 +74,8 @@ HAL_Status_t HAL_ADC_ReadChannel(HAL_ADC_Channel_t channel, uint16_t *raw_value_
  * @param channel The logical ID of the ADC channel (used to get its configuration).
  * @param raw_value The raw ADC value.
  * @param voltage_mv_p Pointer to store the converted voltage in millivolts.
- * @return HAL_OK on success, HAL_ERROR on failure (e.g., invalid channel, unconfigured).
+ * @return E_OK on success, E_NOK on failure (e.g., invalid channel, unconfigured).
  */
-HAL_Status_t HAL_ADC_RawToMillivolts(HAL_ADC_Channel_t channel, uint16_t raw_value, uint32_t *voltage_mv_p);
+Status_t HAL_ADC_RawToMillivolts(uint16_t raw_value, uint32_t *voltage_mv_p);
 
 #endif // HAL_ADC_H

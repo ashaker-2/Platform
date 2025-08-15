@@ -1,7 +1,7 @@
 #ifndef HUMCTRL_H
 #define HUMCTRL_H
 
-#include "app_common.h"
+#include "common.h"
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -19,9 +19,9 @@
  * @brief Initializes the HumCtrl module and all configured humidity sensor hardware.
  * All module-internal variables and sensor data storage are initialized to a safe,
  * known state (e.g., zeroes or NaN).
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-APP_Status_t HumCtrl_Init(void);
+Status_t HumCtrl_Init(void);
 
 /**
  * @brief Gets the last successfully read and stored humidity value for a specific sensor.
@@ -29,10 +29,10 @@ APP_Status_t HumCtrl_Init(void);
  * performed periodically by the internal HumCtrl_MainFunction.
  * @param sensorId The unique ID of the sensor to retrieve data from.
  * @param humidity_rh Pointer to store the latest humidity value in Relative Humidity (%).
- * @return APP_OK on successful retrieval, APP_ERROR if the sensorId is invalid,
+ * @return E_OK on successful retrieval, E_NOK if the sensorId is invalid,
  * the pointer is NULL, or no valid data is available for that sensor.
  */
-APP_Status_t HumCtrl_GetSensorHumidity(uint32_t sensorId, float *humidity_rh);
+Status_t HumCtrl_GetSensorHumidity(uint32_t sensorId, float *humidity_rh);
 
 // --- Internal Periodic Runnable Prototype (called by RTE) ---
 /**

@@ -62,7 +62,7 @@ The LightInd component will consist of the following files:
 
 // In Application/lightIndication/inc/lightIndication.h
 ```c
-#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h>   // For uint32_t, uint8_t  
 #include <stdbool.h>  // For bool
 
@@ -88,7 +88,7 @@ typedef enum {
 /**  
  * @brief Initializes the LightInd module and all configured LED GPIO pins.  
  * All LEDs are set to their default OFF state initially.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t LightInd_Init(void);
 
@@ -100,7 +100,7 @@ APP_Status_t LightInd_Init(void);
  * @param state The desired state (LIGHT_IND_STATE_ON, LIGHT_IND_STATE_OFF, LIGHT_IND_STATE_BLINK).  
  * @param blink_on_ms The ON duration in milliseconds for blinking (ignored if state is ON/OFF).  
  * @param blink_off_ms The OFF duration in milliseconds for blinking (ignored if state is ON/OFF).  
- * @return APP_OK on success, APP_ERROR if the led_id is invalid or parameters are out of range.  
+ * @return E_OK on success, E_NOK if the led_id is invalid or parameters are out of range.  
  */  
 APP_Status_t LIGHTIND_SetState(LightInd_Id_t led_id, LightInd_State_t state, uint32_t blink_on_ms, uint32_t blink_off_ms);
 
@@ -140,10 +140,10 @@ The LightInd module will manage the state and blinking logic for each configured
        * Call RTE_Service_HAL_GPIO_SetState(light_ind_config.gpio_pin, HAL_GPIO_STATE_LOW) to ensure all LEDs are initially OFF.  
        * If this fails, report FAULT_ID_LIGHTIND_GPIO_INIT_FAILURE to SystemMonitor.  
    * s_is_initialized = true; on overall success.  
-   * Return APP_OK.  
+   * Return E_OK.  
 3. **Set LED State (LIGHTIND_SetState)**:  
-   * If !s_is_initialized, return APP_ERROR and log a warning.  
-   * Validate led_id. If led_id >= LIGHT_IND_COUNT, return APP_ERROR and log a warning.  
+   * If !s_is_initialized, return E_NOK and log a warning.  
+   * Validate led_id. If led_id >= LIGHT_IND_COUNT, return E_NOK and log a warning.  
    * Get the corresponding LightInd_LedConfig_t from light_ind_configs.  
    * Update s_led_states[led_id].commanded_state = state;.  
    * If state == LIGHT_IND_STATE_ON:  
@@ -161,7 +161,7 @@ The LightInd module will manage the state and blinking logic for each configured
        * RTE_Service_HAL_GPIO_SetState(light_ind_config.gpio_pin, HAL_GPIO_STATE_HIGH);  
    * If any RTE_Service_HAL_GPIO_SetState call fails, report FAULT_ID_LIGHTIND_GPIO_CONTROL_FAILURE to SystemMonitor.  
    * Log LOGD("LightInd %d set to state %d", led_id, state);.  
-   * Return APP_OK.  
+   * Return E_OK.  
 4. **Periodic Update (LIGHTIND_MainFunction)**:  
    * This function is called periodically by an RTE task (e.g., RTE_DisplayAlarmTask).  
    * If !s_is_initialized, return immediately.  
@@ -196,10 +196,10 @@ sequenceDiagram
     SystemMgr->>RTE: RTE_Service_LIGHTIND_SetState(LIGHT_IND_ID_SYSTEM_STATUS, LIGHT_IND_STATE_BLINK, 500, 500)  
     RTE->>LightInd: LIGHTIND_SetState(LIGHT_IND_ID_SYSTEM_STATUS, LIGHT_IND_STATE_BLINK, 500, 500)  
     LightInd->>HAL_GPIO: RTE_Service_HAL_GPIO_SetState(GPIO_PIN_LED_SYS_STATUS, HAL_GPIO_STATE_HIGH)  
-    HAL_GPIO-->>LightInd: Return APP_OK  
+    HAL_GPIO-->>LightInd: Return E_OK  
     LightInd->>Logger: LOGD("LightInd %d set to state BLINK", LIGHT_IND_ID_SYSTEM_STATUS)  
-    LightInd-->>RTE: Return APP_OK  
-    RTE-->>SystemMgr: Return APP_OK
+    LightInd-->>RTE: Return E_OK  
+    RTE-->>SystemMgr: Return E_OK
 
     Note over RTE_DisplayAlarmTask: (Later, RTE's periodic task runs)  
     loop Every LIGHTIND_UPDATE_PERIOD_MS  
@@ -207,13 +207,13 @@ sequenceDiagram
         LightInd->>LightInd: Check s_led_states[LIGHT_IND_ID_SYSTEM_STATUS]  
         alt If 500ms ON period elapsed  
             LightInd->>HAL_GPIO: RTE_Service_HAL_GPIO_SetState(GPIO_PIN_LED_SYS_STATUS, HAL_GPIO_STATE_LOW)  
-            HAL_GPIO-->>LightInd: Return APP_OK  
+            HAL_GPIO-->>LightInd: Return E_OK  
         else If 500ms OFF period elapsed  
             LightInd->>HAL_GPIO: RTE_Service_HAL_GPIO_SetState(GPIO_PIN_LED_SYS_STATUS, HAL_GPIO_STATE_HIGH)  
-            HAL_GPIO-->>LightInd: Return APP_OK  
+            HAL_GPIO-->>LightInd: Return E_OK  
         end  
         alt HAL_GPIO_SetState fails  
-            HAL_GPIO--xLightInd: Return APP_ERROR  
+            HAL_GPIO--xLightInd: Return E_NOK  
             LightInd->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_LIGHTIND_GPIO_CONTROL_FAILURE, SEVERITY_LOW, ...)  
         end  
         LightInd-->>RTE_DisplayAlarmTask: Return  
@@ -221,7 +221,7 @@ sequenceDiagram
 ```
 ### **5.4. Dependencies**
 
-* Application/common/inc/app_common.h: For APP_Status_t, APP_OK/APP_ERROR, and APP_COMMON_GetUptimeMs().  
+* Application/common/inc/common.h: For APP_Status_t, E_OK/E_NOK, and APP_COMMON_GetUptimeMs().  
 * Application/logger/inc/logger.h: For internal logging.  
 * Rte/inc/Rte.h: For calling RTE_Service_SystemMonitor_ReportFault() and RTE_Service_HAL_GPIO_SetState().  
 * Application/SystemMonitor/inc/system_monitor.h: For FAULT_ID_LIGHTIND_... definitions.  
@@ -233,7 +233,7 @@ sequenceDiagram
 * **Initialization Failure**: If RTE_Service_HAL_GPIO_SetState() fails during LightInd_Init(), FAULT_ID_LIGHTIND_GPIO_INIT_FAILURE is reported to SystemMonitor.  
 * **GPIO Control Errors**: If RTE_Service_HAL_GPIO_SetState() fails during LIGHTIND_SetState() or LIGHTIND_MainFunction(), FAULT_ID_LIGHTIND_GPIO_CONTROL_FAILURE is reported to SystemMonitor.  
 * **Input Validation**: LIGHTIND_SetState validates led_id and parameters.  
-* **Return Status**: All public API functions return APP_ERROR on failure.
+* **Return Status**: All public API functions return E_NOK on failure.
 
 ### **5.6. Configuration**
 
@@ -296,7 +296,7 @@ const LightInd_LedConfig_t light_ind_configs[LIGHT_IND_COUNT] = {
     * Test setting LEDs to ON and OFF. Verify RTE_Service_HAL_GPIO_SetState() is called with the correct state.  
     * Test setting an LED to BLINK with various blink_on_ms/blink_off_ms. Verify initial state is ON and last_toggle_time_ms is set.  
     * Test with invalid led_id.  
-    * Test scenarios where RTE_Service_HAL_GPIO_SetState() fails (verify APP_ERROR return and fault reporting).  
+    * Test scenarios where RTE_Service_HAL_GPIO_SetState() fails (verify E_NOK return and fault reporting).  
   * LIGHTIND_MainFunction:  
     * Mock APP_COMMON_GetUptimeMs() to simulate time passing.  
     * Test blinking logic: Verify LEDs toggle ON/OFF at the correct intervals for configured blinking patterns.  

@@ -14,18 +14,18 @@ const VentCtrl_Config_t vent_configs[VentCtrl_COUNT] = {
         .id = VENT_ID_MAIN_EXHAUST,
         .type = VentCtrl_TYPE_PWM,
         .control_details.pwm = {
-            .pwm_channel = MCAL_PWM_CHANNEL_1
+            .pwm_channel = 1
         },
         .feedback_type = VentCtrl_FEEDBACK_TYPE_TACHOMETER,
         .feedback_details.tachometer = {
-            .tachometer_gpio_pin = MCAL_GPIO_PIN_16
+            .tachometer_gpio_pin = 16
         }
     },
     {
         .id = VENT_ID_INTAKE_FAN,
         .type = VentCtrl_TYPE_RELAY,
         .control_details.relay = {
-            .relay_gpio_pin = MCAL_GPIO_PIN_17
+            .relay_gpio_pin = 17
         },
         .feedback_type = VentCtrl_FEEDBACK_TYPE_NONE
     }

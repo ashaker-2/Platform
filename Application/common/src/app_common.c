@@ -1,6 +1,6 @@
 // ecual/src/ecual_common.c
 
-#include "app_common.h"
+#include "common.h"
 
 
 // ... existing implementations ...

@@ -163,12 +163,12 @@ sequenceDiagram
     alt MCAL_FLASH_Write returns MCAL_ERROR  
         MCAL_FLASH--xHAL_FLASH: Return MCAL_ERROR  
         HAL_FLASH->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_FLASH_ERROR_WRITE_FAILED, SEVERITY_HIGH, ...)  
-        HAL_FLASH--xRTE: Return APP_ERROR  
-        RTE--xAppLayer: Return APP_ERROR  
+        HAL_FLASH--xRTE: Return E_NOK  
+        RTE--xAppLayer: Return E_NOK  
     else MCAL_FLASH_Write returns MCAL_OK  
         MCAL_FLASH-->>HAL_FLASH: Return MCAL_OK  
-        HAL_FLASH-->>RTE: Return APP_OK  
-        RTE-->>AppLayer: Return APP_OK  
+        HAL_FLASH-->>RTE: Return E_OK  
+        RTE-->>AppLayer: Return E_OK  
     end
 ```
 
@@ -177,7 +177,7 @@ sequenceDiagram
 * **Mcal/flash/inc/mcal_flash.h**: For calling low-level Flash driver functions.  
 * **Application/logger/inc/logger.h**: For internal logging.  
 * **Rte/inc/Rte.h**: For calling RTE_Service_SystemMonitor_ReportFault().  
-* **Application/common/inc/app_common.h**: For APP_Status_t (though HAL_FLASH_Status_t is more specific).  
+* **Application/common/inc/common.h**: For APP_Status_t (though HAL_FLASH_Status_t is more specific).  
 * **HAL/cfg/hal_flash_cfg.h**: For Flash memory layout configuration.
 
 ### **5.5. Error Handling**

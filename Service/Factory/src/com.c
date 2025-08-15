@@ -29,13 +29,13 @@ static void communication_stack_process_modbus_data_exchange(void) {
     uint16_t value_read;
 
     // --- Update Modbus registers with current system status (for Modbus master to read) ---
-    if (RTE_Service_GetCurrentSensorReadings(&room_temp, &room_hum, &heatsink_temp) == APP_OK) {
+    if (RTE_Service_GetCurrentSensorReadings(&room_temp, &room_hum, &heatsink_temp) == E_OK) {
         MODBUS_MW_WriteHoldingRegister(MODBUS_SLAVE_ID, MODBUS_REG_ROOM_TEMP_X100, (uint16_t)(room_temp * 100));
         MODBUS_MW_WriteHoldingRegister(MODBUS_SLAVE_ID, MODBUS_REG_HUMIDITY_X100, (uint16_t)(room_hum * 100));
         MODBUS_MW_WriteHoldingRegister(MODBUS_SLAVE_ID, MODBUS_REG_HEATSINK_TEMP_X100, (uint16_t)(heatsink_temp * 100));
     }
 
-    if (RTE_Service_GetActuatorStates(&fan_stage, &last_fan_time_ms, &heater_working, &pump_working, &ventilator_working, &fan_any_active) == APP_OK) {
+    if (RTE_Service_GetActuatorStates(&fan_stage, &last_fan_time_ms, &heater_working, &pump_working, &ventilator_working, &fan_any_active) == E_OK) {
         MODBUS_MW_WriteHoldingRegister(MODBUS_SLAVE_ID, MODBUS_REG_FAN_STAGE, fan_stage);
         MODBUS_MW_WriteHoldingRegister(MODBUS_SLAVE_ID, MODBUS_REG_HEATER_STATE, heater_working ? 1 : 0);
         MODBUS_MW_WriteHoldingRegister(MODBUS_SLAVE_ID, MODBUS_REG_PUMP_STATE, pump_working ? 1 : 0);
@@ -44,7 +44,7 @@ static void communication_stack_process_modbus_data_exchange(void) {
 
     // --- Read Modbus registers for commands/settings from Modbus master ---
     // Example: Check if Modbus master updated Min Operational Temperature
-    if (MODBUS_MW_ReadHoldingRegister(MODBUS_SLAVE_ID, MODBUS_REG_SET_MIN_OP_TEMP_X100, &value_read) == APP_OK) {
+    if (MODBUS_MW_ReadHoldingRegister(MODBUS_SLAVE_ID, MODBUS_REG_SET_MIN_OP_TEMP_X100, &value_read) == E_OK) {
         float current_min_temp, current_max_temp;
         RTE_Service_GetOperationalTemperature(&current_min_temp, &current_max_temp); // Get current settings
         float new_min_temp = (float)value_read / 100.0f;
@@ -55,7 +55,7 @@ static void communication_stack_process_modbus_data_exchange(void) {
     }
 
     // Example: Check if Modbus master updated Max Operational Temperature
-    if (MODBUS_MW_ReadHoldingRegister(MODBUS_SLAVE_ID, MODBUS_REG_SET_MAX_OP_TEMP_X100, &value_read) == APP_OK) {
+    if (MODBUS_MW_ReadHoldingRegister(MODBUS_SLAVE_ID, MODBUS_REG_SET_MAX_OP_TEMP_X100, &value_read) == E_OK) {
         float current_min_temp, current_max_temp;
         RTE_Service_GetOperationalTemperature(&current_min_temp, &current_max_temp);
         float new_max_temp = (float)value_read / 100.0f;
@@ -132,24 +132,24 @@ static void communication_stack_process_wifi_data_exchange(void) {
 }
 
 
-// --- PUBLIC FUNCTIONS (exposed via communication_stack_interface.h for COMMUNICATION_STACK_MainTask) ---
+// --- PUBLIC FUNCTIONS (exposed via communication_stack_interface.h for ComM_MainTask) ---
 
 uint8_t COMMUNICATION_STACK_ProcessModbus(void) {
     MODBUS_MW_Process();
     communication_stack_process_modbus_data_exchange();
-    return APP_OK;
+    return E_OK;
 }
 
 uint8_t COMMUNICATION_STACK_ProcessBluetooth(void) {
     BLUETOOTH_MW_Process();
     communication_stack_process_bluetooth_data_exchange();
-    return APP_OK;
+    return E_OK;
 }
 
 uint8_t COMMUNICATION_STACK_ProcessWiFi(void) {
     WIFI_MW_Process();
     communication_stack_process_wifi_data_exchange();
-    return APP_OK;
+    return E_OK;
 }
 
 // --- INTERNAL FUNCTIONS (called by RTE Services) ---

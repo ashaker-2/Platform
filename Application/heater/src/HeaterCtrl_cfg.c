@@ -12,7 +12,7 @@
 const HeaterCtrl_Config_t heater_configs[HEATER_COUNT] = {
     {
         .id = HEATER_ID_MAIN,
-        .gpio_pin = MCAL_GPIO_PIN_22
+        .gpio_pin = 22
     }
     // Add more heater configurations here
 };

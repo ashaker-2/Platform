@@ -74,8 +74,8 @@ typedef struct
     MODBUS_Parity_t parity;                 /**< UART parity (None, Even, Odd). */
     uint32_t response_timeout_ms;           /**< Default timeout for a Modbus response in milliseconds. */
     uint8_t max_retries;                    /**< Maximum number of retries for a Modbus request. */
-    size_t rx_buffer_size;                  /**< UART RX buffer size in bytes. */
-    size_t tx_buffer_size;                  /**< UART TX buffer size in bytes. */
+    uint16_t rx_buffer_size;                  /**< UART RX buffer size in bytes. */
+    uint16_t tx_buffer_size;                  /**< UART TX buffer size in bytes. */
 } MODBUS_PortConfig_t;
 
 /**

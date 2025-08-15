@@ -1,10 +1,10 @@
 #ifndef HUMCTRL_CFG_H
 #define HUMCTRL_CFG_H
 
-#include "app_common.h"
+#include "common.h"
 #include "system_monitor.h" // For fault IDs
-#include "mcal_adc.h"
-#include "mcal_i2c.h"
+#include "hal_adc.h"
+#include "hal_i2c.h"
 #include <stdint.h>
 
 /**

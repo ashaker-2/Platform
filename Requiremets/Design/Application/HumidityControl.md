@@ -71,7 +71,7 @@ The HumCtrl component will consist of the following files:
 
 // In Application/humctrl/inc/humctrl.h
 ```c
-#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h> // For uint32_t  
 #include <stdbool.h> // For bool
 
@@ -81,7 +81,7 @@ The HumCtrl component will consist of the following files:
  * @brief Initializes the HumCtrl module and all configured humidity sensor hardware.  
  * All module-internal variables and sensor data storage are initialized to a safe,  
  * known state (e.g., zeroes or NaN).  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HumCtrl_Init(void);
 
@@ -91,7 +91,7 @@ APP_Status_t HumCtrl_Init(void);
  * performed periodically by the internal HumCtrl_MainFunction.  
  * @param sensorId The unique ID of the sensor to retrieve data from.  
  * @param humidity_rh Pointer to store the latest humidity value in Relative Humidity (%).  
- * @return APP_OK on successful retrieval, APP_ERROR if the sensorId is invalid,  
+ * @return E_OK on successful retrieval, E_NOK if the sensorId is invalid,  
  * the pointer is NULL, or no valid data is available for that sensor.  
  */  
 APP_Status_t HumCtrl_GetSensorHumidity(uint32_t sensorId, float *humidity_rh);
@@ -132,7 +132,7 @@ The HumCtrl module will manage its own sensor reading cycle for multiple sensors
        * Perform any sensor-specific power-up or configuration.  
        * If any underlying MCAL/HAL initialization fails, report FAULT_ID_HUMCTRL_SENSOR_INIT_FAILED to SystemMonitor with sensor_config.id as data. Log an error.  
    * s_is_initialized = true; on overall success.  
-   * Return APP_OK.  
+   * Return E_OK.  
 3. **Periodic Sensor Read & Update (HUMCTRL_MainFunction)**:  
    * This function is called periodically by a generic RTE task (e.g., RTE_PeriodicTask_MediumPrio_100ms).  
    * If !s_is_initialized, return immediately.  
@@ -155,10 +155,10 @@ The HumCtrl module will manage its own sensor reading cycle for multiple sensors
          * Report FAULT_ID_HUMCTRL_SENSOR_READ_FAILED to SystemMonitor with sensor_config.id as data (severity HIGH).  
          * Set s_latest_humidities_rh[sensor_config.id] = NAN; to indicate no valid data.  
 4. **Get Latest Humidity (HUMCTRL_GetSensorHumidity)**:  
-   * Validate humidity_rh pointer. If NULL, return APP_ERROR and log a warning.  
-   * Validate sensorId. If sensorId >= HUMCTRL_SENSOR_COUNT, return APP_ERROR and log a warning.  
+   * Validate humidity_rh pointer. If NULL, return E_NOK and log a warning.  
+   * Validate sensorId. If sensorId >= HUMCTRL_SENSOR_COUNT, return E_NOK and log a warning.  
    * Copy s_latest_humidities_rh[sensorId] to *humidity_rh.  
-   * Return APP_OK.
+   * Return E_OK.
 
 **Sequence Diagram (Example: Periodic Humidity Reading for Multiple Sensors and systemMgr Query):**
 ```mermaid
@@ -178,7 +178,7 @@ sequenceDiagram
         HumCtrl->>HumCtrl: Determine sensor type and comms  
         alt Sensor X is I2C (e.g., Sensor 0)  
             HumCtrl->>MCAL_I2C: MCAL_I2C_MasterWriteRead(Port_ID, Addr_X, ...)  
-            MCAL_I2C-->>HumCtrl: Return APP_OK (raw_data_buf)  
+            MCAL_I2C-->>HumCtrl: Return E_OK (raw_data_buf)  
         else Sensor X is Custom 1-Wire (e.g., Sensor 1)  
             HumCtrl->>MCAL_GPIO: MCAL_GPIO_ReadPin(Pin_ID_X)  
             MCAL_GPIO-->>HumCtrl: Return Raw Bit Stream (e.g., for DHT)  
@@ -186,14 +186,14 @@ sequenceDiagram
         HumCtrl->>HumCtrl: Validate raw data, calibrate, convert  
         alt Converted humidity is out of range  
             HumCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_HUMCTRL_SENSOR_OUT_OF_RANGE, SEVERITY_LOW, Sensor_ID_X)  
-            SystemMonitor-->>HumCtrl: Return APP_OK  
+            SystemMonitor-->>HumCtrl: Return E_OK  
         end  
         HumCtrl->>HumCtrl: Update s_latest_humidities_rh[Sensor_ID_X]  
         HumCtrl->>Logger: LOGD("HumCtrl sensor %d read success: %.1f %%RH", Sensor_ID_X, ...)  
     end  
     alt Any sensor read failed after retries  
         HumCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_HUMCTRL_SENSOR_READ_FAILED, SEVERITY_HIGH, Failed_Sensor_ID)  
-        SystemMonitor-->>HumCtrl: Return APP_OK  
+        SystemMonitor-->>HumCtrl: Return E_OK  
         HumCtrl->>HumCtrl: s_latest_humidities_rh[Failed_Sensor_ID] = NAN  
     end  
     RTE_Task-->>HumCtrl: (Return from HUMCTRL_MainFunction)
@@ -202,13 +202,13 @@ sequenceDiagram
     SystemMgr->>RTE: RTE_Service_HUMIDITY_SENSOR_GetSensorHumidity(SENSOR_ID_ROOM, &humidity_value_from_mgr)  
     RTE->>HumCtrl: HUMCTRL_GetSensorHumidity(SENSOR_ID_ROOM, &humidity_value_from_mgr)  
     HumCtrl->>HumCtrl: Validate sensorId  
-    HumCtrl-->>RTE: Return APP_OK (s_latest_humidities_rh[SENSOR_ID_ROOM] copied)  
-    RTE-->>SystemMgr: Return APP_OK
+    HumCtrl-->>RTE: Return E_OK (s_latest_humidities_rh[SENSOR_ID_ROOM] copied)  
+    RTE-->>SystemMgr: Return E_OK
 ```
 
 ### **5.4. Dependencies**
 
-* **Application/common/inc/app_common.h**: For APP_Status_t, APP_COMMON_GetUptimeMs().  
+* **Application/common/inc/common.h**: For APP_Status_t, APP_COMMON_GetUptimeMs().  
 * **Application/logger/inc/logger.h**: For logging sensor errors and warnings.  
 * **Application/SystemMonitor/inc/system_monitor.h**: For SystemMonitor_FaultId_t (e.g., FAULT_ID_HUMCTRL_SENSOR_INIT_FAILED, FAULT_ID_HUMCTRL_SENSOR_READ_FAILED, FAULT_ID_HUMCTRL_SENSOR_OUT_OF_RANGE).  
 * **Rte/inc/Rte.h**: For calling RTE_Service_SystemMonitor_ReportFault().  

@@ -4,12 +4,12 @@
 
 #include <stdint.h>
 #include <stdbool.h> // For bool
-#include "app_common.h" // For APP_OK/APP_ERROR types
+#include "common.h" // For E_OK/E_NOK types
 #include "modbus_middleware.h" // For Modbus register definitions, etc.
 #include "bluetooth_middleware.h" // For Bluetooth characteristic UUIDs, etc.
 #include "wifi_middleware.h" // For WiFi endpoint definitions, etc.
 
-// --- Internal functions exposed for use by the COMMUNICATION_STACK_MainTask in Rte.c ---
+// --- Internal functions exposed for use by the ComM_MainTask in Rte.c ---
 // These functions directly interact with the underlying middleware.
 // They are NOT meant to be called directly by other application modules.
 // Application modules must use the RTE_Service_COMM_... functions.
@@ -17,21 +17,21 @@
 /**
  * @brief Performs periodic processing for the Modbus stack.
  * Calls MODBUS_MW_Process() and handles data exchange.
- * @return APP_OK if processing is successful, APP_ERROR if an unrecoverable error occurs.
+ * @return E_OK if processing is successful, E_NOK if an unrecoverable error occurs.
  */
 uint8_t COMMUNICATION_STACK_ProcessModbus(void);
 
 /**
  * @brief Performs periodic processing for the Bluetooth stack.
  * Calls BLUETOOTH_MW_Process() and handles data exchange.
- * @return APP_OK if processing is successful, APP_ERROR if an unrecoverable error occurs.
+ * @return E_OK if processing is successful, E_NOK if an unrecoverable error occurs.
  */
 uint8_t COMMUNICATION_STACK_ProcessBluetooth(void);
 
 /**
  * @brief Performs periodic processing for the WiFi stack.
  * Calls WIFI_MW_Process() and handles data exchange.
- * @return APP_OK if processing is successful, APP_ERROR if an unrecoverable error occurs.
+ * @return E_OK if processing is successful, E_NOK if an unrecoverable error occurs.
  */
 uint8_t COMMUNICATION_STACK_ProcessWiFi(void);
 
@@ -45,7 +45,7 @@ uint8_t COMMUNICATION_STACK_ProcessWiFi(void);
  * @param slave_address The Modbus slave ID.
  * @param register_address The 16-bit address of the holding register.
  * @param value The 16-bit value to write.
- * @return APP_OK if successful, APP_ERROR otherwise.
+ * @return E_OK if successful, E_NOK otherwise.
  */
 uint8_t COMMUNICATION_STACK_Internal_Modbus_WriteHoldingRegister(uint8_t slave_address, uint16_t register_address, uint16_t value);
 
@@ -55,7 +55,7 @@ uint8_t COMMUNICATION_STACK_Internal_Modbus_WriteHoldingRegister(uint8_t slave_a
  * @param slave_address The Modbus slave ID.
  * @param register_address The 16-bit address of the holding register.
  * @param value Pointer to a uint16_t where the read value will be stored.
- * @return APP_OK if successful, APP_ERROR otherwise.
+ * @return E_OK if successful, E_NOK otherwise.
  */
 uint8_t COMMUNICATION_STACK_Internal_Modbus_ReadHoldingRegister(uint8_t slave_address, uint16_t register_address, uint16_t *value);
 
@@ -65,7 +65,7 @@ uint8_t COMMUNICATION_STACK_Internal_Modbus_ReadHoldingRegister(uint8_t slave_ad
  * @param characteristic_uuid The UUID of the GATT characteristic.
  * @param data Pointer to the data to send.
  * @param len Length of the data in bytes.
- * @return APP_OK if successful, APP_ERROR otherwise.
+ * @return E_OK if successful, E_NOK otherwise.
  */
 uint8_t COMMUNICATION_STACK_Internal_Bluetooth_SendData(uint16_t characteristic_uuid, const uint8_t *data, uint16_t len);
 
@@ -74,14 +74,14 @@ uint8_t COMMUNICATION_STACK_Internal_Bluetooth_SendData(uint16_t characteristic_
  * Called by RTE_Service_WiFi_Connect.
  * @param ssid The SSID of the access point.
  * @param password The password for the access point.
- * @return APP_OK if connection initiated, APP_ERROR otherwise.
+ * @return E_OK if connection initiated, E_NOK otherwise.
  */
 uint8_t COMMUNICATION_STACK_Internal_WiFi_Connect(const char *ssid, const char *password);
 
 /**
  * @brief Internal function to disconnect from WiFi.
  * Called by RTE_Service_WiFi_Disconnect.
- * @return APP_OK if successful, APP_ERROR otherwise.
+ * @return E_OK if successful, E_NOK otherwise.
  */
 uint8_t COMMUNICATION_STACK_Internal_WiFi_Disconnect(void);
 
@@ -98,7 +98,7 @@ bool COMMUNICATION_STACK_Internal_WiFi_IsConnected(void);
  * @param endpoint Network endpoint (e.g. URL, MQTT topic).
  * @param data Data to send.
  * @param len Length of data.
- * @return APP_OK if successful, APP_ERROR otherwise.
+ * @return E_OK if successful, E_NOK otherwise.
  */
 uint8_t COMMUNICATION_STACK_Internal_WiFi_SendNetworkData(const char *endpoint, const uint8_t *data, uint16_t len);
 

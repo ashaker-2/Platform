@@ -73,7 +73,7 @@ The ComM component will consist of the following files:
 ```c
 // In Service/ComM/inc/comm.h
 
-#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h>   // For uint32_t, uint8_t  
 #include <stdbool.h>  // For bool
 
@@ -104,7 +104,7 @@ typedef struct {
 /**  
  * @brief Initializes the ComM module and all configured communication channels.  
  * This function should be called once during system initialization.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t ComM_Init(void);
 
@@ -112,14 +112,14 @@ APP_Status_t ComM_Init(void);
  * @brief Activates a specific communication channel.  
  * This function handles arbitration to ensure only one control interface is active.  
  * @param channel_id The ID of the channel to activate.  
- * @return APP_OK on success, APP_ERROR if activation fails or arbitration prevents it.  
+ * @return E_OK on success, E_NOK if activation fails or arbitration prevents it.  
  */  
 APP_Status_t COMM_ActivateChannel(ComM_ChannelId_t channel_id);
 
 /**  
  * @brief Deactivates a specific communication channel.  
  * @param channel_id The ID of the channel to deactivate.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t COMM_DeactivateChannel(ComM_ChannelId_t channel_id);
 
@@ -133,7 +133,7 @@ void COMM_MainFunction(void);
 /**  
  * @brief Sends data over a specified communication channel.  
  * @param packet Pointer to the ComM_Packet_t structure containing data and channel ID.  
- * @return APP_OK on successful transmission, APP_ERROR on failure.  
+ * @return E_OK on successful transmission, E_NOK on failure.  
  */  
 APP_Status_t COMM_SendData(const ComM_Packet_t *packet);
 
@@ -141,7 +141,7 @@ APP_Status_t COMM_SendData(const ComM_Packet_t *packet);
  * @brief Gets the current status of a communication channel.  
  * @param channel_id The ID of the channel to query.  
  * @param status Pointer to a ComM_Status_t variable to store the status.  
- * @return APP_OK on success, APP_ERROR if channel_id is invalid.  
+ * @return E_OK on success, E_NOK if channel_id is invalid.  
  */  
 APP_Status_t COMM_GetChannelStatus(ComM_ChannelId_t channel_id, ComM_Status_t *status);
 
@@ -205,18 +205,18 @@ The ComM module will manage the state of each communication channel, implement a
    * Initialize s_active_control_channel = COMM_CHANNEL_COUNT.  
    * Call HAL_Modbus_Init(), HAL_Bluetooth_Init(), HAL_Wifi_Init().  
    * Register ComM's Rx and connection callbacks with the HAL drivers (e.g., HAL_Modbus_RegisterRxCallback(ComM_ModbusRxCallback)).  
-   * If any HAL initialization fails, report FAULT_ID_COMM_INIT_FAILURE to SystemMonitor and return APP_ERROR.  
+   * If any HAL initialization fails, report FAULT_ID_COMM_INIT_FAILURE to SystemMonitor and return E_NOK.  
    * Set s_is_initialized = true;.  
-   * Return APP_OK.  
+   * Return E_OK.  
 3. **Activate Channel (COMM_ActivateChannel)**:  
-   * If !s_is_initialized or channel_id is invalid, return APP_ERROR.  
+   * If !s_is_initialized or channel_id is invalid, return E_NOK.  
    * **Arbitration Logic (SyRS-05-01-01)**:  
      * If s_active_control_channel != COMM_CHANNEL_COUNT (another channel is active):  
        * **Check Priority**: If the requested channel_id has higher priority (defined in comm_cfg.h) than s_active_control_channel:  
          * Deactivate current active channel: COMM_DeactivateChannel(s_active_control_channel).  
          * Proceed to activate the new channel.  
        * Else (requested channel has lower or equal priority):  
-         * Return APP_ERROR (activation denied). Log a warning.  
+         * Return E_NOK (activation denied). Log a warning.  
      * Else (no channel currently active):  
        * Proceed to activate.  
    * **Activate HAL Driver**:  
@@ -224,25 +224,25 @@ The ComM module will manage the state of each communication channel, implement a
        * COMM_CHANNEL_MODBUS: Call HAL_Modbus_Activate().  
        * COMM_CHANNEL_BLUETOOTH: Call HAL_Bluetooth_Activate().  
        * COMM_CHANNEL_WIFI: Call HAL_Wifi_Activate().  
-   * If HAL activation fails, report FAULT_ID_COMM_CHANNEL_ACT_FAILURE and return APP_ERROR.  
+   * If HAL activation fails, report FAULT_ID_COMM_CHANNEL_ACT_FAILURE and return E_NOK.  
    * Set s_comm_channel_states[channel_id].is_active_control_interface = true;.  
    * Set s_active_control_channel = channel_id;.  
    * Update s_comm_channel_states[channel_id].status = COMM_STATUS_CONNECTED; (or CONNECTING if non-blocking).  
    * Log LOGI("ComM: Channel %d activated for control.", channel_id);.  
-   * Return APP_OK.  
+   * Return E_OK.  
 4. **Deactivate Channel (COMM_DeactivateChannel)**:  
-   * If !s_is_initialized or channel_id is invalid, return APP_ERROR.  
+   * If !s_is_initialized or channel_id is invalid, return E_NOK.  
    * **Deactivate HAL Driver**:  
      * switch (channel_id):  
        * COMM_CHANNEL_MODBUS: Call HAL_Modbus_Deactivate().  
        * COMM_CHANNEL_BLUETOOTH: Call HAL_Bluetooth_Deactivate().  
        * COMM_CHANNEL_WIFI: Call HAL_Wifi_Deactivate().  
-   * If HAL deactivation fails, report FAULT_ID_COMM_CHANNEL_DEACT_FAILURE and return APP_ERROR.  
+   * If HAL deactivation fails, report FAULT_ID_COMM_CHANNEL_DEACT_FAILURE and return E_NOK.  
    * Set s_comm_channel_states[channel_id].is_active_control_interface = false;.  
    * If s_active_control_channel == channel_id, set s_active_control_channel = COMM_CHANNEL_COUNT;.  
    * Update s_comm_channel_states[channel_id].status = COMM_STATUS_DISCONNECTED;.  
    * Log LOGI("ComM: Channel %d deactivated.", channel_id);.  
-   * Return APP_OK.  
+   * Return E_OK.  
 5. **Main Function (COMM_MainFunction)**:  
    * If !s_is_initialized, return immediately.  
    * **Poll HAL Drivers for Incoming Data**:  
@@ -266,8 +266,8 @@ The ComM module will manage the state of each communication channel, implement a
        * COMM_CHANNEL_MODBUS: Call HAL_Modbus_Transmit(packet->data, packet->data_len).  
        * COMM_CHANNEL_BLUETOOTH: Call HAL_Bluetooth_Transmit(packet->data, packet->data_len).  
        * COMM_CHANNEL_WIFI: Call HAL_Wifi_Transmit(packet->data, packet->data_len).  
-   * If HAL transmission fails, report FAULT_ID_COMM_TX_FAILURE and return APP_ERROR.  
-   * Return APP_OK.  
+   * If HAL transmission fails, report FAULT_ID_COMM_TX_FAILURE and return E_NOK.  
+   * Return E_OK.  
 7. **Rx Callbacks (ComM_ModbusRxCallback, ComM_BluetoothRxCallback, ComM_WifiRxCallback)**:  
    * These are called by the respective HAL drivers when new data arrives.  
    * **Update Activity Time**: s_comm_channel_states[current_channel].last_activity_time_ms = APP_COMMON_GetUptimeMs();.  
@@ -303,8 +303,8 @@ sequenceDiagram
     alt If security enabled for Modbus  
         ComM->>RTE: RTE_Service_Security_AuthenticateAndDecrypt(raw_modbus_frame, len, &decrypted_data, &decrypted_len)  
         RTE->>Security: SECURITY_AuthenticateAndDecrypt(...)  
-        Security-->>RTE: Return APP_OK/APP_ERROR  
-        RTE-->>ComM: Return APP_OK/APP_ERROR  
+        Security-->>RTE: Return E_OK/E_NOK  
+        RTE-->>ComM: Return E_OK/E_NOK  
         alt If authentication/decryption fails  
             ComM->>RTE: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_COMM_SECURITY_FAILURE, SEVERITY_HIGH, ...)  
             RTE-->>ComM: Return  
@@ -318,18 +318,18 @@ sequenceDiagram
     end  
     ComM->>RTE: RTE_Service_DIAGNOSTIC_ProcessCommand(parsed_command, &response)  
     RTE->>Diagnostic: DIAGNOSTIC_ProcessCommand(parsed_command, &response)  
-    Diagnostic-->>RTE: Return APP_OK (with response)  
-    RTE-->>ComM: Return APP_OK (with response)  
+    Diagnostic-->>RTE: Return E_OK (with response)  
+    RTE-->>ComM: Return E_OK (with response)  
     ComM->>ComM: Prepare response packet  
     ComM->>RTE: RTE_Service_COMM_SendData(&response_packet)  
     RTE->>ComM: COMM_SendData(&response_packet)  
     ComM->>HAL_Modbus: HAL_Modbus_Transmit(response_data, response_len)  
-    HAL_Modbus-->>ComM: Return APP_OK  
+    HAL_Modbus-->>ComM: Return E_OK  
     ComM-->>HAL_Modbus: Return
 ```
 ### **5.4. Dependencies**
 
-* Application/common/inc/app_common.h: For APP_Status_t, APP_OK/APP_ERROR, and APP_COMMON_GetUptimeMs().  
+* Application/common/inc/common.h: For APP_Status_t, E_OK/E_NOK, and APP_COMMON_GetUptimeMs().  
 * Application/logger/inc/logger.h: For internal logging.  
 * Rte/inc/Rte.h: For calling RTE_Service_SystemMonitor_ReportFault(), RTE_Service_DIAGNOSTIC_ProcessCommand(), RTE_Service_SYS_MGR_ProcessCommand(), RTE_Service_Security_Encrypt(), RTE_Service_Security_AuthenticateAndDecrypt().  
 * Application/SystemMonitor/inc/system_monitor.h: For FAULT_ID_COMM_... definitions.  
@@ -349,7 +349,7 @@ sequenceDiagram
 * **Connection Loss**: ComM_BluetoothConnectionCallback/ComM_WifiConnectionCallback can report FAULT_ID_COMM_CONNECTION_LOST if a critical connection drops.  
 * **Activity Timeout**: If the active control channel becomes inactive for too long, ComM will automatically deactivate it and log a warning.  
 * **Input Validation**: All public API functions validate input parameters.  
-* **Return Status**: All public API functions return APP_ERROR on failure.
+* **Return Status**: All public API functions return E_NOK on failure.
 
 ### **5.6. Configuration**
 

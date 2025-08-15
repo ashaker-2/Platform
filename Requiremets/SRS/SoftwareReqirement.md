@@ -16,7 +16,6 @@ This document defines the software-level requirements for the Environmental Moni
 
 The system employs a strict layered architecture to achieve separation of concerns and reduce interdependencies.
 
-
 ```
 +--------------------------------------------------------------+
 |                   Application Layer                          |
@@ -61,6 +60,37 @@ The system employs a strict layered architecture to achieve separation of concer
 * **Service Layer:** Provides high-level communication management (ComM), operating system services (os), Over-the-Air (OTA) updates (ota), and security services (security), abstracting complexities from the application layer.  
 * **HAL Layer:** Provides hardware-independent interfaces for peripherals and includes higher-level drivers for communication protocols (Modbus, Bluetooth, Wi-Fi).  
 * **MCAL Layer:** Device-specific drivers for GPIO, UART, PWM, ADC, etc.
+
+| Layer                 | Module Name       | Description                                                                                                                                                                                                                                     | Covers Req IDs                                                                 |
+|----------------------|-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------|
+| **Application Layer**| **Diagnostic**     | Responsible for fault detection, categorization by domain (HAL, Service, Application), fault storage (active and historical), and providing detailed fault information to other modules. Implements retry mechanisms for transient faults and triggers safe state or reboot on persistent faults. | SRS-04-07-04, SRS-04-07-05, SRS-04-07-06, SRS-04-07-07, SRS-04-07-08            |
+|                      | **SystemMonitor**  | Monitors system health, processes alarm statuses, activates LED indicators, and interacts with the Diagnostic module for alarm logic and fault response.                                                                                        | SRS-04-04-07, SRS-04-07-01, SRS-04-07-02, SRS-04-07-03                          |
+|                      | **Common**         | Provides shared utilities such as logging APIs, rate-limiting mechanisms for security/authentication attempts, and other cross-cutting concerns. Integrates with Security module in the Service Layer for logging failed attempts and enforcing timeouts. | SRS-06-01-02, SRS-07-01-06                                                      |
+| **Service Layer**    | **Security**       | Enforces authentication (e.g., BLE pairing), encryption, communication exclusivity (only one interface active), and cryptographic services for OTA and configuration changes. Manages rate limiting and timeout policies in collaboration with Application’s Common module. | SRS-06-01-01, SRS-06-01-03, SRS-06-01-05, SRS-07-01-06                          |
+|                      | **ComM**           | Manages communication interfaces, arbitrates active control over actuators to enforce exclusive control policy (Bluetooth or Modbus only active at once). Routes messages to/from HAL drivers and Application Layer.                           | SRS-05-01-01, SRS-05-01-02, SRS-06-01-03                                        |
+|                      | **OS**             | Encapsulates FreeRTOS-dependent logic and provides task management and scheduling services to upper layers.                                                                                                                                    | SRS-07-01-02                                                                    |
+| **HAL Layer**        | *--*        | Hardware-independent interfaces remain as before, supporting sensors, actuators, communication buses, etc.                                                                                                                                    | All hardware-related functional requirements                                    |
+| **MCAL Layer**       | *--*        | Low-level drivers for hardware peripherals.                                                                                                                                                                                                   | Hardware driver requirements                                                    |
+
+### **3.2. Fault & Diagnostic Flow**
+
+* Diagnostic module detects faults reported from all layers (HAL, Service, Application).
+* It categorizes faults by severity and domain, stores records in NVM via Storage module.
+* SystemMonitor uses diagnostic info to activate alarms, LEDs, and manage system safe states.
+* Retry mechanisms implemented in Diagnostic try automatic recovery before escalating faults.
+* Persistent faults cause controlled reboot or transition to safe mode.
+
+### **3.3. Communication Management**
+
+* ComM enforces that only one communication interface (Bluetooth or Modbus) controls actuators at a time.
+* Security module collaborates to block conflicting commands and prevent unauthorized access.
+* Logging of authentication attempts and rate-limiting enforced jointly by Security and Common modules.
+* OTA updates require signed images and session authentication enforced via Security module.
+
+### **3.4. User Interaction & Configuration**
+
+* Application Layer modules (Display, Buttons, SYS_MGR) interact with Storage for persisting configuration settings.
+* Pump and fan control logic in Application Layer enforces mandatory pump activation and temperature-dependent fan speed control, as specified in constraints.
 
 ## **4. Software Functional Requirements**
 
@@ -139,12 +169,35 @@ graph TD
   AppA -->|Normal Boot| Bootloader
   AppB -->|Fallback/Update| Bootloader
 ```
+
+```mermaid
+graph LR
+    Bootloader -->|Checks| AppA
+    Bootloader -->|Checks| AppB
+    Bootloader -->|Fallback| Factory
+```
+
 * **SRS-04-03-01:** Flash memory shall be partitioned into:  
   * Bootloader  
   * Factory App (diagnostics & fallback)  
   * Application A (active)  
   * Application B (backup/update target)  
 * **SRS-04-03-02:** EEPROM or emulated NVM shall store configuration settings.
+
+### 4.9 System Monitoring
+
+- **SRS-04-09-01:** The software shall provide a fault tracking system with unique fault IDs and active/inactive states.
+- **SRS-04-09-02:** The software shall monitor CPU load and trigger a fault if usage exceeds **90%**.
+- **SRS-04-09-03:** The software shall monitor total minimum free stack space and trigger a fault if below **2048 bytes**.
+- **SRS-04-09-04:** The software shall allow setting and clearing individual faults in a thread-safe manner.
+- **SRS-04-09-05:** The software shall allow querying the status of any fault.
+- **SRS-04-09-06:** The software shall clear all tracked faults on request.
+- **SRS-04-09-07:** The system monitor shall be initialized at startup and run periodically every **1s**.
+- **SRS-04-09-08:** Critical faults shall trigger a fail-safe after **5s** if not cleared.
+- **SRS-04-09-09:** Health metrics (CPU load, stack usage, task count, uptime) shall be logged every **10s**.
+
+
+
 
 ## **5. Communication Management**
 
@@ -154,19 +207,21 @@ graph TD
 * **SRS-05-01-02:** The ComM module shall provide a unified interface to the Application and RTE layers for sending/receiving data, handling connection states, and routing messages.  
 * **SRS-05-01-03:** The ComM module shall interact with lower-level communication drivers in the HAL layer.
 
-### **5.2 Bluetooth (HAL Driver)**
+### **5.2 Bluetooth**
 
-* **SRS-05-02-01:** The Bluetooth HAL driver shall support BLE 4.0 or higher.  
-* **SRS-05-02-02:** The Bluetooth HAL driver shall expose GATT-based services to ComM for configuration update, manual actuator override, and OTA transfer.
+* **SRS-05-02-01:** Support BLE 4.0 or higher.  
+* **SRS-05-02-02:** GATT-based services for:
+  - Configuration update
+  - Manual actuator override
+  - OTA transfer
+### **5.3 Modbus RTU **
 
-### **5.3 Modbus RTU (HAL Driver)**
-
-* **SRS-05-03-01:** The Modbus RTU HAL driver shall run over UART (RS485).  
-* **SRS-05-03-02:** The Modbus RTU HAL driver shall support master and slave roles simultaneously.  
-* **SRS-05-03-03:** The Modbus RTU HAL driver shall retrieve sensor data from external Modbus devices.  
-* **SRS-05-03-04:** The Modbus RTU HAL driver shall support function codes: 0x03, 0x04, 0x06, 0x10.  
-* **SRS-05-03-05:** The Modbus RTU HAL driver shall support OTA firmware update.  
-* **SRS-05-03-06:** The Modbus RTU HAL driver shall support connection to up to 30 nodes.
+* **SRS-05-03-01:** Run over UART (RS485).  
+* **SRS-05-03-02:** Support master and slave roles simultaneously.  
+* **SRS-05-03-03:** Modbus master retrieve sensor data from external Modbus devices.  
+* **SRS-05-03-04:** Support function codes: 0x03, 0x04, 0x06, 0x10.  
+* **SRS-05-03-05:** Support OTA firmware update.  
+* **SRS-05-03-06:** Support connection to up to 30 nodes.
 
 ## **6. Security Requirements**
 
@@ -181,14 +236,17 @@ graph TD
 * **SRS-07-01-01:** All software modules shall be abstracted to support hardware migration.  
 * **SRS-07-01-02:** OS-dependent logic (FreeRTOS) shall be encapsulated in the Service Layer (os module).  
 * **SRS-07-01-03:** NVM access shall be managed via a unified API.  
-* **SRS-07-01-04:** Enforce mandatory pump control.  
-* **SRS-07-01-05:** Fan control via PWM based on internal temperature sensor.  
-* **SRS-07-01-06:** Secure Bluetooth firmware updates shall:  
-  * Require PIN/pairing  
-  * Log failed attempts  
-  * Enforce timeout after 3 minutes  
-* **SRS-07-01-07:** Store critical settings in NVM.  
-* **SRS-07-01-08:** Transition system to safe state upon faults.
+### 7.1 Interface Constraints
+
+- **SRS-07-01-01:** Only one communication interface (BLE or Modbus) active at a time.
+- **SRS-07-01-02:** Enforce mandatory pump control.
+- **SRS-07-01-03:** Fan control via PWM based on internal temperature sensor.
+- **SRS-07-01-04:** Secure Bluetooth firmware updates:
+  - Require PIN/pairing
+  - Log failed attempts
+  - Enforce timeout after 3 minutes
+- **SRS-08-04-05:** Store critical settings in NVM.
+- **SRS-08-04-06:** Transition system to safe state upon faults.
 
 ## **8. Glossary**
 

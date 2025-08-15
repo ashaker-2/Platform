@@ -1,7 +1,7 @@
 #ifndef POWER_H
 #define POWER_H
 
-#include "app_common.h"
+#include "common.h"
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -33,25 +33,25 @@ typedef struct {
 /**
  * @brief Initializes the Power module and related hardware (e.g., ADC for monitoring).
  * Sets the initial power mode to ON.
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-APP_Status_t PowerMgr_Init(void);
+Status_t PowerMgr_Init(void);
 
 /**
  * @brief Commands the system to transition to a specified power mode.
  * This function handles the necessary hardware configurations for the mode change.
  * @param mode The desired power mode (POWER_MODE_ON, POWER_MODE_SLEEP, POWER_MODE_OFF).
- * @return APP_OK on successful transition, APP_ERROR on failure or invalid mode.
+ * @return E_OK on successful transition, E_NOK on failure or invalid mode.
  */
-APP_Status_t PowerMgr_SetMode(Power_Mode_t mode);
+Status_t PowerMgr_SetMode(Power_Mode_t mode);
 
 /**
  * @brief Gets the last calculated power consumption metrics.
  * This is a non-blocking getter function.
  * @param consumption Pointer to a Power_Consumption_t structure to fill.
- * @return APP_OK on successful retrieval, APP_ERROR on failure (e.g., NULL pointer).
+ * @return E_OK on successful retrieval, E_NOK on failure (e.g., NULL pointer).
  */
-APP_Status_t PowerMgr_GetConsumption(Power_Consumption_t *consumption);
+Status_t PowerMgr_GetConsumption(Power_Consumption_t *consumption);
 
 /**
  * @brief Performs periodic power consumption monitoring and fault detection.

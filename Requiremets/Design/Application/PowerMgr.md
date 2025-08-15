@@ -74,7 +74,7 @@ The Power component will consist of the following files:
 
 // In Application/power/inc/power.h
 ```c
-#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h>   // For uint32_t, uint8_t  
 #include <stdbool.h>  // For bool
 
@@ -98,7 +98,7 @@ typedef struct {
 /**  
  * @brief Initializes the Power module and related hardware (e.g., ADC for monitoring).  
  * Sets the initial power mode to ON.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t Power_Init(void);
 
@@ -106,7 +106,7 @@ APP_Status_t Power_Init(void);
  * @brief Commands the system to transition to a specified power mode.  
  * This function handles the necessary hardware configurations for the mode change.  
  * @param mode The desired power mode (POWER_MODE_ON, POWER_MODE_SLEEP, POWER_MODE_OFF).  
- * @return APP_OK on successful transition, APP_ERROR on failure or invalid mode.  
+ * @return E_OK on successful transition, E_NOK on failure or invalid mode.  
  */  
 APP_Status_t PowerMgr_SetMode(Power_Mode_t mode);
 
@@ -114,7 +114,7 @@ APP_Status_t PowerMgr_SetMode(Power_Mode_t mode);
  * @brief Gets the last calculated power consumption metrics.  
  * This is a non-blocking getter function.  
  * @param consumption Pointer to a Power_Consumption_t structure to fill.  
- * @return APP_OK on successful retrieval, APP_ERROR on failure (e.g., NULL pointer).  
+ * @return E_OK on successful retrieval, E_NOK on failure (e.g., NULL pointer).  
  */  
 APP_Status_t PowerMgr_GetConsumption(Power_Consumption_t *consumption);
 
@@ -144,37 +144,37 @@ The Power module will maintain its current power mode, last measured consumption
    * Configure ADC channels for voltage and current sensing using HAL_ADC_ConfigChannel().  
    * Configure any GPIOs for power rail control or wake-up sources using HAL_GPIO_Init() or HAL_GPIO_SetDirection().  
    * Set initial power mode to POWER_MODE_ON by calling power_transition_to_on().  
-   * If any underlying HAL/MCAL initialization fails, report FAULT_ID_POWER_INIT_FAILURE to SystemMonitor and return APP_ERROR.  
+   * If any underlying HAL/MCAL initialization fails, report FAULT_ID_POWER_INIT_FAILURE to SystemMonitor and return E_NOK.  
    * Set s_is_initialized = true;.  
-   * Return APP_OK.  
+   * Return E_OK.  
 3. **Set Power Mode (POWER_SetMode)**:  
-   * If !s_is_initialized, return APP_ERROR.  
-   * Validate mode. If mode == s_current_power_mode, return APP_OK (no change needed).  
+   * If !s_is_initialized, return E_NOK.  
+   * Validate mode. If mode == s_current_power_mode, return E_OK (no change needed).  
    * Use a switch statement based on mode:  
      * **POWER_MODE_ON**: Call power_transition_to_on().  
      * **POWER_MODE_SLEEP**: Call power_transition_to_sleep().  
      * **POWER_MODE_OFF**: Call power_transition_to_off().  
-     * **Default**: Log error, return APP_ERROR.  
-   * If the transition function returns APP_OK, update s_current_power_mode = mode;.  
+     * **Default**: Log error, return E_NOK.  
+   * If the transition function returns E_OK, update s_current_power_mode = mode;.  
    * Log LOGI("Power: Transitioned to mode %d", s_current_power_mode);.  
-   * Return APP_OK or APP_ERROR based on transition function's result.  
+   * Return E_OK or E_NOK based on transition function's result.  
 4. **Internal Mode Transition Functions (Static)**:  
    * **power_transition_to_on()**:  
      * Enable all necessary power rails (via HAL_GPIO_SetState).  
      * Disable any sleep-specific wake-up sources.  
      * Ensure all essential peripherals are powered and clocked.  
-     * Return APP_OK or APP_ERROR.  
+     * Return E_OK or E_NOK.  
    * **power_transition_to_sleep()**:  
      * Configure wake-up sources (e.g., HAL_GPIO_ConfigInterrupt for a button, MCAL_RTC_SetAlarm).  
      * Disable non-essential peripherals/power rails.  
      * Inform systemMgr to prepare for sleep (e.g., save state to NVM).  
      * Call MCAL_MCU_EnterSleepMode() (conceptual MCAL function).  
-     * Return APP_OK (note: actual return happens on wake-up).  
+     * Return E_OK (note: actual return happens on wake-up).  
    * **power_transition_to_off()**:  
      * Disable all non-essential power rails.  
      * Potentially save critical state to NVM (via Nvm module).  
      * Call MCAL_MCU_Shutdown() (conceptual MCAL function, might not return).  
-     * Return APP_OK (if it returns).  
+     * Return E_OK (if it returns).  
 5. **Periodic Monitoring (POWER_MainFunction)**:  
    * If !s_is_initialized, return immediately.  
    * If s_current_power_mode is POWER_MODE_OFF or POWER_MODE_SLEEP, monitoring might be skipped or reduced, depending on requirements.  
@@ -199,7 +199,7 @@ The Power module will maintain its current power mode, last measured consumption
 6. **Get Consumption (POWER_GetConsumption)**:  
    * Validate consumption pointer.  
    * Copy s_last_consumption to *consumption.  
-   * Return APP_OK.
+   * Return E_OK.
 
 **Sequence Diagram (Example: Power Consumption Monitoring):**
 ```mermaid
@@ -214,31 +214,31 @@ sequenceDiagram
     RTE_MainLoopTask->>Power: POWER_MainFunction()  
     Power->>RTE: RTE_Service_ADC_ReadChannel(VOLTAGE_UNIT, VOLTAGE_CHANNEL, &raw_V)  
     RTE->>HAL_ADC: HAL_ADC_ReadChannel(VOLTAGE_UNIT, VOLTAGE_CHANNEL, &raw_V)  
-    HAL_ADC-->>RTE: Return APP_OK (raw_V)  
-    RTE-->>Power: Return APP_OK (raw_V)
+    HAL_ADC-->>RTE: Return E_OK (raw_V)  
+    RTE-->>Power: Return E_OK (raw_V)
 
     Power->>RTE: RTE_Service_ADC_ReadChannel(CURRENT_UNIT, CURRENT_CHANNEL, &raw_I)  
     RTE->>HAL_ADC: HAL_ADC_ReadChannel(CURRENT_UNIT, CURRENT_CHANNEL, &raw_I)  
-    HAL_ADC-->>RTE: Return APP_OK (raw_I)  
-    RTE-->>Power: Return APP_OK (raw_I)
+    HAL_ADC-->>RTE: Return E_OK (raw_I)  
+    RTE-->>Power: Return E_OK (raw_I)
 
     Power->>Power: Calculate current_mA, voltage_mV, power_mW  
     Power->>RTE: RTE_Service_SYS_MGR_UpdatePowerConsumption(current_mA, voltage_mV, power_mW)  
     RTE->>SystemMgr: SYS_MGR_UpdatePowerConsumption(current_mA, voltage_mV, power_mW)  
-    SystemMgr-->>RTE: Return APP_OK  
-    RTE-->>Power: Return APP_OK
+    SystemMgr-->>RTE: Return E_OK  
+    RTE-->>Power: Return E_OK
 
     alt Current > Overcurrent Threshold  
         Power->>RTE: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_OVER_CURRENT, SEVERITY_HIGH, current_mA)  
         RTE->>SystemMonitor: SYSTEMMONITOR_ReportFault(...)  
-        SystemMonitor-->>RTE: Return APP_OK  
-        RTE-->>Power: Return APP_OK  
+        SystemMonitor-->>RTE: Return E_OK  
+        RTE-->>Power: Return E_OK  
     end  
-    Power-->>RTE_MainLoopTask: Return APP_OK
+    Power-->>RTE_MainLoopTask: Return E_OK
 ```
 ### **5.4. Dependencies**
 
-* Application/common/inc/app_common.h: For APP_Status_t.  
+* Application/common/inc/common.h: For APP_Status_t.  
 * Application/logger/inc/logger.h: For logging power events and errors.  
 * Rte/inc/Rte.h: For calling RTE_Service_SystemMonitor_ReportFault(), RTE_Service_SYS_MGR_UpdatePowerConsumption(), and potentially RTE_Service_Nvm_WriteParam() if sleep state is persisted.  
 * Application/SystemMonitor/inc/system_monitor.h: For FAULT_ID_POWER_... definitions.  
@@ -254,8 +254,8 @@ sequenceDiagram
 * **Initialization Failure**: If underlying HAL/MCAL initialization fails, Power_Init() reports FAULT_ID_POWER_INIT_FAILURE to SystemMonitor.  
 * **ADC Read Errors**: If HAL_ADC_ReadChannel() fails, POWER_MainFunction() reports FAULT_ID_POWER_ADC_READ_FAILURE to SystemMonitor.  
 * **Threshold Exceedance**: If calculated current, voltage, or power exceed configured thresholds, specific faults (FAULT_ID_POWER_OVER_CURRENT, FAULT_ID_POWER_UNDER_VOLTAGE, FAULT_ID_POWER_OVER_POWER) are reported to SystemMonitor with SEVERITY_HIGH. SystemMonitor will then request systemMgr to take corrective actions.  
-* **Invalid Mode Transition**: POWER_SetMode() validates the requested mode and returns APP_ERROR if invalid.  
-* **Return Status**: All public API functions return APP_ERROR on failure.
+* **Invalid Mode Transition**: POWER_SetMode() validates the requested mode and returns E_NOK if invalid.  
+* **Return Status**: All public API functions return E_NOK on failure.
 
 ### **5.6. Configuration**
 
@@ -328,7 +328,7 @@ The Application/power/cfg/power_cfg.h file will contain:
     * Test transitions to POWER_MODE_ON, POWER_MODE_SLEEP, POWER_MODE_OFF. Verify correct HAL/MCAL calls for each transition.  
     * Test invalid mode commands.  
     * Test repeated calls to the same mode.  
-    * Test scenarios where underlying HAL/MCAL calls fail during mode transitions (verify APP_ERROR return and fault reporting).  
+    * Test scenarios where underlying HAL/MCAL calls fail during mode transitions (verify E_NOK return and fault reporting).  
   * POWER_MainFunction:  
     * Mock HAL_ADC_ReadChannel() to return various raw values. Verify correct calculation of current_mA, voltage_mV, power_mW.  
     * Verify RTE_Service_SYS_MGR_UpdatePowerConsumption() is called with the calculated values.  

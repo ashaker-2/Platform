@@ -1,7 +1,7 @@
 #ifndef STARTUP_H
 #define STARTUP_H
 
-#include "app_common.h"
+#include "common.h"
 #include <stdint.h>
 
 /**
@@ -19,6 +19,6 @@
  * This function performs essential initializations and starts the FreeRTOS scheduler.
  * This function is typically called by the underlying MCU SDK/bootloader after reset.
  */
-void SystemStartup_Main(void);
+// void main(void);
 
 #endif // STARTUP_H

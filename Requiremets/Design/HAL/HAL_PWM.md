@@ -83,7 +83,7 @@ typedef struct {
 /**  
  * @brief Initializes all configured PWM channels based on the predefined array.  
  * This function should be called once during system initialization.  
- * @return APP_OK on success, APP_ERROR if any PWM channel fails to initialize.  
+ * @return E_OK on success, E_NOK if any PWM channel fails to initialize.  
  */  
 APP_Status_t HAL_PWM_Init(void);
 
@@ -91,7 +91,7 @@ APP_Status_t HAL_PWM_Init(void);
  * @brief Sets the duty cycle for a specific PWM channel.  
  * @param channel_id The ID of the PWM channel.  
  * @param duty_cycle_percent The desired duty cycle as a percentage (0-100).  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_PWM_SetDutyCycle(HAL_PWM_ChannelId_t channel_id, uint32_t duty_cycle_percent);
 
@@ -100,21 +100,21 @@ APP_Status_t HAL_PWM_SetDutyCycle(HAL_PWM_ChannelId_t channel_id, uint32_t duty_
  * Note: Changing frequency might affect other channels if they share a timer.  
  * @param channel_id The ID of the PWM channel.  
  * @param frequency_hz The desired frequency in Hz.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_PWM_SetFrequency(HAL_PWM_ChannelId_t channel_id, uint32_t frequency_hz);
 
 /**  
  * @brief Starts PWM output on a specific channel.  
  * @param channel_id The ID of the PWM channel.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_PWM_Start(HAL_PWM_ChannelId_t channel_id);
 
 /**  
  * @brief Stops PWM output on a specific channel.  
  * @param channel_id The ID of the PWM channel.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HAL_PWM_Stop(HAL_PWM_ChannelId_t channel_id);
 ```
@@ -129,9 +129,9 @@ The HAL_PWM module will primarily act as a wrapper around the MCAL_PWM functions
      * Validate the channel_id against HAL_PWM_CHANNEL_COUNT and gpio_pin.  
      * Translate parameters (e.g., duty cycle percentage to raw counts if MCAL expects it).  
      * Call MCAL_PWM_Init(mcal_channel_id, mcal_gpio_pin, mcal_frequency_hz, mcal_initial_duty_cycle).  
-     * If MCAL_PWM_Init returns an error for *any* channel, report HAL_PWM_INIT_FAILURE to SystemMonitor. The function should continue to attempt to initialize remaining channels but will ultimately return APP_ERROR if any initialization fails.  
+     * If MCAL_PWM_Init returns an error for *any* channel, report HAL_PWM_INIT_FAILURE to SystemMonitor. The function should continue to attempt to initialize remaining channels but will ultimately return E_NOK if any initialization fails.  
      * If enable_on_init is true, call MCAL_PWM_Start(mcal_channel_id). If this fails, report HAL_PWM_START_FAILURE.  
-   * If all PWM channels are initialized successfully, return APP_OK.  
+   * If all PWM channels are initialized successfully, return E_OK.  
 2. **Duty Cycle Control (HAL_PWM_SetDutyCycle)**:  
    * Validate channel_id and duty_cycle_percent (0-100).  
    * Translate duty_cycle_percent to MCAL-specific raw duty cycle value.  
@@ -162,12 +162,12 @@ sequenceDiagram
     alt MCAL_PWM_SetDutyCycle returns MCAL_ERROR  
         MCAL_PWM--xHAL_PWM: Return MCAL_ERROR  
         HAL_PWM->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_PWM_DUTY_CYCLE_FAILURE, SEVERITY_LOW, ...)  
-        HAL_PWM--xRTE: Return APP_ERROR  
-        RTE--xApp: Return APP_ERROR  
+        HAL_PWM--xRTE: Return E_NOK  
+        RTE--xApp: Return E_NOK  
     else MCAL_PWM_SetDutyCycle returns MCAL_OK  
         MCAL_PWM-->>HAL_PWM: Return MCAL_OK  
-        HAL_PWM-->>RTE: Return APP_OK  
-        RTE-->>App: Return APP_OK  
+        HAL_PWM-->>RTE: Return E_OK  
+        RTE-->>App: Return E_OK  
     end
 ```
 ### **5.4. Dependencies**
@@ -175,7 +175,7 @@ sequenceDiagram
 * **Mcal/pwm/inc/mcal_pwm.h**: For calling low-level PWM driver functions.  
 * **Application/logger/inc/logger.h**: For internal logging.  
 * **Rte/inc/Rte.h**: For calling RTE_Service_SystemMonitor_ReportFault().  
-* **Application/common/inc/app_common.h**: For APP_Status_t and APP_OK/APP_ERROR.  
+* **Application/common/inc/common.h**: For APP_Status_t and E_OK/E_NOK.  
 * **HAL/cfg/hal_pwm_cfg.h**: For the hal_pwm_initial_config array and HAL_PWM_Config_t structure.
 
 ### **5.5. Error Handling**
@@ -183,7 +183,7 @@ sequenceDiagram
 * **Input Validation**: All public API functions will validate input parameters (e.g., valid channel_id, duty cycle within 0-100).  
 * **MCAL Error Propagation**: Errors returned by MCAL_PWM functions will be caught by HAL_PWM.  
 * **Fault Reporting**: Upon detection of an error (invalid input, MCAL failure), HAL_PWM will report a specific fault ID (e.g., HAL_PWM_INIT_FAILURE, HAL_PWM_DUTY_CYCLE_FAILURE, HAL_PWM_FREQUENCY_FAILURE, HAL_PWM_CONTROL_FAILURE) to SystemMonitor via the RTE service.  
-* **Return Status**: All public API functions will return APP_ERROR on failure. HAL_PWM_Init will return APP_ERROR if *any* channel fails to initialize.
+* **Return Status**: All public API functions will return E_NOK on failure. HAL_PWM_Init will return E_NOK if *any* channel fails to initialize.
 
 ### **5.6. Configuration**
 
@@ -213,7 +213,7 @@ extern const uint32_t hal_pwm_initial_config_size;
 
 * **Mock MCAL_PWM**: Unit tests for HAL_PWM will mock the MCAL_PWM functions to isolate HAL_PWM's logic.  
 * **Test Cases**:  
-  * HAL_PWM_Init: Test with a valid hal_pwm_initial_config array. Verify MCAL_PWM_Init calls for each entry. Test scenarios where MCAL calls fail (verify APP_ERROR return and SystemMonitor fault reporting).  
+  * HAL_PWM_Init: Test with a valid hal_pwm_initial_config array. Verify MCAL_PWM_Init calls for each entry. Test scenarios where MCAL calls fail (verify E_NOK return and SystemMonitor fault reporting).  
   * HAL_PWM_SetDutyCycle: Test valid/invalid channel IDs and duty cycle percentages. Verify correct MCAL calls and error propagation.  
   * HAL_PWM_SetFrequency: Test valid/invalid channel IDs and frequencies. Verify correct MCAL calls and error propagation.  
   * HAL_PWM_Start/Stop: Test valid/invalid channel IDs. Verify correct MCAL calls.  

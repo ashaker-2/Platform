@@ -60,7 +60,7 @@ The HeaterControl component will consist of the following files:
 
 // In HeaterControl/inc/heater.h
 ```c
-#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdbool.h> // For bool
 
 // --- Public Functions ---
@@ -68,21 +68,21 @@ The HeaterControl component will consist of the following files:
 /**  
  * @brief Initializes the Heater module and its associated GPIO pin.  
  * Sets the heater to a safe default state (e.g., off).  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HEATER_Init(void);
 
 /**  
  * @brief Sets the state of the heating element (on or off).  
  * @param on True to turn the heater on, false to turn it off.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HEATER_SetState(bool on);
 
 /**  
  * @brief Gets the currently commanded state of the heater.  
  * @param state Pointer to store the current heater state (true for on, false for off).  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t HEATER_GetState(bool *state);
 
@@ -98,16 +98,16 @@ The HeaterControl module will maintain the current commanded heater state intern
    * Call MCAL_GPIO_Init() for the HEATER_CONTROL_GPIO_PIN, configuring it as an output.  
    * Set the heater to its default safe state (e.g., HEATER_SetState(false) to turn it off).  
    * If MCAL_GPIO_Init() fails, report FAULT_ID_HEATER_INIT_FAILED to SystemMonitor via RTE_Service_SystemMonitor_ReportFault().  
-   * Return APP_OK.  
+   * Return E_OK.  
 2. **Set Heater State (HEATER_SetState)**:  
    * Update an internal static bool current_heater_state;.  
    * Call MCAL_GPIO_SetState(HEATER_CONTROL_GPIO_PIN, on ? MCAL_GPIO_STATE_HIGH : MCAL_GPIO_STATE_LOW).  
    * If MCAL_GPIO_SetState() fails, report FAULT_ID_HEATER_CONTROL_ERROR to SystemMonitor.  
-   * Return APP_OK.  
+   * Return E_OK.  
 3. **Get Heater State (HEATER_GetState)**:  
    * Validate state pointer.  
    * Copy the current_heater_state to the provided pointer.  
-   * Return APP_OK.
+   * Return E_OK.
 
 **Sequence Diagram (Example: systemMgr Turns Heater On):**
 ```mermaid
@@ -122,21 +122,21 @@ sequenceDiagram
     RTE->>Heater: HEATER_SetState(true)  
     Heater->>Heater: Update internal current_heater_state = true  
     Heater->>MCAL_GPIO: MCAL_GPIO_SetState(HEATER_CONTROL_GPIO_PIN, MCAL_GPIO_STATE_HIGH)  
-    alt MCAL_GPIO_SetState returns APP_ERROR  
-        MCAL_GPIO--xHeater: Return APP_ERROR  
+    alt MCAL_GPIO_SetState returns E_NOK  
+        MCAL_GPIO--xHeater: Return E_NOK  
         Heater->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_HEATER_CONTROL_ERROR, SEVERITY_HIGH, 0)  
-        Heater--xRTE: Return APP_ERROR  
-        RTE--xSystemMgr: Return APP_ERROR  
-    else MCAL_GPIO_SetState returns APP_OK  
-        MCAL_GPIO-->>Heater: Return APP_OK  
-        Heater-->>RTE: Return APP_OK  
-        RTE-->>SystemMgr: Return APP_OK  
+        Heater--xRTE: Return E_NOK  
+        RTE--xSystemMgr: Return E_NOK  
+    else MCAL_GPIO_SetState returns E_OK  
+        MCAL_GPIO-->>Heater: Return E_OK  
+        Heater-->>RTE: Return E_OK  
+        RTE-->>SystemMgr: Return E_OK  
     end
 ```
 
 ### **5.4. Dependencies**
 
-* **Application/common/inc/app_common.h**: For APP_Status_t.  
+* **Application/common/inc/common.h**: For APP_Status_t.  
 * **Application/logger/inc/logger.h**: For logging heater control events and errors.  
 * **Application/SystemMonitor/inc/system_monitor.h**: For SystemMonitor_FaultId_t (e.g., FAULT_ID_HEATER_INIT_FAILED).  
 * **Rte/inc/Rte.h**: For calling RTE_Service_SystemMonitor_ReportFault().  
@@ -175,7 +175,7 @@ The HeaterControl/cfg/heater_cfg.h file will contain:
   * HEATER_Init: Verify correct MCAL initialization calls and default heater state. Test initialization failure and fault reporting.  
   * HEATER_SetState:  
     * Test with true and false states. Mock MCAL_GPIO_SetState() to verify correct GPIO level is commanded.  
-    * Test underlying MCAL failures (e.g., MCAL_GPIO_SetState returns APP_ERROR) and verify FAULT_ID_HEATER_CONTROL_ERROR is reported.  
+    * Test underlying MCAL failures (e.g., MCAL_GPIO_SetState returns E_NOK) and verify FAULT_ID_HEATER_CONTROL_ERROR is reported.  
   * HEATER_GetState: Verify it returns the last commanded state.
 
 ### **6.2. Integration Testing**

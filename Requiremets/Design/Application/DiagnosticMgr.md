@@ -69,7 +69,7 @@ The Diag component will consist of the following files:
 
 // In Application/diagnostic/inc/diagnostic.h
 ```c
-#include "Application/common/inc/app_common.h" // For APP_Status_t  
+#include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h>   // For uint32_t, uint8_t  
 #include <stdbool.h>  // For bool
 
@@ -114,7 +114,7 @@ typedef struct {
 
 /**  
  * @brief Initializes the Diag module.  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t Diag_Init(void);
 
@@ -124,7 +124,7 @@ APP_Status_t Diag_Init(void);
  * It parses the command, dispatches it, and generates a response.  
  * @param command Pointer to the received command structure.  
  * @param response Pointer to the response structure to fill.  
- * @return APP_OK on successful processing, APP_ERROR if processing fails.  
+ * @return E_OK on successful processing, E_NOK if processing fails.  
  */  
 APP_Status_t DIAG_ProcessCommand(const Diag_Command_t *command, Diag_Response_t *response);
 
@@ -146,10 +146,10 @@ The Diag module will implement a command dispatch table or a series of if-else i
    ```c
    * Initialize any internal state (e.g., command counters, test flags).  
    * s_is_initialized = true;.  
-   * Return APP_OK.  
+   * Return E_OK.  
    ```
 2. **Process Incoming Commands (DIAG_ProcessCommand)**:  
-   * If !s_is_initialized, return APP_ERROR.  
+   * If !s_is_initialized, return E_NOK.  
    * Validate command and response pointers.  
    * Populate response->command_id = command->command_id;.  
    * Use a switch statement on command->command_id:  
@@ -161,7 +161,7 @@ The Diag module will implement a command dispatch table or a series of if-else i
      * **DIAG_CMD_REBOOT_SYSTEM**: Call DiagMgr_reboot_system(response).  
      * **DIAG_CMD_GET_SYSTEM_INFO**: Call DiagMgr_get_system_info(response).  
      * **Default**: Set response->response_code = DIAG_RESP_INVALID_COMMAND; and log a warning.  
-   * Return APP_OK (or APP_ERROR if the command processing itself failed critically).  
+   * Return E_OK (or E_NOK if the command processing itself failed critically).  
 3. **Command Handlers (Internal Static Functions)**:  
    * **DiagMgr_get_fault_status(Diag_Response_t *response)**:  
      * Declare SystemMonitor_FaultStatus_t fault_status;.  
@@ -221,17 +221,17 @@ sequenceDiagram
     Diag->>Diag: Identify command as DIAG_CMD_GET_FAULT_STATUS  
     Diag->>RTE: RTE_Service_SystemMonitor_GetFaultStatus(&fault_status)  
     RTE->>SystemMonitor: SYSTEMMONITOR_GetFaultStatus(&fault_status)  
-    SystemMonitor-->>RTE: Return APP_OK (with fault_status data)  
-    RTE-->>Diag: Return APP_OK (with fault_status data)  
+    SystemMonitor-->>RTE: Return E_OK (with fault_status data)  
+    RTE-->>Diag: Return E_OK (with fault_status data)  
     Diag->>Diag: Format fault_status into response.data  
     Diag->>Logger: LOGD("Diag: Get fault status request processed.")  
-    Diag-->>RTE: Return APP_OK (with filled response)  
+    Diag-->>RTE: Return E_OK (with filled response)  
     RTE->>ComM: RTE_Service_ComM_SendDiagResponse(response)  
     ComM->>ExternalTool: Send formatted response (via Bluetooth/Modbus/Wi-Fi)
 ```
 ### **5.4. Dependencies**
 
-* Application/common/inc/app_common.h: For APP_Status_t.  
+* Application/common/inc/common.h: For APP_Status_t.  
 * Application/logger/inc/logger.h: For logging diagnostic activities.  
 * Rte/inc/Rte.h: For all necessary RTE services to interact with SystemMonitor, systemMgr, OTA, OS, and other application modules (e.g., fan, temperature) for self-tests.  
 * Application/SystemMonitor/inc/system_monitor.h: For SystemMonitor_FaultStatus_t and fault IDs.  
@@ -243,7 +243,7 @@ sequenceDiagram
 
 * **Input Validation**: DIAG_ProcessCommand will validate the incoming command structure and its payload_len. Individual command handlers will validate their specific payload parameters.  
 * **Response Codes**: All responses will include a Diag_ResponseCode_t to indicate success or specific types of failure (e.g., INVALID_COMMAND, INVALID_PARAM, POWER_INSUFFICIENT).  
-* **RTE Error Propagation**: Errors returned by RTE services (e.g., from SystemMonitor, systemMgr) will be checked, and Diag will return an appropriate APP_ERROR or Diag_ResponseCode_t to the caller.  
+* **RTE Error Propagation**: Errors returned by RTE services (e.g., from SystemMonitor, systemMgr) will be checked, and Diag will return an appropriate E_NOK or Diag_ResponseCode_t to the caller.  
 * **Security**: While Diag acts as the interface, the actual authentication and authorization for commands will be handled by the ComM and Security layers, ensuring that DIAG_ProcessCommand is only called with authenticated requests. Diag might still return DIAG_RESP_NOT_ALLOWED_IN_MODE if a command is valid but not permitted in the current system mode (e.g., manual mode prevents certain auto-config commands).  
 * **Power Check for OTA**: Explicitly checks with systemMgr (which gets info from power) for sufficient power before initiating an OTA update, preventing bricking.
 

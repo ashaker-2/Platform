@@ -1,7 +1,7 @@
 #ifndef LIGHTCTRL_H
 #define LIGHTCTRL_H
 
-#include "app_common.h"
+#include "common.h"
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -30,9 +30,9 @@ typedef enum {
  * @brief Initializes the LightCtrl module and all configured light control hardware.
  * All module-internal variables and light states are initialized to a safe,
  * known state (e.g., OFF or 0% brightness).
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
-APP_Status_t LightCtrl_Init(void);
+Status_t LightCtrl_Init(void);
 
 /**
  * @brief Commands a desired light state (ON/OFF) or brightness (for PWM lights).
@@ -42,10 +42,10 @@ APP_Status_t LightCtrl_Init(void);
  * @param state The desired state (LightCtrl_STATE_ON or LightCtrl_STATE_OFF).
  * @param brightness_percent For PWM lights: desired brightness in percentage (0-100).
  * For relay lights: this parameter is ignored.
- * @return APP_OK on successful command update, APP_ERROR if the actuatorId is invalid
+ * @return E_OK on successful command update, E_NOK if the actuatorId is invalid
  * or the state/brightness_percent is out of range.
  */
-APP_Status_t LightCtrl_SetState(uint32_t actuatorId, LightCtrl_State_t state, uint8_t brightness_percent);
+Status_t LightCtrl_SetState(uint32_t actuatorId, LightCtrl_State_t state, uint8_t brightness_percent);
 
 /**
  * @brief Gets the last commanded state/brightness, or the actual measured state/brightness if feedback is implemented.
@@ -53,10 +53,10 @@ APP_Status_t LightCtrl_SetState(uint32_t actuatorId, LightCtrl_State_t state, ui
  * @param actuatorId The unique ID of the light to retrieve data from.
  * @param state Pointer to store the current ON/OFF state.
  * @param brightness_percent Pointer to store the current brightness in percentage (0-100), relevant for PWM.
- * @return APP_OK on successful retrieval, APP_ERROR if the actuatorId is invalid,
+ * @return E_OK on successful retrieval, E_NOK if the actuatorId is invalid,
  * or any pointer is NULL.
  */
-APP_Status_t LightCtrl_GetState(uint32_t actuatorId, LightCtrl_State_t *state, uint8_t *brightness_percent);
+Status_t LightCtrl_GetState(uint32_t actuatorId, LightCtrl_State_t *state, uint8_t *brightness_percent);
 
 // --- Internal Periodic Runnable Prototype (called by RTE) ---
 /**

@@ -23,7 +23,7 @@
 typedef struct
 {
     HAL_WIFI_Mode_t default_mode;           /**< Default WiFi mode on initialization (STA, AP, APSTA). */
-    uint38_t sta_connect_timeout_ms;        /**< Default timeout for STA connection attempts in milliseconds. */
+    uint32_t sta_connect_timeout_ms;        /**< Default timeout for STA connection attempts in milliseconds. */
     uint8_t sta_max_retries;                /**< Maximum number of retries for STA connection. */
     uint32_t sta_retry_delay_ms;            /**< Delay between STA connection retries in milliseconds. */
 

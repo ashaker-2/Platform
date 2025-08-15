@@ -105,28 +105,28 @@ typedef void (*HAL_TIMER_Callback_t)(HAL_TIMER_ID_t timer_id);
 /**
  * @brief Initializes all configured hardware timers based on the predefined array.
  * This function should be called once during system initialization.
- * @return APP_OK on success, APP_ERROR if any timer fails to initialize.
+ * @return E_OK on success, E_NOK if any timer fails to initialize.
  */
 APP_Status_t HAL_TIMER_Init(void);
 
 /**
  * @brief Starts a specific hardware timer.
  * @param timer_id The ID of the timer to start.
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
 APP_Status_t HAL_TIMER_Start(HAL_TIMER_ID_t timer_id);
 
 /**
  * @brief Stops a specific hardware timer.
  * @param timer_id The ID of the timer to stop.
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
 APP_Status_t HAL_TIMER_Stop(HAL_TIMER_ID_t timer_id);
 
 /**
  * @brief Resets the count of a specific hardware timer to zero.
  * @param timer_id The ID of the timer to reset.
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
 APP_Status_t HAL_TIMER_Reset(HAL_TIMER_ID_t timer_id);
 
@@ -134,7 +134,7 @@ APP_Status_t HAL_TIMER_Reset(HAL_TIMER_ID_t timer_id);
  * @brief Sets the period (or target count) for a specific hardware timer.
  * @param timer_id The ID of the timer.
  * @param period_us The desired period in microseconds.
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
 APP_Status_t HAL_TIMER_SetPeriod(HAL_TIMER_ID_t timer_id, uint32_t period_us);
 
@@ -142,7 +142,7 @@ APP_Status_t HAL_TIMER_SetPeriod(HAL_TIMER_ID_t timer_id, uint32_t period_us);
  * @brief Reads the current count of a specific hardware timer.
  * @param timer_id The ID of the timer.
  * @param current_count Pointer to store the current timer count.
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
 APP_Status_t HAL_TIMER_ReadCount(HAL_TIMER_ID_t timer_id, uint32_t *current_count);
 
@@ -150,21 +150,21 @@ APP_Status_t HAL_TIMER_ReadCount(HAL_TIMER_ID_t timer_id, uint32_t *current_coun
  * @brief Registers a callback function for a timer's interrupt.
  * @param timer_id The ID of the timer.
  * @param callback The function to call when the timer interrupt occurs.
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
 APP_Status_t HAL_TIMER_RegisterCallback(HAL_TIMER_ID_t timer_id, HAL_TIMER_Callback_t callback);
 
 /**
  * @brief Enables the interrupt for a specific hardware timer.
  * @param timer_id The ID of the timer.
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
 APP_Status_t HAL_TIMER_EnableInterrupt(HAL_TIMER_ID_t timer_id);
 
 /**
  * @brief Disables the interrupt for a specific hardware timer.
  * @param timer_id The ID of the timer.
- * @return APP_OK on success, APP_ERROR on failure.
+ * @return E_OK on success, E_NOK on failure.
  */
 APP_Status_t HAL_TIMER_DisableInterrupt(HAL_TIMER_ID_t timer_id);
 
@@ -183,9 +183,9 @@ The HAL_TIMER module will primarily act as a wrapper around the MCAL_Timer funct
   - Validate the `timer_id` against `HAL_TIMER_ID_COUNT`.
   - Translate `HAL_TIMER_Mode_t` to MCAL_Timer specific enums/macros.
   - Call `MCAL_Timer_Init(mcal_timer_id, mcal_mode, mcal_period_us, mcal_auto_reload)`.
-  - If `MCAL_Timer_Init` returns an error for any timer, report `HAL_TIMER_DRIVER_INIT_FAILURE` to SystemMonitor. The function should continue to attempt to initialize remaining timers but will ultimately return `APP_ERROR` if any initialization fails.
+  - If `MCAL_Timer_Init` returns an error for any timer, report `HAL_TIMER_DRIVER_INIT_FAILURE` to SystemMonitor. The function should continue to attempt to initialize remaining timers but will ultimately return `E_NOK` if any initialization fails.
   - If `interrupt_enable_on_init` is true, call `MCAL_Timer_EnableInterrupt(mcal_timer_id)`. If this fails, report `HAL_TIMER_INTERRUPT_FAILURE`.
-  - If all timers are initialized successfully, return `APP_OK`.
+  - If all timers are initialized successfully, return `E_OK`.
 
 - **Timer Control (`HAL_TIMER_Start`, `HAL_TIMER_Stop`, `HAL_TIMER_Reset`):**
 
@@ -228,12 +228,12 @@ sequenceDiagram
     alt MCAL_Timer_Start returns MCAL_ERROR
         MCAL_Timer--xHAL_TIMER: Return MCAL_ERROR
         HAL_TIMER->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_TIMER_CONTROL_FAILURE, SEVERITY_LOW, ...)
-        HAL_TIMER--xRTE: Return APP_ERROR
-        RTE--xApp: Return APP_ERROR
+        HAL_TIMER--xRTE: Return E_NOK
+        RTE--xApp: Return E_NOK
     else MCAL_Timer_Start returns MCAL_OK
         MCAL_Timer-->>HAL_TIMER: Return MCAL_OK
-        HAL_TIMER-->>RTE: Return APP_OK
-        RTE-->>App: Return APP_OK
+        HAL_TIMER-->>RTE: Return E_OK
+        RTE-->>App: Return E_OK
     end
 ```
 ### 5.4. Dependencies
@@ -244,7 +244,7 @@ sequenceDiagram
 
 - **Rte/inc/Rte.h:** For calling `RTE_Service_SystemMonitor_ReportFault()`.
 
-- **Application/common/inc/app_common.h:** For `APP_Status_t` and `APP_OK`/`APP_ERROR`.
+- **Application/common/inc/common.h:** For `APP_Status_t` and `E_OK`/`E_NOK`.
 
 - **HAL/cfg/hal_timer_cfg.h:** For the `hal_timer_initial_config` array and `HAL_TIMER_Config_t` structure.
 
@@ -258,7 +258,7 @@ sequenceDiagram
 
 - **Fault Reporting:** Upon detection of an error (invalid input, MCAL failure), `HAL_TIMER` will report a specific fault ID (e.g., `HAL_TIMER_DRIVER_INIT_FAILURE`, `HAL_TIMER_CONFIG_FAILURE`, `HAL_TIMER_CONTROL_FAILURE`, `HAL_TIMER_INTERRUPT_FAILURE`, `HAL_TIMER_READ_FAILURE`) to SystemMonitor via the RTE service.
 
-- **Return Status:** All public API functions will return `APP_ERROR` on failure. `HAL_TIMER_Init` will return `APP_ERROR` if any timer fails to initialize.
+- **Return Status:** All public API functions will return `E_NOK` on failure. `HAL_TIMER_Init` will return `E_NOK` if any timer fails to initialize.
 
 ---
 
@@ -300,7 +300,7 @@ extern const uint32_t hal_timer_initial_config_size;
 - **Mock MCAL_Timer:** Unit tests for `HAL_TIMER` will mock the `MCAL_Timer` functions to isolate `HAL_TIMER`'s logic.
 
 - **Test Cases:**
-  - `HAL_TIMER_Init`: Test with a valid `hal_timer_initial_config` array. Verify `MCAL_Timer_Init` calls for each entry. Test scenarios where MCAL calls fail (verify `APP_ERROR` return and SystemMonitor fault reporting).
+  - `HAL_TIMER_Init`: Test with a valid `hal_timer_initial_config` array. Verify `MCAL_Timer_Init` calls for each entry. Test scenarios where MCAL calls fail (verify `E_NOK` return and SystemMonitor fault reporting).
   - `HAL_TIMER_Start`/`Stop`/`Reset`: Test valid/invalid timer IDs. Verify correct MCAL calls and error propagation.
   - `HAL_TIMER_SetPeriod`: Test valid/invalid timer IDs and periods. Verify correct MCAL calls.
   - `HAL_TIMER_ReadCount`: Test valid/invalid timer IDs. Verify correct MCAL calls and return values.

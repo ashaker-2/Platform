@@ -15,7 +15,7 @@
  */
 
 // --- Internal State Variables ---
-static SemaphoreHandle_t s_log_mutex;
+// static SemaphoreHandle_t s_log_mutex;
 static char s_log_buffer[LOGGER_BUFFER_SIZE];
 static bool s_is_initialized = false;
 
@@ -24,22 +24,22 @@ static const char* LOGGER_GetLevelString(Log_Level_t level);
 
 // --- Public Function Implementations ---
 
-APP_Status_t LOGGER_Init(void) {
+Status_t LOGGER_Init(void) {
     if (s_is_initialized) {
-        return APP_OK;
+        return E_OK;
     }
     
     // Create a mutex for thread-safe access to the logging buffer and UART
     s_log_mutex = xSemaphoreCreateMutex();
     if (s_log_mutex == NULL) {
         // We can't log a failure here, as the logger is not yet initialized
-        return APP_ERROR;
+        return E_NOK;
     }
 
     // Initialize the underlying output peripheral (e.g., UART)
-    if (LOGGER_output_function_ptr(NULL, 0) != APP_OK) { // A special call to initialize the peripheral
+    if (LOGGER_output_function_ptr(NULL, 0) != E_OK) { // A special call to initialize the peripheral
         // We can't log this failure either
-        return APP_ERROR;
+        return E_NOK;
     }
 
     s_is_initialized = true;
@@ -48,7 +48,7 @@ APP_Status_t LOGGER_Init(void) {
     // Now we can log a success message
     LOGI("Logger", "Module initialized. Default log level is: %s", LOGGER_GetLevelString(LOGGER_DEFAULT_LOG_LEVEL));
     
-    return APP_OK;
+    return E_OK;
 }
 
 void LOGGER_SetLogLevel(Log_Level_t level) {
@@ -112,7 +112,7 @@ void LOGGER_Log(Log_Level_t level, const char* module, int line, const char* for
 static const char* LOGGER_GetLevelString(Log_Level_t level) {
     switch (level) {
         case LOG_LEVEL_DEBUG: return "DEBUG";
-        case LOG_LEVEL_INFO:  return "INFO ";
+        // case LOG_LEVEL_INFO:  return "INFO ";
         case LOG_LEVEL_WARNING: return "WARN ";
         case LOG_LEVEL_ERROR: return "ERROR";
         case LOG_LEVEL_FATAL: return "FATAL";

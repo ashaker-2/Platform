@@ -72,7 +72,7 @@ The TempCtrl component will consist of the following files:
 
 // In Application/tempctrl/inc/tempctrl.h
 ```c
-#include "Application/common/inc/app_common.h" 
+#include "Application/common/inc/common.h" 
 // For APP_Status_t  
 #include <stdint.h> // For uint32_t  
 #include <stdbool.h> // For bool
@@ -83,7 +83,7 @@ The TempCtrl component will consist of the following files:
  * @brief Initializes the TempCtrl module and all configured temperature sensor hardware.  
  * All module-internal variables and sensor data storage are initialized to a safe,  
  * known state (e.g., zeroes or NaN).  
- * @return APP_OK on success, APP_ERROR on failure.  
+ * @return E_OK on success, E_NOK on failure.  
  */  
 APP_Status_t TempCtrl_Init(void);
 
@@ -93,7 +93,7 @@ APP_Status_t TempCtrl_Init(void);
  * performed periodically by the internal TempCtrl_MainFunction.  
  * @param sensorId The unique ID of the sensor to retrieve data from.  
  * @param temperature_c Pointer to store the latest temperature value in Celsius.  
- * @return APP_OK on successful retrieval, APP_ERROR if the sensorId is invalid,  
+ * @return E_OK on successful retrieval, E_NOK if the sensorId is invalid,  
  * the pointer is NULL, or no valid data is available for that sensor.  
  */  
 APP_Status_t TempCtrl_GetSensorTemp(uint32_t sensorId, float *temperature_c);
@@ -135,7 +135,7 @@ The TempCtrl module will manage its own sensor reading cycle for multiple sensor
        * Perform any sensor-specific power-up or configuration.  
        * If any underlying MCAL/HAL initialization fails, report FAULT_ID_TempCtrl_SENSOR_INIT_FAILED to SystemMonitor with sensor_config.id as data. Log an error.  
    * s_is_initialized = true; on overall success.  
-   * Return APP_OK.  
+   * Return E_OK.  
 3. **Periodic Sensor Read & Update (TempCtrl_MainFunction)**:  
    * This function is called periodically by a generic RTE task (e.g., RTE_PeriodicTask_MediumPrio_100ms).  
    * If !s_is_initialized, return immediately.  
@@ -158,10 +158,10 @@ The TempCtrl module will manage its own sensor reading cycle for multiple sensor
          * Report FAULT_ID_TempCtrl_SENSOR_READ_FAILED to SystemMonitor with sensor_config.id as data (severity HIGH).  
          * Set s_latest_temperatures_c[sensor_config.id] = NAN; to indicate no valid data.  
 4. **Get Latest Temperature (TempCtrl_GetSensorTemp)**:  
-   * Validate temperature_c pointer. If NULL, return APP_ERROR and log a warning.  
-   * Validate sensorId. If sensorId >= TempCtrl_SENSOR_COUNT, return APP_ERROR and log a warning.  
+   * Validate temperature_c pointer. If NULL, return E_NOK and log a warning.  
+   * Validate sensorId. If sensorId >= TempCtrl_SENSOR_COUNT, return E_NOK and log a warning.  
    * Copy s_latest_temperatures_c[sensorId] to *temperature_c.  
-   * Return APP_OK.
+   * Return E_OK.
 
 **Sequence Diagram (Example: Periodic Temperature Reading for Multiple Sensors and systemMgr Query):**
 ```mermaid
@@ -181,22 +181,22 @@ sequenceDiagram
         TempCtrl->>TempCtrl: Determine sensor type and comms  
         alt Sensor X is 1-Wire (e.g., Sensor 0)  
             TempCtrl->>HAL_1WIRE: HAL_1WIRE_ReadDevice(Bus_ID, ROM_Addr_X, raw_data_buf)  
-            HAL_1WIRE-->>TempCtrl: Return APP_OK (raw_data_buf)  
+            HAL_1WIRE-->>TempCtrl: Return E_OK (raw_data_buf)  
         else Sensor X is I2C (e.g., Sensor 1)  
             TempCtrl->>MCAL_I2C: MCAL_I2C_MasterWriteRead(Port_ID, Addr_X, ...)  
-            MCAL_I2C-->>TempCtrl: Return APP_OK (raw_data_buf)  
+            MCAL_I2C-->>TempCtrl: Return E_OK (raw_data_buf)  
         end  
         TempCtrl->>TempCtrl: Validate raw data, calibrate, convert  
         alt Converted temp is out of range  
             TempCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_TempCtrl_SENSOR_OUT_OF_RANGE, SEVERITY_LOW, Sensor_ID_X)  
-            SystemMonitor-->>TempCtrl: Return APP_OK  
+            SystemMonitor-->>TempCtrl: Return E_OK  
         end  
         TempCtrl->>TempCtrl: Update s_latest_temperatures_c[Sensor_ID_X]  
         TempCtrl->>Logger: LOGD("TempCtrl sensor %d read success: %.1f C", Sensor_ID_X, ...)  
     end  
     alt Any sensor read failed after retries  
         TempCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_TempCtrl_SENSOR_READ_FAILED, SEVERITY_HIGH, Failed_Sensor_ID)  
-        SystemMonitor-->>TempCtrl: Return APP_OK  
+        SystemMonitor-->>TempCtrl: Return E_OK  
         TempCtrl->>TempCtrl: s_latest_temperatures_c[Failed_Sensor_ID] = NAN  
     end  
     RTE_Task-->>TempCtrl: (Return from TempCtrl_MainFunction)
@@ -205,12 +205,12 @@ sequenceDiagram
     SystemMgr->>RTE: RTE_Service_TEMP_SENSOR_GetSensorTemp(SENSOR_ID_ROOM, &temp_value_from_mgr)  
     RTE->>TempCtrl: TempCtrl_GetSensorTemp(SENSOR_ID_ROOM, &temp_value_from_mgr)  
     TempCtrl->>TempCtrl: Validate sensorId  
-    TempCtrl-->>RTE: Return APP_OK (s_latest_temperatures_c[SENSOR_ID_ROOM] copied)  
-    RTE-->>SystemMgr: Return APP_OK
+    TempCtrl-->>RTE: Return E_OK (s_latest_temperatures_c[SENSOR_ID_ROOM] copied)  
+    RTE-->>SystemMgr: Return E_OK
 ```
 ### **5.4. Dependencies**
 
-* **Application/common/inc/app_common.h**: For APP_Status_t, APP_COMMON_GetUptimeMs().  
+* **Application/common/inc/common.h**: For APP_Status_t, APP_COMMON_GetUptimeMs().  
 * **Application/logger/inc/logger.h**: For logging sensor errors and warnings.  
 * **Application/SystemMonitor/inc/system_monitor.h**: For SystemMonitor_FaultId_t (e.g., FAULT_ID_TempCtrl_SENSOR_INIT_FAILED, FAULT_ID_TempCtrl_SENSOR_READ_FAILED, FAULT_ID_TempCtrl_SENSOR_OUT_OF_RANGE).  
 * **Rte/inc/Rte.h**: For calling RTE_Service_SystemMonitor_ReportFault().  
