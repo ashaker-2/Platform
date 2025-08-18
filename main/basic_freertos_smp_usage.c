@@ -90,7 +90,7 @@ static void config_console(void)
            "Please type the component you would like to run.\n");
 }
 
-void app_main(void)
-{
-    config_console();
-}
+// void app_main(void)
+// {
+//     config_console();
+// }
