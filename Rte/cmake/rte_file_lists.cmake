@@ -6,15 +6,15 @@
 
 # Include the global project settings to inherit common options/definitions.
 # Path is relative from HAL/ to cmake/project_global_settings.cmake
-include(../cmake/project_global_settings.cmake)
+# include(../cmake/project_global_settings.cmake)
 
 # --- Component: HAL ---
 # Define source files for the HAL component by globbing
 
 # Define configuration source files for the HAL component (if any)
-file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/src" RTE_SRC_DIR)
-file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/src" RTE_CFG_DIR)
-file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/inc" RTE_INC_DIR)
+file(TO_CMAKE_PATH "${Rte_DIR}/src" RTE_SRC_DIR)
+file(TO_CMAKE_PATH "${Rte_DIR}/src" RTE_CFG_DIR)
+file(TO_CMAKE_PATH "${Rte_DIR}/inc" RTE_INC_DIR)
 
 # === SOURCES ===
 set(RTE_SRC

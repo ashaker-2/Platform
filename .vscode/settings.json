@@ -2,5 +2,12 @@
   "C_Cpp.intelliSenseEngine": "default",
   "idf.espIdfPathWin": "C:\\Users\\DELL\\esp\\v5.5\\esp-idf",
   "idf.toolsPathWin": "C:\\Users\\DELL\\.espressif",
-  "idf.pythonInstallPath": "C:\\Users\\DELL\\.espressif\\tools\\idf-python\\3.11.2\\python.exe"
+  "idf.pythonInstallPath": "C:\\Users\\DELL\\.espressif\\tools\\idf-python\\3.11.2\\python.exe",
+  "files.associations": {
+    "i2c.h": "c",
+    "gpio.h": "c",
+    "timer.h": "c",
+    "uart.h": "c",
+    "freertos.h": "c"
+  }
 }

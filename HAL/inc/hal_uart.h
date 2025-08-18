@@ -9,12 +9,12 @@
 #ifndef HAL_UART_H
 #define HAL_UART_H
 
-#include "common/status.h"  // For Status_t
-#include "driver/uart.h"    // For uart_port_t
+#include "common.h"      // For Status_t
+#include "driver/uart.h" // For uart_port_t
 
 /**
  * @brief Initializes and configures all UART peripherals according to configurations
- * defined in `HAL_UART_Cfg.c`. This is the main initialization function for the UART HAL.
+ * defined in `hal_uart_cfg.c`. This is the main initialization function for the UART HAL.
  * @return E_OK on success, or an error code.
  */
 Status_t HAL_UART_Init(void);

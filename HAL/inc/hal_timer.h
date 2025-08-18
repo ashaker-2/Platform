@@ -10,8 +10,8 @@
 #ifndef HAL_TIMER_H
 #define HAL_TIMER_H
 
-#include "common/status.h"  // For Status_t
-#include "driver/timer.h"   // For timer_group_t, timer_idx_t
+#include "common.h"       // For Status_t
+#include "driver/timer.h" // For timer_group_t, timer_idx_t
 
 /**
  * @brief Initializes and configures all hardware timers according to configurations
@@ -44,7 +44,7 @@ Status_t HAL_Timer_Stop(timer_group_t group_id, timer_idx_t timer_id);
  * @param arg An optional argument to pass to the callback function.
  * @return E_OK on success, or an error code.
  */
-Status_t HAL_Timer_AttachInterrupt(timer_group_t group_id, timer_idx_t timer_id, void (*callback)(void*), void* arg);
+Status_t HAL_Timer_AttachInterrupt(timer_group_t group_id, timer_idx_t timer_id, void (*callback)(void *), void *arg);
 
 /**
  * @brief Enables the alarm for a specific timer.

@@ -6,7 +6,7 @@
 
 # Include the global project settings to inherit common options/definitions.
 # Path is relative from HAL/ to cmake/project_global_settings.cmake
-include(../cmake/project_global_settings.cmake)
+# include(../cmake/project_global_settings.cmake)
 
 # --- Component: HAL ---
 # Define source files for the HAL component by globbing
@@ -35,10 +35,10 @@ set(HAL_PRIVATE_REQUIRES
 )
 # Define compile options for the HAL component (inherits from GLOBAL_C_COMPILE_OPTIONS)
 set(HAL_COMPILE_OPTIONS
-    ${GLOBAL_C_COMPILE_OPTIONS}
+    # ${GLOBAL_C_COMPILE_OPTIONS}
     # -Wno-unused-variable # Example: specific warning disable
 )
 # Define compile definitions for the HAL component (inherits from GLOBAL_COMPILE_DEFINITIONS)
 set(HAL_COMPILE_DEFINITIONS
-    ${GLOBAL_COMPILE_DEFINITIONS}
+    # ${GLOBAL_COMPILE_DEFINITIONS}
 )

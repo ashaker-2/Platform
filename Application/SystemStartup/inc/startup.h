@@ -19,6 +19,6 @@
  * This function performs essential initializations and starts the FreeRTOS scheduler.
  * This function is typically called by the underlying MCU SDK/bootloader after reset.
  */
-// void main(void);
+void app_main(void);
 
 #endif // STARTUP_H

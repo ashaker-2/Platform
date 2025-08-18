@@ -3,16 +3,15 @@
 #define RTE_H
 
 #include <stdint.h>
-#include <stdbool.h> // For bool type
-#include "common.h"     // For E_OK/E_NOK
-#include "FreeRTOS.h" // For TaskFunction_t (FreeRTOS task prototype)
+#include <stdbool.h>           // For bool type
+#include "common.h"            // For E_OK/E_NOK
+#include "freertos/FreeRTOS.h" // For TaskFunction_t (FreeRTOS task prototype)
 
 // --- Initialization Functions and Tasks ---
 uint8_t RTE_Init(void);
 void RTE_HwInitTask(void *pvParameters);
 void RTE_AppInitTask(void *pvParameters);
 uint8_t RTE_StartAllPermanentTasks(void);
-
 
 // --- Permanent System Tasks (Implementations in Rte.c) ---
 void TaskAppCore0_20ms_Pri_3(void *pvParameters);
@@ -38,12 +37,9 @@ uint8_t ComM_Init(void);
  */
 void ComM_MainTask(void *pvParameters);
 
-
-
 // Services for System Monitor Data Access
 uint8_t RTE_Service_GetCPULoad(uint8_t *cpu_load_percent);
 uint8_t RTE_Service_GetTotalMinFreeStack(uint32_t *total_min_free_stack_bytes);
-
 
 // --- RTE Services for Communication (calling COMMUNICATION_STACK_INTERFACE's internal functions) ---
 
@@ -116,6 +112,5 @@ bool RTE_Service_WiFi_IsConnected(void);
  * @return E_OK if send operation is initiated, E_NOK otherwise.
  */
 uint8_t RTE_Service_WiFi_SendNetworkData(const char *endpoint, const uint8_t *data, uint16_t len);
-
 
 #endif /* RTE_H */

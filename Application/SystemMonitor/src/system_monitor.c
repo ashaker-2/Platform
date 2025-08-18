@@ -10,9 +10,9 @@
 #include "Rte.h"
 
 /* FreeRTOS includes */
-#include "FreeRTOS.h"
-#include "task.h"
-#include "semphr.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
 #include <string.h>
 
 /* --- Internal Data Structures --- */
@@ -27,9 +27,8 @@ static uint32_t s_active_task_count = 0;
 static bool s_is_initialized = false;
 static SemaphoreHandle_t s_system_monitor_mutex = NULL;
 
-
 /* --- Private Function Prototypes --- */
-static SystemMonitor_FaultRecord_t* sysmon_find_fault_record(SystemMonitor_FaultId_t fault_id);
+static SystemMonitor_FaultRecord_t *sysmon_find_fault_record(SystemMonitor_FaultId_t fault_id);
 static void sysmon_monitor_system_health(void);
 static void sysmon_calculate_cpu_load(void);
 static void sysmon_calculate_stack_usage(void);
@@ -42,7 +41,7 @@ Status_t SystemMonitor_Init(void)
 {
     /* Create mutex for thread safety */
     s_system_monitor_mutex = xSemaphoreCreateMutex();
-    if (s_system_monitor_mutex == NULL) 
+    if (s_system_monitor_mutex == NULL)
     {
         return E_ERROR;
     }
@@ -53,30 +52,28 @@ Status_t SystemMonitor_Init(void)
     s_active_task_count = 0;
     u8ClearAllFaultRequest = 0;
 
-
     s_is_initialized = true;
-
 
     return E_OK;
 }
 
-Status_t SysMon_ReportFaultStatus(SystemMonitor_FaultId_t fault_id,SysMon_FaultStatus_t status)
+Status_t SysMon_ReportFaultStatus(SystemMonitor_FaultId_t fault_id, SysMon_FaultStatus_t status)
 {
     Status_t ret = E_OK;
     /* Validate inputs */
-    if (!s_is_initialized) 
+    if (!s_is_initialized)
     {
         return E_ERROR;
     }
-    
-    if (fault_id == FAULT_ID_NONE || fault_id >= FAULT_ID_MAX) 
+
+    if (fault_id == FAULT_ID_NONE || fault_id >= FAULT_ID_MAX)
     {
         LOGE("SystemMonitor: Invalid fault ID: 0x%04X", fault_id);
         return E_ERROR;
     }
 
     /* Acquire mutex with timeout to prevent blocking */
-    if (xSemaphoreTake(s_system_monitor_mutex, pdMS_TO_TICKS(10)) != pdTRUE) 
+    if (xSemaphoreTake(s_system_monitor_mutex, pdMS_TO_TICKS(10)) != pdTRUE)
     {
         LOGE("SystemMonitor: Mutex timeout in ReportFault");
         return E_ERROR;
@@ -84,9 +81,9 @@ Status_t SysMon_ReportFaultStatus(SystemMonitor_FaultId_t fault_id,SysMon_FaultS
 
     /* Set fault as active in table */
 
-    SystemMonitor_FaultRecord_t* record = sysmon_find_fault_record(fault_id);
-    
-    if ((record != NULL) && ((status == FAULT_Paasive) || (status == FAULT_Active))) 
+    SystemMonitor_FaultRecord_t *record = sysmon_find_fault_record(fault_id);
+
+    if ((record != NULL) && ((status == FAULT_Paasive) || (status == FAULT_Active)))
     {
         record->is_active = status;
         ret = E_OK;
@@ -96,13 +93,12 @@ Status_t SysMon_ReportFaultStatus(SystemMonitor_FaultId_t fault_id,SysMon_FaultS
         ret = E_INVALID_PARAM;
     }
 
-
     /* Log the fault */
-    if (ret == E_OK) 
+    if (ret == E_OK)
     {
         LOGE("FAULT REPORTED: ID=0x%04X", fault_id);
-    } 
-    else 
+    }
+    else
     {
         LOGE("SystemMonitor: Failed to set fault 0x%04X", fault_id);
     }
@@ -117,7 +113,7 @@ Status_t SysMon_ClearAllFaults(void)
 {
     Status_t ret = E_OK;
 
-    if (!s_is_initialized) 
+    if (!s_is_initialized)
     {
         return E_ERROR;
     }
@@ -125,14 +121,14 @@ Status_t SysMon_ClearAllFaults(void)
     u8ClearAllFaultRequest = 1;
 
     LOGI("SystemMonitor: Clear All fault Requested");
-    
+
     return ret;
 }
 
 static void sysmon_ClearFaults(void)
 {
     /* Initialize fault table - all faults start as inactive */
-    for (uint8_t i = 0; i < SYSMON_MAX_FAULTS; i++) 
+    for (uint8_t i = 0; i < SYSMON_MAX_FAULTS; i++)
     {
         SystemMonitor_FaultTable[i].is_active = false;
     }
@@ -141,17 +137,17 @@ static void sysmon_ClearFaults(void)
 
 void SysMon_MainFunction(void)
 {
-    if (!s_is_initialized) 
+    if (!s_is_initialized)
     {
         return;
     }
 
-    if (xSemaphoreTake(s_system_monitor_mutex, pdMS_TO_TICKS(100)) != pdTRUE) 
+    if (xSemaphoreTake(s_system_monitor_mutex, pdMS_TO_TICKS(100)) != pdTRUE)
     {
         return;
     }
 
-    if (u8ClearAllFaultRequest == 1) 
+    if (u8ClearAllFaultRequest == 1)
     {
         sysmon_ClearFaults();
     }
@@ -167,46 +163,47 @@ void SysMon_MainFunction(void)
 
 uint8_t SysMon_GetCPULoad(void)
 {
-    if (!s_is_initialized) 
+    if (!s_is_initialized)
     {
         return 0;
     }
-    
+
     /* CPU load is atomic read, no mutex needed for single byte */
     return s_current_cpu_load_percent;
 }
 
 uint32_t SysMon_GetTotalMinFreeStack(void)
 {
-    if (!s_is_initialized) {
+    if (!s_is_initialized)
+    {
         return 0;
     }
-    
+
     /* Atomic read for 32-bit value on 32-bit systems */
     return s_total_min_free_stack_bytes;
 }
 
-Status_t SysMon_GetFaultStatus(SystemMonitor_FaultId_t FaultId , SysMon_FaultStatus_t * FaultStatus)
+Status_t SysMon_GetFaultStatus(SystemMonitor_FaultId_t FaultId, SysMon_FaultStatus_t *FaultStatus)
 {
     Status_t ret = E_OK;
-    if (!s_is_initialized || FaultStatus == NULL) 
+    if (!s_is_initialized || FaultStatus == NULL)
     {
         return E_ERROR;
     }
 
-    if (FaultId == FAULT_ID_NONE || FaultId >= FAULT_ID_MAX) 
+    if (FaultId == FAULT_ID_NONE || FaultId >= FAULT_ID_MAX)
     {
         LOGE("SystemMonitor: Invalid fault ID: 0x%04X", FaultId);
         return E_ERROR;
     }
 
     /* Search for fault active in table */
-    SystemMonitor_FaultRecord_t* record = sysmon_find_fault_record(FaultId);
-    
-    if (record != NULL) 
+    SystemMonitor_FaultRecord_t *record = sysmon_find_fault_record(FaultId);
+
+    if (record != NULL)
     {
-        *FaultStatus = (SysMon_FaultStatus_t)record->is_active; 
-        ret = E_OK;  
+        *FaultStatus = (SysMon_FaultStatus_t)record->is_active;
+        ret = E_OK;
     }
     else
     {
@@ -215,19 +212,17 @@ Status_t SysMon_GetFaultStatus(SystemMonitor_FaultId_t FaultId , SysMon_FaultSta
     return ret;
 }
 
-
-static SystemMonitor_FaultRecord_t* sysmon_find_fault_record(SystemMonitor_FaultId_t fault_id)
+static SystemMonitor_FaultRecord_t *sysmon_find_fault_record(SystemMonitor_FaultId_t fault_id)
 {
-    for (uint8_t i = 0; i < SYSMON_MAX_FAULTS; i++) 
+    for (uint8_t i = 0; i < SYSMON_MAX_FAULTS; i++)
     {
-        if (SystemMonitor_FaultTable[i].u32FaultId == fault_id) 
+        if (SystemMonitor_FaultTable[i].u32FaultId == fault_id)
         {
             return &SystemMonitor_FaultTable[i];
         }
     }
     return NULL;
 }
-
 
 /**
  * @brief Monitors core system health metrics like CPU load and stack usage.
@@ -238,7 +233,7 @@ static SystemMonitor_FaultRecord_t* sysmon_find_fault_record(SystemMonitor_Fault
  * based on their configured thresholds.
  * It's assumed to be called within a context where the `s_system_monitor_mutex` is held.
  */
-static void sysmon_monitor_system_health(void) 
+static void sysmon_monitor_system_health(void)
 {
     /* Update CPU load and stack usage metrics. */
     sysmon_calculate_cpu_load();
@@ -252,22 +247,20 @@ static void sysmon_monitor_system_health(void)
     SysMon_ReportFaultStatus(FAULT_ID_CPU_OVERLOAD, cpu_overload_active);
     SysMon_ReportFaultStatus(FAULT_ID_STACK_OVERFLOW_RISK, stack_risk_active);
 
-    if (cpu_overload_active) 
+    if (cpu_overload_active)
     {
-        LOGW("SystemMonitor: CPU overload: %d%% > %d%%",s_current_cpu_load_percent, SYSMON_CPU_LOAD_THRESHOLD_PERCENT);
-    } 
-    else 
+        LOGW("SystemMonitor: CPU overload: %d%% > %d%%", s_current_cpu_load_percent, SYSMON_CPU_LOAD_THRESHOLD_PERCENT);
+    }
+    else
     {
-
     }
 
-    if (stack_risk_active) 
+    if (stack_risk_active)
     {
-        LOGW("SystemMonitor: CPU overload: %d%% > %d%%",s_current_cpu_load_percent, SYSMON_CPU_LOAD_THRESHOLD_PERCENT);
-    } 
-    else 
+        LOGW("SystemMonitor: CPU overload: %d%% > %d%%", s_current_cpu_load_percent, SYSMON_CPU_LOAD_THRESHOLD_PERCENT);
+    }
+    else
     {
-
     }
 }
 
@@ -279,7 +272,7 @@ static void sysmon_monitor_system_health(void)
  * enabled in FreeRTOS. It updates `s_current_cpu_load_percent` and `s_active_task_count`.
  * It's assumed to be called within a context where the `s_system_monitor_mutex` is held.
  */
-static void sysmon_calculate_cpu_load(void) 
+static void sysmon_calculate_cpu_load(void)
 {
     static TickType_t last_measure_total_run_time = 0; // Stores total run time at last measurement
     static uint32_t last_idle_run_time = 0;            // Stores idle task run time at last measurement
@@ -294,7 +287,7 @@ static void sysmon_calculate_cpu_load(void)
 
     /* Allocate memory for task status array. pvPortMalloc is FreeRTOS heap function. */
     task_status_array = pvPortMalloc(initial_task_count * sizeof(TaskStatus_t));
-    if (task_status_array == NULL) 
+    if (task_status_array == NULL)
     {
         LOGE("SystemMonitor: Failed to allocate memory for task status array (CPU load calculation).");
         return; // Exit if memory allocation fails.
@@ -304,13 +297,13 @@ static void sysmon_calculate_cpu_load(void)
     // uxTaskGetSystemState returns the actual number of tasks copied.
     UBaseType_t actual_task_count = uxTaskGetSystemState(task_status_array, initial_task_count, &current_total_run_time);
 
-    if (last_measure_total_run_time != 0) 
+    if (last_measure_total_run_time != 0)
     { // Only calculate after the first measurement cycle
         uint32_t current_idle_run_time = 0;
         /* Find the "IDLE" task's run time. */
-        for (UBaseType_t i = 0; i < actual_task_count; i++) 
+        for (UBaseType_t i = 0; i < actual_task_count; i++)
         {
-            if (strcmp(task_status_array[i].pcTaskName, "IDLE") == 0) 
+            if (strcmp(task_status_array[i].pcTaskName, "IDLE") == 0)
             {
                 current_idle_run_time = task_status_array[i].ulRunTimeCounter;
                 break;
@@ -321,12 +314,13 @@ static void sysmon_calculate_cpu_load(void)
         uint32_t total_time_delta = current_total_run_time - last_measure_total_run_time;
         uint32_t idle_time_delta = current_idle_run_time - last_idle_run_time;
 
-        if (total_time_delta > 0) 
+        if (total_time_delta > 0)
         {
             /* CPU usage = 100 - (Idle time_delta / Total time_delta) * 100 */
             uint32_t cpu_usage = (uint32_t)(100.0f - ((float)idle_time_delta * 100.0f) / total_time_delta);
             s_current_cpu_load_percent = (cpu_usage > 100) ? 100 : (uint8_t)cpu_usage; // Cap at 100%
-        } else 
+        }
+        else
         {
             s_current_cpu_load_percent = 0; // No time elapsed, assume 0% load.
         }
@@ -335,7 +329,7 @@ static void sysmon_calculate_cpu_load(void)
     }
 
     last_measure_total_run_time = current_total_run_time; // Store for next calculation
-    vPortFree(task_status_array); // Free allocated memory
+    vPortFree(task_status_array);                         // Free allocated memory
 }
 
 /**
@@ -346,7 +340,7 @@ static void sysmon_calculate_cpu_load(void)
  * to overflowing their stacks. It updates `s_total_min_free_stack_bytes`.
  * It's assumed to be called within a context where the `s_system_monitor_mutex` is held.
  */
-static void sysmon_calculate_stack_usage(void) 
+static void sysmon_calculate_stack_usage(void)
 {
     TaskStatus_t *task_status_array;
     UBaseType_t initial_task_count;
@@ -358,7 +352,7 @@ static void sysmon_calculate_stack_usage(void)
 
     /* Allocate memory for task status array. */
     task_status_array = pvPortMalloc(initial_task_count * sizeof(TaskStatus_t));
-    if (task_status_array == NULL) 
+    if (task_status_array == NULL)
     {
         LOGE("SystemMonitor: Failed to allocate memory for task status array (stack usage calculation).");
         return;
@@ -369,13 +363,13 @@ static void sysmon_calculate_stack_usage(void)
 
     /* Sum the minimum free stack (high water mark) for all tasks.
      * `usStackHighWaterMark` is in words, convert to bytes using `sizeof(StackType_t)`. */
-    for (UBaseType_t i = 0; i < actual_task_count; i++) 
+    for (UBaseType_t i = 0; i < actual_task_count; i++)
     {
         current_total_min_free_stack += task_status_array[i].usStackHighWaterMark * sizeof(StackType_t);
     }
 
     s_total_min_free_stack_bytes = current_total_min_free_stack; // Update static variable
-    vPortFree(task_status_array); // Free allocated memory
+    vPortFree(task_status_array);                                // Free allocated memory
 }
 
 /**
@@ -386,7 +380,7 @@ static void sysmon_calculate_stack_usage(void)
  * active task count, and system uptime.
  * It's assumed to be called within a context where the `s_system_monitor_mutex` is held.
  */
-static void sysmon_log_system_health(void) 
+static void sysmon_log_system_health(void)
 {
     static uint32_t log_cycle_counter = 0;
     log_cycle_counter++;
@@ -396,14 +390,15 @@ static void sysmon_log_system_health(void)
     if (cycles_per_log == 0)
     {
         cycles_per_log = 1; // Ensure logging happens at least every cycle if interval is tiny
-    } 
+    }
 
     /* Log only when the calculated cycle count is reached. */
-    if ((log_cycle_counter % cycles_per_log) == 0) {
-        LOGI("SysHealth: CPU:%u%%, MinFreeStack:%luB, Tasks:%lu, Uptime:%lu ms",
-             s_current_cpu_load_percent,
-             s_total_min_free_stack_bytes,
-             s_active_task_count,
-             APP_COMMON_GetUptimeMs());
+    if ((log_cycle_counter % cycles_per_log) == 0)
+    {
+        // LOGI("SysHealth: CPU:%u%%, MinFreeStack:%luB, Tasks:%lu, Uptime:%lu ms",
+        //      s_current_cpu_load_percent,
+        //      s_total_min_free_stack_bytes,
+        //      s_active_task_count,
+        //      APP_COMMON_GetUptimeMs());
     }
 }

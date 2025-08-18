@@ -207,6 +207,7 @@ static Status_t LightCtrl_ApplyControl(const LightCtrl_Config_t* config, LightCt
     //     default:
     //         return E_NOK;
     // }
+    return E_NOK;
 }
 
 static Status_t LightCtrl_ReadFeedback(const LightCtrl_Config_t* config, uint8_t* actual_brightness)

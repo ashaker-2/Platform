@@ -56,6 +56,7 @@ The Common component will consist of the following files:
 ### **5.2. Public Interface (API)**
 
 // In Common/inc/common.h
+
 ```c
 #include <stdint.h>  
 #include <stdbool.h> // For bool type
@@ -108,8 +109,8 @@ The Common module's primary internal function is to track system uptime using Fr
    * This function directly leverages FreeRTOS's xTaskGetTickCount() to get the current tick count.  
    * It then converts this tick count to milliseconds using portTICK_PERIOD_MS (a FreeRTOS macro).  
    * Example implementation:  
-     #include "FreeRTOS.h"  
-     #include "task.h" // For xTaskGetTickCount()
+     #include "freertos/FreeRTOS.h"  
+     #include "freertos/task.h" // For xTaskGetTickCount()
 
      APP_Status_t APP_COMMON_Init(void) {  
          // No specific initialization needed for uptime, but good practice to have.  
@@ -122,6 +123,7 @@ The Common module's primary internal function is to track system uptime using Fr
      }
 
 **Sequence Diagram (Example: Module Gets Uptime):**
+
 ```mermaid
 
 sequenceDiagram  

@@ -4,8 +4,8 @@
 #include "logger.h"
 #include "system_monitor.h"
 // #include "Rte.h"
-// #include "FreeRTOS.h"
-// #include "semphr.h"
+// #include "freertos/FreeRTOS.h"
+// #include "freertos/semphr.h"
 #include <string.h>
 
 /**
@@ -263,80 +263,80 @@ static void SYS_MGR_UpdateSensorReadings(void)
 
 static void SYS_MGR_ApplyAutomaticControl(void)
 {
-//     // Temperature Control (Fan/Heater)
-//     float temp_c = sys_mgr_state.current_room_temp_c;
-//     float min_temp = sys_mgr_state.operational_params.operational_temp_min_c;
-//     float max_temp = sys_mgr_state.operational_params.operational_temp_max_c;
+    //     // Temperature Control (Fan/Heater)
+    //     float temp_c = sys_mgr_state.current_room_temp_c;
+    //     float min_temp = sys_mgr_state.operational_params.operational_temp_min_c;
+    //     float max_temp = sys_mgr_state.operational_params.operational_temp_max_c;
 
-//     if (temp_c > max_temp)
-//     {
-//         // Activate fan
-//         uint8_t fan_speed = 0;
-//         if (temp_c > sys_mgr_state.operational_params.fan_stage_threshold_temp_c[2])
-//         {
-//             fan_speed = 100;
-//         }
-//         else if (temp_c > sys_mgr_state.operational_params.fan_stage_threshold_temp_c[1])
-//         {
-//             fan_speed = 75;
-//         }
-//         else if (temp_c > sys_mgr_state.operational_params.fan_stage_threshold_temp_c[0])
-//         {
-//             fan_speed = 50;
-//         }
-//         RTE_Service_FAN_SetSpeed(FAN_ID_ROOM, fan_speed);
-//         RTE_Service_HEATER_SetState(HEATER_ID_ROOM, false);
-//         sys_mgr_state.actuator_states.fan_speed_percent = fan_speed;
-//         sys_mgr_state.actuator_states.heater_is_on = false;
-//     }
-//     else if (temp_c < min_temp)
-//     {
-//         // Activate heater
-//         RTE_Service_HEATER_SetState(HEATER_ID_ROOM, true);
-//         RTE_Service_FAN_SetSpeed(FAN_ID_ROOM, 0);
-//         sys_mgr_state.actuator_states.heater_is_on = true;
-//         sys_mgr_state.actuator_states.fan_speed_percent = 0;
-//     }
-//     else
-//     {
-//         // Within range, turn off both
-//         RTE_Service_HEATER_SetState(HEATER_ID_ROOM, false);
-//         RTE_Service_FAN_SetSpeed(FAN_ID_ROOM, 0);
-//         sys_mgr_state.actuator_states.heater_is_on = false;
-//         sys_mgr_state.actuator_states.fan_speed_percent = 0;
-//     }
+    //     if (temp_c > max_temp)
+    //     {
+    //         // Activate fan
+    //         uint8_t fan_speed = 0;
+    //         if (temp_c > sys_mgr_state.operational_params.fan_stage_threshold_temp_c[2])
+    //         {
+    //             fan_speed = 100;
+    //         }
+    //         else if (temp_c > sys_mgr_state.operational_params.fan_stage_threshold_temp_c[1])
+    //         {
+    //             fan_speed = 75;
+    //         }
+    //         else if (temp_c > sys_mgr_state.operational_params.fan_stage_threshold_temp_c[0])
+    //         {
+    //             fan_speed = 50;
+    //         }
+    //         RTE_Service_FAN_SetSpeed(FAN_ID_ROOM, fan_speed);
+    //         RTE_Service_HEATER_SetState(HEATER_ID_ROOM, false);
+    //         sys_mgr_state.actuator_states.fan_speed_percent = fan_speed;
+    //         sys_mgr_state.actuator_states.heater_is_on = false;
+    //     }
+    //     else if (temp_c < min_temp)
+    //     {
+    //         // Activate heater
+    //         RTE_Service_HEATER_SetState(HEATER_ID_ROOM, true);
+    //         RTE_Service_FAN_SetSpeed(FAN_ID_ROOM, 0);
+    //         sys_mgr_state.actuator_states.heater_is_on = true;
+    //         sys_mgr_state.actuator_states.fan_speed_percent = 0;
+    //     }
+    //     else
+    //     {
+    //         // Within range, turn off both
+    //         RTE_Service_HEATER_SetState(HEATER_ID_ROOM, false);
+    //         RTE_Service_FAN_SetSpeed(FAN_ID_ROOM, 0);
+    //         sys_mgr_state.actuator_states.heater_is_on = false;
+    //         sys_mgr_state.actuator_states.fan_speed_percent = 0;
+    //     }
 
-//     // Humidity Control (Pump/Ventilator)
-//     float humidity_p = sys_mgr_state.current_room_humidity_p;
-//     float min_humidity = sys_mgr_state.operational_params.operational_humidity_min_p;
-//     float max_humidity = sys_mgr_state.operational_params.operational_humidity_max_p;
+    //     // Humidity Control (Pump/Ventilator)
+    //     float humidity_p = sys_mgr_state.current_room_humidity_p;
+    //     float min_humidity = sys_mgr_state.operational_params.operational_humidity_min_p;
+    //     float max_humidity = sys_mgr_state.operational_params.operational_humidity_max_p;
 
-//     if (humidity_p > max_humidity)
-//     {
-//         RTE_Service_PUMP_SetState(PUMP_ID_DEHUMIDIFIER, true);
-//         RTE_Service_VENTILATOR_SetState(VENTILATOR_ID_ROOM, true);
-//         sys_mgr_state.actuator_states.pump_is_on = true;
-//         sys_mgr_state.actuator_states.ventilator_is_on = true;
-//     }
-//     else if (humidity_p < min_humidity)
-//     {
-//         RTE_Service_PUMP_SetState(PUMP_ID_DEHUMIDIFIER, false);
-//         RTE_Service_VENTILATOR_SetState(VENTILATOR_ID_ROOM, false);
-//         sys_mgr_state.actuator_states.pump_is_on = false;
-//         sys_mgr_state.actuator_states.ventilator_is_on = false;
-//     }
-//     else
-//     {
-//         RTE_Service_PUMP_SetState(PUMP_ID_DEHUMIDIFIER, false);
-//         RTE_Service_VENTILATOR_SetState(VENTILATOR_ID_ROOM, false);
-//         sys_mgr_state.actuator_states.pump_is_on = false;
-//         sys_mgr_state.actuator_states.ventilator_is_on = false;
-//     }
+    //     if (humidity_p > max_humidity)
+    //     {
+    //         RTE_Service_PUMP_SetState(PUMP_ID_DEHUMIDIFIER, true);
+    //         RTE_Service_VENTILATOR_SetState(VENTILATOR_ID_ROOM, true);
+    //         sys_mgr_state.actuator_states.pump_is_on = true;
+    //         sys_mgr_state.actuator_states.ventilator_is_on = true;
+    //     }
+    //     else if (humidity_p < min_humidity)
+    //     {
+    //         RTE_Service_PUMP_SetState(PUMP_ID_DEHUMIDIFIER, false);
+    //         RTE_Service_VENTILATOR_SetState(VENTILATOR_ID_ROOM, false);
+    //         sys_mgr_state.actuator_states.pump_is_on = false;
+    //         sys_mgr_state.actuator_states.ventilator_is_on = false;
+    //     }
+    //     else
+    //     {
+    //         RTE_Service_PUMP_SetState(PUMP_ID_DEHUMIDIFIER, false);
+    //         RTE_Service_VENTILATOR_SetState(VENTILATOR_ID_ROOM, false);
+    //         sys_mgr_state.actuator_states.pump_is_on = false;
+    //         sys_mgr_state.actuator_states.ventilator_is_on = false;
+    //     }
 
-//     // Light Control (placeholder for automatic logic)
-//     // For now, we will just turn it off in automatic mode.
-//     RTE_Service_LIGHT_SetState(LIGHT_ID_ROOM, false);
-//     sys_mgr_state.actuator_states.light_is_on = false;
+    //     // Light Control (placeholder for automatic logic)
+    //     // For now, we will just turn it off in automatic mode.
+    //     RTE_Service_LIGHT_SetState(LIGHT_ID_ROOM, false);
+    //     sys_mgr_state.actuator_states.light_is_on = false;
 }
 
 static void SYS_MGR_ApplyFailSafeControl(void)

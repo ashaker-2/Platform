@@ -10,7 +10,7 @@
 #define HAL_ADC_H
 
 #include "driver/adc.h"     // For adc1_channel_t
-#include "common/status.h"  // For Status_t
+#include "common.h" // For Status_t
 
 /**
  * @brief Initializes the ADC peripheral (ADC1 unit) with its specific configuration

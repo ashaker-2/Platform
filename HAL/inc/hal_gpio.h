@@ -11,7 +11,7 @@
 #define HAL_GPIO_H
 
 #include "driver/gpio.h"    // For gpio_num_t, gpio_mode_t
-#include "status.h"  // For Status_t
+#include "common.h" // For Status_t
 
 /**
  * @brief Initializes all ESP32 direct GPIO pins according to the configurations

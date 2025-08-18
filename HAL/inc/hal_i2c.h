@@ -10,7 +10,7 @@
 #ifndef HAL_I2C_H
 #define HAL_I2C_H
 
-#include "common/status.h"  // For Status_t
+#include "common.h"  // For Status_t
 #include "driver/i2c.h"     // For i2c_port_t (used in public APIs for port selection)
 
 /**

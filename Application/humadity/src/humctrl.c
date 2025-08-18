@@ -134,6 +134,7 @@ static Status_t HumCtrl_ReadSensor(const HumCtrl_Config_t* config, float* humidi
     //     default:
     //         return E_NOK;
     // }
+    return E_NOK;
 }
 
 static Status_t HumCtrl_ReadAnalogSensor(const HumCtrl_Config_t* config, float* humidity_rh) 

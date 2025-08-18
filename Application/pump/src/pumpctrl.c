@@ -180,6 +180,7 @@ static Status_t PumpCtrl_ApplyControl(const PumpCtrl_Config_t* config, PumpCtrl_
     //     default:
     //         return E_NOK;
     // }
+    return E_NOK;
 }
 
 static Status_t PumpCtrl_ReadFeedback(const PumpCtrl_Config_t* config, PumpCtrl_State_t* actual_state) {

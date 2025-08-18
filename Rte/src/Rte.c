@@ -29,8 +29,8 @@
 // #include "modbus.h" // Needed for init
 
 // FreeRTOS Includes
-#include "FreeRTOS.h"
-#include "task.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 static const char *TAG = "RTE";
 
@@ -39,9 +39,9 @@ static const char *TAG = "RTE";
 uint8_t RTE_Init(void)
 {
     // LOGI(TAG, "RTE_Init called. Creating initial hardware initialization task.");
-    if (xTaskCreate(RTE_HwInitTask, "HwInitTask", 256, NULL, configMAX_PRIORITIES - 1, NULL) != pdPASS) 
+    if (xTaskCreate(RTE_HwInitTask, "HwInitTask", 256, NULL, configMAX_PRIORITIES - 1, NULL) != pdPASS)
     {
-        // // LOGE(TAG, "Failed to create HwInitTask!"); return E_NOK; 
+        // // LOGE(TAG, "Failed to create HwInitTask!"); return E_NOK;
     }
     return E_OK;
 }
@@ -49,102 +49,102 @@ uint8_t RTE_Init(void)
 void RTE_HwInitTask(void *pvParameters)
 {
     // LOGI(TAG, "RTE_HwInitTask started: Initializing HAL modules...");
-    if (HAL_GPIO_Init() != E_OK) 
+    if (HAL_GPIO_Init() != E_OK)
     {
-        // // LOGE(TAG, "GPIO HAL Init failed! Halting."); 
-        vTaskSuspend(NULL); 
+        // // LOGE(TAG, "GPIO HAL Init failed! Halting.");
+        vTaskSuspend(NULL);
     }
-    if (HAL_PWM_Init() != E_OK) 
-    { 
-        // // LOGE(TAG, "PWM HAL Init failed! Halting."); 
-        vTaskSuspend(NULL); 
+    if (HAL_PWM_Init() != E_OK)
+    {
+        // // LOGE(TAG, "PWM HAL Init failed! Halting.");
+        vTaskSuspend(NULL);
     }
-    if (HAL_ADC_Init() != E_OK) 
-    { 
-        // // LOGE(TAG, "ADC HAL Init failed! Halting."); 
-        vTaskSuspend(NULL); 
+    if (HAL_ADC_Init() != E_OK)
+    {
+        // // LOGE(TAG, "ADC HAL Init failed! Halting.");
+        vTaskSuspend(NULL);
     }
-    // if (HAL_I2C_Init() != E_OK) 
-    // { 
-    //     // // LOGE(TAG, "I2C HAL Init failed! Halting."); 
-    //     vTaskSuspend(NULL); 
+    // if (HAL_I2C_Init() != E_OK)
+    // {
+    //     // // LOGE(TAG, "I2C HAL Init failed! Halting.");
+    //     vTaskSuspend(NULL);
     // }
 
     // LOGI(TAG, "HAL Initialization complete. Creating Application Initialization Task.");
-    if (xTaskCreate(RTE_AppInitTask, "AppInitTask", 4096, NULL, configMAX_PRIORITIES - 2, NULL) != pdPASS) 
+    if (xTaskCreate(RTE_AppInitTask, "AppInitTask", 4096, NULL, configMAX_PRIORITIES - 2, NULL) != pdPASS)
     {
-        // // LOGE(TAG, "Failed to create AppInitTask! Halting."); 
-        vTaskSuspend(NULL); 
+        // // LOGE(TAG, "Failed to create AppInitTask! Halting.");
+        vTaskSuspend(NULL);
     }
-    // LOGI(TAG, "RTE_HwInitTask deleting itself."); 
+    // LOGI(TAG, "RTE_HwInitTask deleting itself.");
     vTaskDelete(NULL);
 }
 
 void RTE_AppInitTask(void *pvParameters)
 {
     // LOGI(TAG, "RTE_AppInitTask started: Initializing Application modules...");
-    if (FanCtrl_Init() != E_OK) 
-    { 
-        // // LOGE(TAG, "Fan APP Init failed! Halting."); 
-        vTaskSuspend(NULL); 
-    }
-    if (TempCtrl_Init() != E_OK) 
-    { 
-        // // LOGE(TAG, "Temperature Sensor APP Init failed! Halting."); 
-        vTaskSuspend(NULL); 
-    }
-    if (VentCtrl_Init() != E_OK) 
-    { 
-        // // LOGE(TAG, "Ventilator APP Init failed! Halting."); 
-        vTaskSuspend(NULL); 
-    }
-    if (HumCtrl_Init() != E_OK) 
-    { 
-        // // LOGE(TAG, "Humidity Sensor APP Init failed! Halting."); 
-        vTaskSuspend(NULL); 
-    }
-    if (HeaterCtrl_Init() != E_OK) 
-    { 
-        // // LOGE(TAG, "Heater APP Init failed! Halting."); 
-        vTaskSuspend(NULL); 
-    }
-    if (PumpCtrl_Init() != E_OK) 
-    { 
-        // // LOGE(TAG, "Pump APP Init failed! Halting."); 
-        vTaskSuspend(NULL); 
-    }
-    if (LightCtrl_Init() != E_OK) 
-    { 
-        // // LOGE(TAG, "LightControl APP Init failed! Halting."); 
-        vTaskSuspend(NULL); 
-    }
-    if (LightInd_Init() != E_OK) 
-    { 
-        // // LOGE(TAG, "LightIndication APP Init failed! Halting."); 
+    if (FanCtrl_Init() != E_OK)
+    {
+        // // LOGE(TAG, "Fan APP Init failed! Halting.");
         vTaskSuspend(NULL);
     }
-    // if (CHARACTER_DISPLAY_Init() != E_OK) 
-    // { 
-    //     // // LOGE(TAG, "CharacterDisplay APP Init failed! Halting.");  
-    //     vTaskSuspend(NULL); 
+    if (TempCtrl_Init() != E_OK)
+    {
+        // // LOGE(TAG, "Temperature Sensor APP Init failed! Halting.");
+        vTaskSuspend(NULL);
+    }
+    if (VentCtrl_Init() != E_OK)
+    {
+        // // LOGE(TAG, "Ventilator APP Init failed! Halting.");
+        vTaskSuspend(NULL);
+    }
+    if (HumCtrl_Init() != E_OK)
+    {
+        // // LOGE(TAG, "Humidity Sensor APP Init failed! Halting.");
+        vTaskSuspend(NULL);
+    }
+    if (HeaterCtrl_Init() != E_OK)
+    {
+        // // LOGE(TAG, "Heater APP Init failed! Halting.");
+        vTaskSuspend(NULL);
+    }
+    if (PumpCtrl_Init() != E_OK)
+    {
+        // // LOGE(TAG, "Pump APP Init failed! Halting.");
+        vTaskSuspend(NULL);
+    }
+    if (LightCtrl_Init() != E_OK)
+    {
+        // // LOGE(TAG, "LightControl APP Init failed! Halting.");
+        vTaskSuspend(NULL);
+    }
+    if (LightInd_Init() != E_OK)
+    {
+        // // LOGE(TAG, "LightIndication APP Init failed! Halting.");
+        vTaskSuspend(NULL);
+    }
+    // if (CHARACTER_DISPLAY_Init() != E_OK)
+    // {
+    //     // // LOGE(TAG, "CharacterDisplay APP Init failed! Halting.");
+    //     vTaskSuspend(NULL);
     // }
 
     // System Manager, Monitor, and Communication Initializations
-    if (SYS_MGR_Init() != E_OK) 
-    { 
-        // // LOGE(TAG, "System Manager Init failed! Halting."); 
-        vTaskSuspend(NULL); 
+    if (SYS_MGR_Init() != E_OK)
+    {
+        // // LOGE(TAG, "System Manager Init failed! Halting.");
+        vTaskSuspend(NULL);
     }
-    if (SysMon_Init() != E_OK) 
-    { 
-        // // LOGE(TAG, "System Monitor Init failed! Halting."); 
+    if (SysMon_Init() != E_OK)
+    {
+        // // LOGE(TAG, "System Monitor Init failed! Halting.");
         vTaskSuspend(NULL);
     }
 
     // NEW: Call the ComM_Init (now defined in Rte.c)
-    if (ComM_Init() != E_OK) 
-    { 
-        // // LOGE(TAG, "Communication Stack Init failed! Halting."); 
+    if (ComM_Init() != E_OK)
+    {
+        // // LOGE(TAG, "Communication Stack Init failed! Halting.");
         vTaskSuspend(NULL);
     }
 
@@ -167,9 +167,9 @@ void RTE_AppInitTask(void *pvParameters)
     // RTE_Service_CHARACTER_DISPLAY_PrintString(CHARACTER_DISPLAY_ALARM_PANEL, "Monitoring...");
 
     // LOGI(TAG, "Calling RTE_StartAllPermanentTasks to create all permanent FreeRTOS tasks...");
-    if (RTE_StartAllPermanentTasks() != E_OK) 
+    if (RTE_StartAllPermanentTasks() != E_OK)
     {
-        // LOGE(TAG, "Failed to start all permanent tasks via RTE! Halting."); 
+        // LOGE(TAG, "Failed to start all permanent tasks via RTE! Halting.");
         vTaskSuspend(NULL);
     }
     // LOGI(TAG, "All permanent tasks created. RTE_AppInitTask deleting itself.");
@@ -177,52 +177,52 @@ void RTE_AppInitTask(void *pvParameters)
 }
 
 // --- Implementation of RTE's Permanent Application Tasks ---
-void TaskAppCore0_20ms_Pri_3(void *pvParameters) 
+void TaskAppCore0_20ms_Pri_3(void *pvParameters)
 {
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(20);
     // LOGI(TAG, "TaskAppCore0_20ms_Pri_3 started.");
-    while (1) 
-    { 
+    while (1)
+    {
 
-        TempCtrl_MainFunction(); 
+        TempCtrl_MainFunction();
         HumCtrl_MainFunction();
 
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
 
-void TaskAppCore0_100ms_Pri_3(void *pvParameters) 
+void TaskAppCore0_100ms_Pri_3(void *pvParameters)
 {
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(100);
     // LOGI(TAG, "TaskAppCore0_100ms_Pri_3 started.");
     while (1)
-    { 
-        SYS_MGR_MainFunction(); 
+    {
+        SYS_MGR_MainFunction();
         SysMon_MainFunction();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
 
-void TaskAppCore0_150ms_Pri_4(void *pvParameters) 
+void TaskAppCore0_150ms_Pri_4(void *pvParameters)
 {
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(1000);
     // LOGI(TAG, "TaskAppCore0_150ms_Pri_4 started.");
-    while (1) 
-    { 
-        // RTE_Service_UpdateDisplayAndAlarm(); 
+    while (1)
+    {
+        // RTE_Service_UpdateDisplayAndAlarm();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
 
 void TaskAppCore0_200ms_Pri_5(void *pvParameters)
-       {
+{
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(5000); // 5 second periodicity
     // LOGI(TAG, "TaskAppCore0_200ms_Pri_5 started.");
-    while (1) 
+    while (1)
     {
         uint32_t current_hour, current_minute;
         // RTE_Service_GetSimulatedTime(&current_hour, &current_minute);
@@ -232,17 +232,17 @@ void TaskAppCore0_200ms_Pri_5(void *pvParameters)
 }
 
 // NEW: Implementation of the Communication Stack Init function within RTE
-uint8_t ComM_Init(void) 
+uint8_t ComM_Init(void)
 {
     // LOGI(TAG, "Communication Stack Initialized. Initializing Middleware components...");
 
     // // Initialize all mandatory communication middleware
-    // if (MODBUS_MW_Init() != E_OK) 
+    // if (MODBUS_MW_Init() != E_OK)
     // {
     //     // // LOGE(TAG, "Modbus Middleware Init failed! Critical error.");
     //     return E_NOK;
     // }
-    // if (BLUETOOTH_MW_Init() != E_OK) 
+    // if (BLUETOOTH_MW_Init() != E_OK)
     // {
     //     // // LOGE(TAG, "Bluetooth Middleware Init failed! Critical error.");
     //     return E_NOK;
@@ -292,43 +292,41 @@ void TaskAppCore1_50ms_Pri_2(void *pvParameters)
     }
 }
 
-
 // --- Function to centralize creation of ALL permanent tasks ---
 uint8_t RTE_StartAllPermanentTasks(void)
 {
     // LOGI(TAG, "RTE_StartAllPermanentTasks: Creating all permanent application tasks...");
     if (xTaskCreate(TaskAppCore0_20ms_Pri_3, "TaskAppCore0_20ms_Pri_3", 2048, NULL, 5, NULL) != pdPASS)
     {
-        // // LOGE(TAG, "Failed to create TaskAppCore0_20ms_Pri_3!"); 
+        // // LOGE(TAG, "Failed to create TaskAppCore0_20ms_Pri_3!");
         return E_NOK;
     }
     if (xTaskCreate(TaskAppCore0_100ms_Pri_3, "TaskAppCore0_100ms_Pri_3", 4096, NULL, 4, NULL) != pdPASS)
     {
-        // // LOGE(TAG, "Failed to create TaskAppCore0_100ms_Pri_3!"); 
+        // // LOGE(TAG, "Failed to create TaskAppCore0_100ms_Pri_3!");
         return E_NOK;
     }
     if (xTaskCreate(TaskAppCore0_150ms_Pri_4, "TaskAppCore0_150ms_Pri_4", 3072, NULL, 3, NULL) != pdPASS)
     {
-        // // LOGE(TAG, "Failed to create TaskAppCore0_150ms_Pri_4!"); 
+        // // LOGE(TAG, "Failed to create TaskAppCore0_150ms_Pri_4!");
         return E_NOK;
     }
     if (xTaskCreate(TaskAppCore0_200ms_Pri_5, "TaskAppCore0_200ms_Pri_5", 2048, NULL, 2, NULL) != pdPASS)
     {
-        // // LOGE(TAG, "Failed to create TaskAppCore0_200ms_Pri_5!"); 
+        // // LOGE(TAG, "Failed to create TaskAppCore0_200ms_Pri_5!");
         return E_NOK;
     }
 
     // The TaskAppCore1_50ms_Pri_2 is now explicitly created here
     if (xTaskCreate(TaskAppCore1_50ms_Pri_2, "TaskAppCore1_50ms_Pri_2", 4096, NULL, 2, NULL) != pdPASS)
-    { 
+    {
         // Higher stack for comm
-        // // LOGE(TAG, "Failed to create TaskAppCore1_50ms_Pri_2!"); 
+        // // LOGE(TAG, "Failed to create TaskAppCore1_50ms_Pri_2!");
         return E_NOK;
     }
-    // LOGI(TAG, "All permanent application tasks created successfully."); 
+    // LOGI(TAG, "All permanent application tasks created successfully.");
     return E_OK;
 }
-
 
 // --- Implementation of RTE Service Functions ---
 
@@ -337,21 +335,20 @@ uint8_t RTE_StartAllPermanentTasks(void)
 // Services for System Monitor Data Access
 uint8_t RTE_Service_GetCPULoad(uint8_t *cpu_load_percent)
 {
-    if (cpu_load_percent == NULL) 
+    if (cpu_load_percent == NULL)
     {
         return E_NOK;
     }
-    // *cpu_load_percent = SYS_MON_GetCPULoad(); 
+    // *cpu_load_percent = SYS_MON_GetCPULoad();
     return E_OK;
 }
 
 uint8_t RTE_Service_GetTotalMinFreeStack(uint32_t *total_min_free_stack_bytes)
 {
-    if (total_min_free_stack_bytes == NULL) 
+    if (total_min_free_stack_bytes == NULL)
     {
         return E_NOK;
     }
-    // *total_min_free_stack_bytes = SYS_MON_GetTotalMinFreeStack(); 
+    // *total_min_free_stack_bytes = SYS_MON_GetTotalMinFreeStack();
     return E_OK;
 }
-

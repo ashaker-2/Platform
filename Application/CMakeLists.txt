@@ -9,7 +9,7 @@ include(cmake/application_file_lists.cmake)
 
 # Include component-specific build options.
 # Path is relative to this CMakeLists.txt file.
-include(../cmake/build_options.cmake)
+# include(../cmake/build_options.cmake)
 
 # Call the macro to define the 'app_fan' library using the settings from fan_build_options.cmake
 add_library(Application   # Lib_name

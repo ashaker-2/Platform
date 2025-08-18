@@ -6,30 +6,30 @@
 
 # Include the global project settings to inherit common options/definitions.
 # Path is relative from components/ to cmake/project_global_settings.cmake
-include(../cmake/project_global_settings.cmake)
+# include(../cmake/project_global_settings.cmake)
 
 # --- Application Component  ---
 # Define source files for the Application component by globbing
 
 # === CONFIGURE PATH ===
 
-file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/temperature"      TEMP_DIR)
-file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/fan"              FAN_DIR)
-file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/heater"           HEAT_DIR)
-file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/humadity"         HUM_DIR)
-file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/display"          DISP_DIR)
-file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/diagnostic"       DIAG_DIR)
-file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/lightControl"     LigCtrl_DIR)
-file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/lightIndication"  LigIdn_DIR)
-file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/logger"           Log_DIR)
-file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/OTA"              OTA_DIR)
-file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/power"            PWR_DIR)
-file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/pump"             PUMP_DIR)
-file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/systemMgr"        SysMgr_DIR)
-file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/SystemMonitor"    SysMon_DIR)
-file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/SystemStartup"    SysStart_DIR)
-file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/ventilator"       VEN_DIR)
-file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/common"           COMMON_DIR)
+file(TO_CMAKE_PATH "${APP_DIR}/temperature"      TEMP_DIR)
+file(TO_CMAKE_PATH "${APP_DIR}/fan"              FAN_DIR)
+file(TO_CMAKE_PATH "${APP_DIR}/heater"           HEAT_DIR)
+file(TO_CMAKE_PATH "${APP_DIR}/humadity"         HUM_DIR)
+file(TO_CMAKE_PATH "${APP_DIR}/display"          DISP_DIR)
+file(TO_CMAKE_PATH "${APP_DIR}/diagnostic"       DIAG_DIR)
+file(TO_CMAKE_PATH "${APP_DIR}/lightControl"     LigCtrl_DIR)
+file(TO_CMAKE_PATH "${APP_DIR}/lightIndication"  LigIdn_DIR)
+file(TO_CMAKE_PATH "${APP_DIR}/logger"           Log_DIR)
+file(TO_CMAKE_PATH "${APP_DIR}/OTA"              OTA_DIR)
+file(TO_CMAKE_PATH "${APP_DIR}/power"            PWR_DIR)
+file(TO_CMAKE_PATH "${APP_DIR}/pump"             PUMP_DIR)
+file(TO_CMAKE_PATH "${APP_DIR}/systemMgr"        SysMgr_DIR)
+file(TO_CMAKE_PATH "${APP_DIR}/SystemMonitor"    SysMon_DIR)
+file(TO_CMAKE_PATH "${APP_DIR}/SystemStartup"    SysStart_DIR)
+file(TO_CMAKE_PATH "${APP_DIR}/ventilator"       VEN_DIR)
+file(TO_CMAKE_PATH "${APP_DIR}/common"           COMMON_DIR)
 
 
 
@@ -37,6 +37,7 @@ file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/common"           COMMON_DIR)
 # Define source files for the  component
 set(APPLICATION_SRCS
 
+    "${SysStart_DIR}/src/startup.c"
     "${TEMP_DIR}/src/tempctrl.c"
     "${TEMP_DIR}/src/tempctrl_cfg.c"
     "${FAN_DIR}/src/fanctrl.c"
@@ -104,7 +105,7 @@ set(APPLICATION_COMPILE_OPTIONS
 )
 # Define compile definitions for the  component (inherits from GLOBAL_COMPILE_DEFINITIONS)
 set(APPLICATION_COMPILE_DEFINITIONS
-    ${GLOBAL_COMPILE_DEFINITIONS}
+    # ${GLOBAL_COMPILE_DEFINITIONS}
 )
 
 

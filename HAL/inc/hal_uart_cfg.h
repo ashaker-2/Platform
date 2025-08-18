@@ -1,16 +1,15 @@
 /* ============================================================================
- * SOURCE FILE: HardwareAbstractionLayer/src/HAL_UART_Cfg.c
+ * SOURCE FILE: HardwareAbstractionLayer/src/hal_uart_cfg.c
  * ============================================================================*/
 /**
- * @file HAL_UART_Cfg.c
+ * @file hal_uart_cfg.c
  * @brief Implements the static array of UART configuration settings.
  * This file defines the initial baud rate, parity, stop bits, and pin assignments for UART.
  * It does not contain any initialization functions; its purpose is purely
  * to hold configuration data.
  */
 
-#include "HAL_UART_Cfg.h"   // Header for UART configuration types and extern declarations
-#include "HAL_Config.h.h"     // Global hardware definitions (UART pins)
+#include "hal_uart_cfg.h"   // Header for UART configuration types and extern declarations
 #include <stddef.h>         // For size_t
 
 /**

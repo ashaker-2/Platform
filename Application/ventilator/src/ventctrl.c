@@ -202,6 +202,7 @@ static Status_t VentCtrl_ApplyControl(const VentCtrl_Config_t* config, VentCtrl_
     //     default:
     //         return E_NOK;
     // }
+    return E_NOK;
 }
 
 static Status_t VentCtrl_ReadFeedback(const VentCtrl_Config_t* config, uint8_t* actual_speed) 
