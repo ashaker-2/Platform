@@ -1,36 +1,42 @@
+/* ============================================================================
+ * SOURCE FILE: HardwareAbstractionLayer/src/HAL_I2C_Cfg.c
+ * ============================================================================*/
 /**
- * @file hal_i2c_cfg.c
- * @brief Hardware Abstraction Layer for I2C - Configuration Implementation.
- *
- * This file implements the static configuration parameters for each I2C port.
- * These settings are used by the `hal_i2c.c` implementation to initialize
- * and operate the I2C functionalities.
- *
- * IMPORTANT: Adjust these values according to your specific application's
- * hardware connections and desired I2C bus behavior.
+ * @file HAL_I2C_Cfg.c
+ * @brief Implements the static array of I2C bus configuration settings.
+ * This file defines the specific initial modes, clock speeds, and pins for
+ * all I2C buses used by the hardware. It does not contain any initialization
+ * functions; its purpose is purely to hold configuration data.
  */
 
-#include "hal_i2c_cfg.h"
-#include "hal_i2c.h" // For HAL_I2C_Port_t and other enums
+#include "HAL_I2C_Cfg.h"    // Header for I2C configuration types and extern declarations
+#include "HAL_Config.h"     // Global hardware pin definitions (e.g., HW_I2C_EXPANDER_PORT)
+#include <stddef.h>         // For size_t
 
-// Define the global array of I2C port configurations
-const HAL_I2C_PortConfig_t g_hal_i2c_port_configs[HAL_I2C_PORT_MAX] = {
-    [HAL_I2C_PORT_0] = {
-        .port_id = HAL_I2C_PORT_0,
-        .scl_gpio_num = 22,                     // Example: GPIO 22 for SCL on I2C_NUM_0
-        .sda_gpio_num = 21,                     // Example: GPIO 21 for SDA on I2C_NUM_0
-        .clk_speed_hz = HAL_I2C_CLK_SPEED_100KHZ, // Default to 100 kHz
-        .timeout_ms = 1000,                     // Default timeout of 1 second
-        .pullup_en = true,                      // Enable internal pull-ups
+/**
+ * @brief Array containing all predefined I2C bus configurations.
+ * Currently, it includes the configuration for the I2C expander bus.
+ * This array is made `const` and global (`extern` in header) to be accessed by `HAL_I2C.c`.
+ */
+const i2c_cfg_item_t s_i2c_configurations[] = {
+    // Configuration for the I2C bus connected to the CH423S expander
+    {
+        .port = HW_I2C_EXPANDER_PORT,
+        .config = {
+            .mode = I2C_MODE_MASTER,
+            .sda_io_num = HW_I2C_EXPANDER_SDA_GPIO,
+            .scl_io_num = HW_I2C_EXPANDER_SCL_GPIO,
+            .sda_pullup_en = GPIO_PULLUP_ENABLE, // Internal pull-ups, though external are preferred for robust I2C
+            .scl_pullup_en = GPIO_PULLUP_ENABLE,
+            .master.clk_speed = (400 * 1000), // 400 KHz
+            .clk_flags = 0, // No specific flags
+        },
     },
-    [HAL_I2C_PORT_1] = {
-        .port_id = HAL_I2C_PORT_1,
-        .scl_gpio_num = 26,                     // Example: GPIO 26 for SCL on I2C_NUM_1
-        .sda_gpio_num = 27,                     // Example: GPIO 27 for SDA on I2C_NUM_1
-        .clk_speed_hz = HAL_I2C_CLK_SPEED_400KHZ, // Default to 400 kHz
-        .timeout_ms = 500,                      // Default timeout of 0.5 seconds
-        .pullup_en = true,                      // Enable internal pull-ups
-    },
-    // Add configurations for more I2C ports if defined in hal_i2c.h
+    // Add other I2C bus configurations here if needed for future expansion
 };
 
+/**
+ * @brief Defines the number of elements in the `s_i2c_configurations` array.
+ * This variable is made `const` and global (`extern` in header) to be accessed by `HAL_I2C.c`.
+ */
+const size_t s_num_i2c_configurations = sizeof(s_i2c_configurations) / sizeof(s_i2c_configurations[0]);

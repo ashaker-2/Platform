@@ -1,5 +1,6 @@
 {
-    "files.associations": {
-        "system_monitor.h": "c"
-    }
+  "C_Cpp.intelliSenseEngine": "default",
+  "idf.espIdfPathWin": "C:\\Users\\DELL\\esp\\v5.5\\esp-idf",
+  "idf.toolsPathWin": "C:\\Users\\DELL\\.espressif",
+  "idf.pythonInstallPath": "C:\\Users\\DELL\\.espressif\\tools\\idf-python\\3.11.2\\python.exe"
 }

@@ -1,474 +1,219 @@
+/* ============================================================================
+ * SOURCE FILE: HardwareAbstractionLayer/src/HAL_I2C.c
+ * ============================================================================*/
 /**
- * @file hal_i2c.c
- * @brief Hardware Abstraction Layer for I2C - Implementation.
- *
- * This module provides the concrete implementation for the I2C HAL interface
- * defined in `hal_i2c.h`. It utilizes the ESP-IDF I2C driver to
- * configure and manage I2C master functionalities on the ESP32.
+ * @file HAL_I2C.c
+ * @brief Implements the public API functions for I2C master communication
+ * and specific control for the CH423S I/O expander, including the module's
+ * initialization function.
+ * These functions wrap ESP-IDF I2C driver calls.
  */
 
-#include "hal_i2c.h"
-#include "hal_i2c_cfg.h" // Include configuration header
+#include "HAL_I2C.h"        // Header for HAL_I2C functions
+#include "HAL_I2C_Cfg.h"    // To access I2C configuration array
+#include "HAL_Config.h.h"     // Global hardware definitions (CH423S address, I2C port)
+#include "esp_log.h"        // ESP-IDF logging library
+#include "driver/i2c.h"     // ESP-IDF I2C driver
+#include "esp_err.h"        // For ESP_OK, ESP_FAIL, etc.
 
-// #include "i2c.h"        // ESP-IDF I2C driver
-// #include "esp_log.h"           // ESP-IDF logging
-// #include "freertos/FreeRTOS.h" // For FreeRTOS types (e.g., tick conversion)
-
-// Define a tag for ESP-IDF logging
 static const char *TAG = "HAL_I2C";
 
-/**
- * @brief Structure to hold runtime data for each I2C port.
- */
-typedef struct
-{
-    bool initialized;        /**< Flag indicating if the port is initialized. */
-    HAL_I2C_Port_t esp_i2c_port; /**< ESP-IDF I2C port number. */
-} HAL_I2C_PortData_t;
-
-// Array to hold runtime data for each I2C port
-static HAL_I2C_PortData_t g_i2c_port_data[HAL_I2C_PORT_MAX];
+// --- Private Helper to manage CH423S 16-bit output state ---
+// This static variable holds the current 16-bit output state of the CH423S.
+// It's crucial for the read-modify-write operation if the CH423S acts like a PCF8575/MCP23017.
+// IMPORTANT: You MUST consult the CH423S datasheet for its exact register map and behavior.
+// This implementation assumes a simple 16-bit output register that is written to directly.
+static uint16_t s_ch423s_output_state = 0x0000; // All outputs initially low on power-up/reset
 
 /**
- * @brief Internal helper to map HAL_I2C_Port_t to ESP-IDF HAL_I2C_Port_t.
- * @param port The HAL I2C port.
- * @param esp_port Pointer to store the ESP-IDF I2C port number.
- * @return true if mapping is successful, false otherwise.
+ * @brief Initializes the I2C master peripheral(s) according to configurations
+ * defined in the internal `s_i2c_configurations` array from `HAL_I2C_Cfg.c`.
+ * Iterates through the array and applies each I2C configuration.
+ *
+ * @return E_OK if initialization is successful, otherwise an error code.
  */
-static bool hal_i2c_map_port_to_esp_port(HAL_I2C_Port_t port, HAL_I2C_Port_t *esp_port)
-{
-    // switch (port)
-    // {
-    // case HAL_I2C_PORT_0:
-    //     *esp_port = I2C_NUM_0;
-    //     break;
-    // case HAL_I2C_PORT_1:
-    //     *esp_port = I2C_NUM_1;
-    //     break;
-    // default:
-    //     ESP_LOGE(TAG, "Invalid HAL I2C port: %d", port);
-    //     return false;
-    // }
-    return true;
+Status_t HAL_I2C_Init(void) {
+    esp_err_t ret;
+
+    ESP_LOGI(TAG, "Applying I2C configurations from HAL_I2C_Cfg.c...");
+
+    for (size_t i = 0; i < s_num_i2c_configurations; i++) {
+        const i2c_cfg_item_t *cfg_item = &s_i2c_configurations[i];
+
+        ret = i2c_param_config(cfg_item->port, &cfg_item->config);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "I2C param config for port %d failed: %s", cfg_item->port, esp_err_to_name(ret));
+            return E_ERROR;
+        }
+        // No RX/TX buffer needed for master, last parameter is ISR service flags
+        ret = i2c_driver_install(cfg_item->port, cfg_item->config.mode, 0, 0, 0);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "I2C driver install for port %d failed: %s", cfg_item->port, esp_err_to_name(ret));
+            return E_ERROR;
+        }
+        ESP_LOGD(TAG, "I2C master configured on port %d with SDA:%d, SCL:%d, Freq:%ldHz.",
+                 cfg_item->port, cfg_item->config.sda_io_num, cfg_item->config.scl_io_num, cfg_item->config.master.clk_speed);
+    }
+
+    ESP_LOGI(TAG, "All I2C buses initialized successfully.");
+    return E_OK;
 }
 
 /**
- * @brief Internal helper to convert ESP-IDF error codes to HAL_I2C_Status_t.
- * @param esp_err The ESP-IDF error code.
- * @return The corresponding HAL_I2C_Status_t.
+ * @brief Performs an I2C master write operation.
+ * @param i2c_port The I2C port number (e.g., HW_I2C_EXPANDER_PORT).
+ * @param i2c_addr The 7-bit I2C slave address.
+ * @param write_buffer Pointer to the data to write.
+ * @param write_len The number of bytes to write.
+ * @param timeout_ms Timeout in milliseconds for the I2C transaction.
+ * @return E_OK on success, or an error code.
  */
-static HAL_I2C_Status_t hal_i2c_esp_err_to_status(HAL_I2C_Status_t esp_err)
-{
-    // switch (esp_err)
-    // {
-    // case ESP_OK:
-    //     return HAL_I2C_STATUS_OK;
-    // case ESP_ERR_INVALID_ARG:
-    //     return HAL_I2C_STATUS_INVALID_PARAM;
-    // case ESP_FAIL: // Generic failure, often due to NACK or timeout
-    //     return HAL_I2C_STATUS_ERROR;
-    // case ESP_ERR_TIMEOUT:
-    //     return HAL_I2C_STATUS_TIMEOUT;
-    // case ESP_ERR_INVALID_STATE: // I2C not initialized or in wrong state
-    //     return HAL_I2C_STATUS_NOT_INITIALIZED;
-    // // Specific I2C errors (from i2c_cmd_link_create_static etc.)
-    // case I2C_MASTER_ERR_NACK_ADDR:
-    //     return HAL_I2C_STATUS_NACK_ADDR;
-    // case I2C_MASTER_ERR_NACK_DATA:
-    //     return HAL_I2C_STATUS_NACK_DATA;
-    // case I2C_MASTER_ERR_TIMEOUT:
-    //     return HAL_I2C_STATUS_TIMEOUT;
-    // default:
-    //     return HAL_I2C_STATUS_ERROR;
-    // }
+Status_t HAL_I2C_MasterWrite(i2c_port_t i2c_port, uint8_t i2c_addr, const uint8_t *write_buffer, size_t write_len, uint32_t timeout_ms) {
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    if (cmd == NULL) {
+        ESP_LOGE(TAG, "Failed to create I2C command link.");
+        return E_ERROR;
+    }
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, (i2c_addr << 1) | I2C_MASTER_WRITE, true);
+    if (write_len > 0) {
+        i2c_master_write(cmd, (uint8_t *)write_buffer, write_len, true);
+    }
+    i2c_master_stop(cmd);
+    esp_err_t ret = i2c_master_cmd_begin(i2c_port, cmd, pdMS_TO_TICKS(timeout_ms));
+    i2c_cmd_link_delete(cmd);
+
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "I2C Master Write failed for port %d, addr 0x%02X: %s", i2c_port, i2c_addr, esp_err_to_name(ret));
+        return E_ERROR;
+    }
+    return E_OK;
 }
 
-HAL_I2C_Status_t HAL_I2C_Master_Init(HAL_I2C_Port_t port, const HAL_I2C_MasterConfig_t *config)
-{
-    // if (port >= HAL_I2C_PORT_MAX)
-    // {
-    //     ESP_LOGE(TAG, "Invalid I2C port: %d", port);
-    //     return HAL_I2C_STATUS_INVALID_PARAM;
-    // }
-    // if (config == NULL)
-    // {
-    //     ESP_LOGE(TAG, "I2C master config is NULL for port %d.", port);
-    //     return HAL_I2C_STATUS_INVALID_PARAM;
-    // }
-    // if (g_i2c_port_data[port].initialized)
-    // {
-    //     ESP_LOGW(TAG, "I2C port %d already initialized.", port);
-    //     return HAL_I2C_STATUS_ALREADY_INITIALIZED;
-    // }
+/**
+ * @brief Performs an I2C master read operation.
+ * @param i2c_port The I2C port number.
+ * @param i2c_addr The 7-bit I2C slave address.
+ * @param read_buffer Pointer to the buffer to store read data.
+ * @param read_len The number of bytes to read.
+ * @param timeout_ms Timeout in milliseconds for the I2C transaction.
+ * @return E_OK on success, or an error code.
+ */
+Status_t HAL_I2C_MasterRead(i2c_port_t i2c_port, uint8_t i2c_addr, uint8_t *read_buffer, size_t read_len, uint32_t timeout_ms) {
+    if (read_len == 0 || read_buffer == NULL) {
+        ESP_LOGE(TAG, "I2C Master Read: Invalid read_len or NULL read_buffer.");
+        return E_INVALID_PARAM;
+    }
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    if (cmd == NULL) {
+        ESP_LOGE(TAG, "Failed to create I2C command link.");
+        return E_ERROR;
+    }
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, (i2c_addr << 1) | I2C_MASTER_READ, true);
+    if (read_len > 1) {
+        i2c_master_read(cmd, read_buffer, read_len - 1, I2C_MASTER_ACK);
+    }
+    i2c_master_read_byte(cmd, read_buffer + read_len - 1, I2C_MASTER_NACK);
+    i2c_master_stop(cmd);
+    esp_err_t ret = i2c_master_cmd_begin(i2c_port, cmd, pdMS_TO_TICKS(timeout_ms));
+    i2c_cmd_link_delete(cmd);
 
-    // HAL_I2C_Port_t esp_i2c_port;
-    // if (!hal_i2c_map_port_to_esp_port(port, &esp_i2c_port))
-    // {
-    //     return HAL_I2C_STATUS_INVALID_PARAM;
-    // }
-
-    // i2c_config_t i2c_cfg = {
-    //     .mode = I2C_MODE_MASTER,
-    //     .sda_io_num = config->sda_pin,
-    //     .scl_io_num = config->scl_pin,
-    //     .sda_pullup_en = g_hal_i2c_port_configs[port].pullup_en, // Use config from hal_i2c_cfg.c
-    //     .scl_pullup_en = g_hal_i2c_port_configs[port].pullup_en, // Use config from hal_i2c_cfg.c
-    //     .master.clk_speed = config->clk_speed_hz,
-    //     .clk_flags = 0, // No clock flags
-    // };
-
-    // HAL_I2C_Status_t ret;
-
-    // ret = i2c_param_config(esp_i2c_port, &i2c_cfg);
-    // if (ret != ESP_OK)
-    // {
-    //     ESP_LOGE(TAG, "Failed to configure I2C port %d parameters: %s", port, esp_err_to_name(ret));
-    //     return hal_i2c_esp_err_to_status(ret);
-    // }
-
-    // ret = i2c_driver_install(esp_i2c_port, i2c_cfg.mode, 0, 0, 0); // No RX/TX buffer for master
-    // if (ret != ESP_OK)
-    // {
-    //     ESP_LOGE(TAG, "Failed to install I2C driver for port %d: %s", port, esp_err_to_name(ret));
-    //     return hal_i2c_esp_err_to_status(ret);
-    // }
-
-    // Set timeout for the I2C bus (in APB clock cycles)
-    // APB_CLK is typically 80MHz.
-    // Timeout in ticks = timeout_ms * (APB_CLK_FREQ_HZ / 1000)
-    // ESP-IDF i2c_set_timeout takes ticks directly.
-    // uint32_t timeout_ticks = (config->timeout_ms * (APB_CLK_FREQ / 1000));
-    // ret = i2c_set_timeout(esp_i2c_port, timeout_ticks);
-    // if (ret != ESP_OK)
-    // {
-    //     ESP_LOGE(TAG, "Failed to set I2C timeout for port %d: %s", port, esp_err_to_name(ret));
-    //     i2c_driver_delete(esp_i2c_port);
-    //     return hal_i2c_esp_err_to_status(ret);
-    // }
-
-    // g_i2c_port_data[port].initialized = true;
-    // g_i2c_port_data[port].esp_i2c_port = esp_i2c_port;
-
-    // LOGI(TAG, "I2C port %d initialized (SDA:%d, SCL:%d, Speed:%luHz, Timeout:%lu ms).",
-    //      port, config->sda_pin, config->scl_pin, config->clk_speed_hz, config->timeout_ms);
-    return HAL_I2C_STATUS_OK;
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "I2C Master Read failed for port %d, addr 0x%02X: %s", i2c_port, i2c_addr, esp_err_to_name(ret));
+        return E_ERROR;
+    }
+    return E_OK;
 }
 
-HAL_I2C_Status_t HAL_I2C_DeInit(HAL_I2C_Port_t port)
-{
-    // if (port >= HAL_I2C_PORT_MAX)
-    // {
-    //     ESP_LOGE(TAG, "Invalid I2C port: %d", port);
-    //     return HAL_I2C_STATUS_INVALID_PARAM;
-    // }
-    // if (!g_i2c_port_data[port].initialized)
-    // {
-    //     ESP_LOGW(TAG, "I2C port %d not initialized.", port);
-    //     return HAL_I2C_STATUS_OK; // Already de-initialized or never initialized
-    // }
+/**
+ * @brief Performs an I2C master write-read operation (combined transaction).
+ * Typically used for reading from specific registers.
+ * @param i2c_port The I2C port number.
+ * @param i2c_addr The 7-bit I2C slave address.
+ * @param write_buffer Pointer to the data to write (e.g., register address).
+ * @param write_len The number of bytes to write.
+ * @param read_buffer Pointer to the buffer to store read data.
+ * @param read_len The number of bytes to read.
+ * @param timeout_ms Timeout in milliseconds for the I2C transaction.
+ * @return E_OK on success, or an error code.
+ */
+Status_t HAL_I2C_MasterWriteRead(i2c_port_t i2c_port, uint8_t i2c_addr, const uint8_t *write_buffer, size_t write_len,
+                                 uint8_t *read_buffer, size_t read_len, uint32_t timeout_ms) {
+    if (read_len == 0 || read_buffer == NULL) {
+        ESP_LOGE(TAG, "I2C Master Write-Read: Invalid read_len or NULL read_buffer.");
+        return E_INVALID_PARAM;
+    }
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    if (cmd == NULL) {
+        ESP_LOGE(TAG, "Failed to create I2C command link.");
+        return E_ERROR;
+    }
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, (i2c_addr << 1) | I2C_MASTER_WRITE, true);
+    if (write_len > 0) {
+        i2c_master_write(cmd, (uint8_t *)write_buffer, write_len, true);
+    }
+    i2c_master_start(cmd); // Repeated start
+    i2c_master_write_byte(cmd, (i2c_addr << 1) | I2C_MASTER_READ, true);
+    if (read_len > 1) {
+        i2c_master_read(cmd, read_buffer, read_len - 1, I2C_MASTER_ACK);
+    }
+    i2c_master_read_byte(cmd, read_buffer + read_len - 1, I2C_MASTER_NACK);
+    i2c_master_stop(cmd);
+    esp_err_t ret = i2c_master_cmd_begin(i2c_port, cmd, pdMS_TO_TICKS(timeout_ms));
+    i2c_cmd_link_delete(cmd);
 
-    // HAL_I2C_Port_t esp_i2c_port = g_i2c_port_data[port].esp_i2c_port;
-    // HAL_I2C_Status_t ret = i2c_driver_delete(esp_i2c_port);
-    // if (ret != ESP_OK)
-    // {
-    //     ESP_LOGE(TAG, "Failed to delete I2C driver for port %d: %s", port, esp_err_to_name(ret));
-    //     return hal_i2c_esp_err_to_status(ret);
-    // }
-
-    // g_i2c_port_data[port].initialized = false;
-    // LOGI(TAG, "I2C port %d de-initialized successfully.", port);
-    return HAL_I2C_STATUS_OK;
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "I2C Master Write-Read failed for port %d, addr 0x%02X: %s", i2c_port, i2c_addr, esp_err_to_name(ret));
+        return E_ERROR;
+    }
+    return E_OK;
 }
 
-HAL_I2C_Status_t HAL_I2C_Master_Write(HAL_I2C_Port_t port, uint8_t slave_addr, const uint8_t *data_write, uint16_t size, uint32_t timeout_ms)
-{
-//     if (port >= HAL_I2C_PORT_MAX || !g_i2c_port_data[port].initialized)
-//     {
-//         ESP_LOGE(TAG, "I2C port %d not initialized or invalid.", port);
-//         return HAL_I2C_STATUS_NOT_INITIALIZED;
-//     }
-//     if (data_write == NULL || size == 0)
-//     {
-//         ESP_LOGE(TAG, "Data buffer is NULL or size is 0 for I2C write on port %d.", port);
-//         return HAL_I2C_STATUS_INVALID_PARAM;
-//     }
+/**
+ * @brief Sets the state of a specific GPIO pin on the CH423S I/O Expander.
+ *
+ * This function updates the internal 16-bit state of the CH423S outputs and
+ * then writes this full 16-bit value to the expander via I2C. This read-modify-write
+ * pattern (conceptually, as we track the state internally) is common for expanders.
+ *
+ * IMPORTANT: This implementation assumes the CH423S behaves like a standard
+ * 16-bit I/O expander where you write two bytes directly to control all 16 pins
+ * (e.g., GP0-7 in the first byte, GP8-15 in the second byte). You **MUST**
+ * consult the CH423S datasheet for the exact register addresses and bit manipulation protocol.
+ * The `HW_CH423S_I2C_ADDR` is used from `HAL_Config.h`.
+ *
+ * @param gp_pin The GPIO pin number on the CH423S (0-15).
+ * @param state The desired state (0 for low, 1 for high).
+ * @return E_OK on success, or an error code if I2C communication fails.
+ */
+Status_t HAL_CH423S_SetOutput(uint8_t gp_pin, uint8_t state) {
+    if (gp_pin > 15) {
+        ESP_LOGE(TAG, "Invalid CH423S GP pin: %d. Must be 0-15.", gp_pin);
+        return E_INVALID_PARAM;
+    }
 
-//     HAL_I2C_Port_t esp_i2c_port = g_i2c_port_data[port].esp_i2c_port;
-//     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-//     HAL_I2C_Status_t ret = ESP_OK;
+    // Update the internal 16-bit state representation
+    if (state) {
+        s_ch423s_output_state |= (1 << gp_pin);  // Set the bit
+    } else {
+        s_ch423s_output_state &= ~(1 << gp_pin); // Clear the bit
+    }
 
-//     // Start condition
-//     ret = i2c_master_start(cmd);
-//     if (ret != ESP_OK)
-//     {
-//         goto end;
-//     }
+    // Prepare the two bytes to send to the CH423S (assuming little-endian byte order)
+    uint8_t write_data[2];
+    write_data[0] = (uint8_t)(s_ch423s_output_state & 0xFF);         // Low byte (GP0-7)
+    write_data[1] = (uint8_t)((s_ch423s_output_state >> 8) & 0xFF);  // High byte (GP8-15)
 
-//     // Slave address + Write bit
-//     ret = i2c_master_write_byte(cmd, (slave_addr << 1) | I2C_MASTER_WRITE, true);
-//     if (ret != ESP_OK)
-//     {
-//         goto end;
-//     }
+    // Send the 16-bit data to the CH423S using its dedicated I2C port
+    Status_t status = HAL_I2C_MasterWrite(HW_I2C_EXPANDER_PORT, HW_CH423S_I2C_ADDR, write_data, sizeof(write_data), 100);
 
-//     // Write data
-//     ret = i2c_master_write(cmd, (uint8_t *)data_write, size, true);
-//     if (ret != ESP_OK)
-//     {
-//         goto end;
-//     }
+    if (status != E_OK) {
+        ESP_LOGE(TAG, "Failed to set CH423S GP%d to %d (I2C error).", gp_pin, state);
+        return status;
+    }
 
-//     // Stop condition
-//     ret = i2c_master_stop(cmd);
-//     if (ret != ESP_OK)
-//     {
-//         goto end;
-//     }
-
-//     // Execute commands
-//     ret = i2c_master_cmd_begin(esp_i2c_port, cmd, pdMS_TO_TICKS(timeout_ms));
-
-// end:
-//     i2c_cmd_link_delete(cmd);
-//     if (ret != ESP_OK)
-//     {
-//         ESP_LOGE(TAG, "I2C Master Write failed on port %d (0x%02X): %s", port, slave_addr, esp_err_to_name(ret));
-//     }
-    // return hal_i2c_esp_err_to_status(ret);
+    ESP_LOGD(TAG, "CH423S GP%d set to %d. Current state: 0x%04X", gp_pin, state, s_ch423s_output_state);
+    return E_OK;
 }
-
-HAL_I2C_Status_t HAL_I2C_Master_Read(HAL_I2C_Port_t port, uint8_t slave_addr, uint8_t *data_read, uint16_t size, uint32_t timeout_ms)
-{
-    // if (port >= HAL_I2C_PORT_MAX || !g_i2c_port_data[port].initialized)
-    // {
-    //     ESP_LOGE(TAG, "I2C port %d not initialized or invalid.", port);
-    //     return HAL_I2C_STATUS_NOT_INITIALIZED;
-    // }
-    // if (data_read == NULL || size == 0)
-    // {
-    //     ESP_LOGE(TAG, "Data buffer is NULL or size is 0 for I2C read on port %d.", port);
-    //     return HAL_I2C_STATUS_INVALID_PARAM;
-    // }
-
-    // HAL_I2C_Port_t esp_i2c_port = g_i2c_port_data[port].esp_i2c_port;
-    // i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    // HAL_I2C_Status_t ret = ESP_OK;
-
-    // // Start condition
-    // ret = i2c_master_start(cmd);
-    // if (ret != ESP_OK)
-    // {
-    //     goto end;
-    // }
-
-    // // Slave address + Read bit
-    // ret = i2c_master_write_byte(cmd, (slave_addr << 1) | I2C_MASTER_READ, true);
-    // if (ret != ESP_OK)
-    // {
-    //     goto end;
-    // }
-
-    // if (size > 1)
-    // {
-    //     // Read (size - 1) bytes with ACK
-    //     ret = i2c_master_read(cmd, data_read, size - 1, I2C_MASTER_ACK);
-    //     if (ret != ESP_OK)
-    //     {
-    //         goto end;
-    //     }
-    // }
-    // // Read the last byte with NACK
-//     ret = i2c_master_read_byte(cmd, data_read + size - 1, I2C_MASTER_NACK);
-//     if (ret != ESP_OK)
-//     {
-//         goto end;
-//     }
-
-//     // Stop condition
-//     ret = i2c_master_stop(cmd);
-//     if (ret != ESP_OK)
-//     {
-//         goto end;
-//     }
-
-//     // Execute commands
-//     ret = i2c_master_cmd_begin(esp_i2c_port, cmd, pdMS_TO_TICKS(timeout_ms));
-
-// end:
-//     i2c_cmd_link_delete(cmd);
-//     if (ret != ESP_OK)
-//     {
-//         ESP_LOGE(TAG, "I2C Master Read failed on port %d (0x%02X): %s", port, slave_addr, esp_err_to_name(ret));
-//     }
-    // return hal_i2c_esp_err_to_status(ret);
-}
-
-HAL_I2C_Status_t HAL_I2C_Master_WriteRead(HAL_I2C_Port_t port, uint8_t slave_addr,
-                                          const uint8_t *write_data, uint16_t write_size,
-                                          uint8_t *read_data, uint16_t read_size,
-                                          uint32_t timeout_ms)
-{
-//     if (port >= HAL_I2C_PORT_MAX || !g_i2c_port_data[port].initialized)
-//     {
-//         ESP_LOGE(TAG, "I2C port %d not initialized or invalid.", port);
-//         return HAL_I2C_STATUS_NOT_INITIALIZED;
-//     }
-//     if (write_data == NULL || write_size == 0 || read_data == NULL || read_size == 0)
-//     {
-//         ESP_LOGE(TAG, "Invalid data buffers or sizes for I2C write-read on port %d.", port);
-//         return HAL_I2C_STATUS_INVALID_PARAM;
-//     }
-
-//     HAL_I2C_Port_t esp_i2c_port = g_i2c_port_data[port].esp_i2c_port;
-//     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-//     HAL_I2C_Status_t ret = ESP_OK;
-
-//     // Start condition
-//     ret = i2c_master_start(cmd);
-//     if (ret != ESP_OK)
-//     {
-//         goto end;
-//     }
-
-//     // Slave address + Write bit
-//     ret = i2c_master_write_byte(cmd, (slave_addr << 1) | I2C_MASTER_WRITE, true);
-//     if (ret != ESP_OK)
-//     {
-//         goto end;
-//     }
-
-//     // Write data
-//     ret = i2c_master_write(cmd, (uint8_t *)write_data, write_size, true);
-//     if (ret != ESP_OK)
-//     {
-//         goto end;
-//     }
-
-//     // Repeated Start condition
-//     ret = i2c_master_start(cmd);
-//     if (ret != ESP_OK)
-//     {
-//         goto end;
-//     }
-
-//     // Slave address + Read bit
-//     ret = i2c_master_write_byte(cmd, (slave_addr << 1) | I2C_MASTER_READ, true);
-//     if (ret != ESP_OK)
-//     {
-//         goto end;
-//     }
-
-//     if (read_size > 1)
-//     {
-//         // Read (read_size - 1) bytes with ACK
-//         ret = i2c_master_read(cmd, read_data, read_size - 1, I2C_MASTER_ACK);
-//         if (ret != ESP_OK)
-//         {
-//             goto end;
-//         }
-//     }
-//     // Read the last byte with NACK
-//     ret = i2c_master_read_byte(cmd, read_data + read_size - 1, I2C_MASTER_NACK);
-//     if (ret != ESP_OK)
-//     {
-//         goto end;
-//     }
-
-//     // Stop condition
-//     ret = i2c_master_stop(cmd);
-//     if (ret != ESP_OK)
-//     {
-//         goto end;
-//     }
-
-//     // Execute commands
-//     ret = i2c_master_cmd_begin(esp_i2c_port, cmd, pdMS_TO_TICKS(timeout_ms));
-
-// end:
-//     i2c_cmd_link_delete(cmd);
-//     if (ret != ESP_OK)
-//     {
-//         ESP_LOGE(TAG, "I2C Master WriteRead failed on port %d (0x%02X): %s", port, slave_addr, esp_err_to_name(ret));
-//     }
-//     return hal_i2c_esp_err_to_status(ret);
-}
-
-HAL_I2C_Status_t HAL_I2C_Master_ScanBus(HAL_I2C_Port_t port, uint8_t *found_addresses, uint8_t max_addresses, uint8_t *actual_found, uint32_t timeout_per_addr_ms)
-{
-    // if (port >= HAL_I2C_PORT_MAX || !g_i2c_port_data[port].initialized)
-    // {
-    //     ESP_LOGE(TAG, "I2C port %d not initialized or invalid.", port);
-    //     return HAL_I2C_STATUS_NOT_INITIALIZED;
-    // }
-    // if (found_addresses == NULL || actual_found == NULL || max_addresses == 0)
-    // {
-    //     ESP_LOGE(TAG, "Invalid parameters for I2C bus scan on port %d.", port);
-    //     return HAL_I2C_STATUS_INVALID_PARAM;
-    // }
-
-    // HAL_I2C_Port_t esp_i2c_port = g_i2c_port_data[port].esp_i2c_port;
-    // *actual_found = 0;
-    // LOGI(TAG, "Scanning I2C bus %d...", port);
-
-    // for (int addr = 1; addr < 127; addr++) // 7-bit addresses, 0x00 and 0x7F are reserved
-    // {
-    //     if (*actual_found >= max_addresses)
-    //     {
-    //         ESP_LOGW(TAG, "Max addresses (%d) reached during scan. Stopping.", max_addresses);
-    //         break;
-    //     }
-
-    //     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    //     HAL_I2C_Status_t ret = ESP_OK;
-
-    //     ret = i2c_master_start(cmd);
-    //     if (ret != ESP_OK)
-    //     {
-    //         i2c_cmd_link_delete(cmd);
-    //         continue;
-    //     }
-
-    //     ret = i2c_master_write_byte(cmd, (addr << 1) | I2C_MASTER_WRITE, true);
-    //     if (ret != ESP_OK)
-    //     {
-    //         i2c_cmd_link_delete(cmd);
-    //         continue;
-    //     } // NACK, or other error
-
-    //     ret = i2c_master_stop(cmd);
-    //     if (ret != ESP_OK)
-    //     {
-    //         i2c_cmd_link_delete(cmd);
-    //         continue;
-    //     }
-
-    //     ret = i2c_master_cmd_begin(esp_i2c_port, cmd, pdMS_TO_TICKS(timeout_per_addr_ms));
-    //     i2c_cmd_link_delete(cmd);
-
-    //     if (ret == ESP_OK)
-    //     {
-    //         found_addresses[*actual_found] = (uint8_t)addr;
-    //         (*actual_found)++;
-    //         LOGI(TAG, "Found device at 0x%02X", addr);
-    //     }
-    //     else if (ret == ESP_ERR_TIMEOUT)
-    //     {
-    //         // Timeout, device not responding or bus issue, ignore and continue
-    //         // ESP_LOGD(TAG, "No response from 0x%02X (timeout)", addr);
-    //     }
-    //     else if (ret == I2C_MASTER_ERR_NACK_ADDR)
-    //     {
-    //         // No device at this address, expected for most addresses
-    //         // ESP_LOGD(TAG, "No ACK from 0x%02X", addr);
-    //     }
-    //     else
-    //     {
-    //         ESP_LOGW(TAG, "I2C scan error at 0x%02X: %s", addr, esp_err_to_name(ret));
-    //     }
-    // }
-
-    // LOGI(TAG, "I2C bus scan completed. Found %d devices.", *actual_found);
-    return HAL_I2C_STATUS_OK;
-}
-
-     

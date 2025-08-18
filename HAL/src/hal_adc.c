@@ -1,165 +1,78 @@
+/* ============================================================================
+ * SOURCE FILE: HardwareAbstractionLayer/src/HAL_ADC.c
+ * ============================================================================*/
 /**
- * @file hal_adc.c
- * @brief Implementation for the Hardware Abstraction Layer (HAL) ADC component.
+ * @file HAL_ADC.c
+ * @brief Implements the public API functions for ADC operations,
+ * including the module's initialization function.
+ * These functions wrap the ESP-IDF ADC driver calls with a common status return.
+ */
+
+#include "HAL_ADC.h"        // Header for HAL_ADC functions
+#include "HAL_ADC_Cfg.h"    // To access ADC configuration array and parameters
+#include "esp_log.h"        // ESP-IDF logging library
+#include "driver/adc.h"     // ESP-IDF ADC driver
+#include "esp_err.h"        // For ESP_OK, ESP_FAIL, etc.
+
+static const char *TAG = "HAL_ADC";
+
+/**
+ * @brief Initializes the ADC peripheral (ADC1 unit) with its specific configuration
+ * and configures the channels based on the internal `s_adc_channel_attenuations` array
+ * from `HAL_ADC_Cfg.c`.
  *
- * This file implements the hardware-independent ADC interface, mapping logical
- * ADC channels to their physical MCU counterparts via the MCAL layer. It handles
- * configuration, reading raw values, and converting to millivolts.
+ * @return E_OK if initialization is successful, otherwise an error code.
  */
+Status_t HAL_ADC_Init(void) {
+    esp_err_t ret;
 
-#include "hal_adc.h"        // Public header for HAL_ADC
-#include "hal_adc_cfg.h"    // Configuration header for HAL_ADC
-// #include "adc.h"       // MCAL layer for direct ADC hardware access
-#include "common.h"     // Common application definitions
-#include "system_monitor.h" // For reporting faults
-#include "logger.h"         // For logging
+    ESP_LOGI(TAG, "Applying ADC configurations from HAL_ADC_Cfg.c...");
 
-// --- Private Data Structures ---
-/**
- * @brief Runtime state for each logical ADC channel.
- */
-typedef struct {
-    HAL_ADC_Resolution_t    current_resolution; /**< Current configured resolution. */
-    HAL_ADC_Attenuation_t   current_attenuation;/**< Current configured attenuation. */
-    bool                    is_configured;      /**< Flag indicating if the channel has been configured. */
-} HAL_ADC_ChannelState_t;
-
-// --- Private Variables ---
-static HAL_ADC_ChannelState_t s_adc_channel_states[HAL_ADC_CHANNEL_COUNT];
-static bool s_hal_adc_initialized = false;
-
-
-// --- Public Function Implementations ---
-
-/**
- * @brief Initializes the HAL ADC module.
- * This function should be called once during system startup.
- * It prepares the internal data structures and potentially the underlying MCAL.
- * @return E_OK on success, E_NOK on failure.
- */
-Status_t HAL_ADC_Init(void) 
-{
-    Status_t ret = E_NOK;
-    if (s_hal_adc_initialized) 
-    {
-        LOGI("HAL_ADC", "Module already initialized.");
-        return E_OK;
+    // Configure ADC1 unit for 12-bit resolution (ADC_WIDTH_BITS is from HAL_ADC_Cfg.h)
+    ret = adc1_config_width(ADC_WIDTH_BITS);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "ADC1 width config failed: %s", esp_err_to_name(ret));
+        return E_ERROR;
     }
+    ESP_LOGD(TAG, "ADC1 configured for %d-bit resolution.", ADC_WIDTH_BITS);
 
-    // ret = adc1_config_width(ACD1_RESOLUTION);
-    if (ret != E_OK) 
-    {
-        LOGI("HAL_ADC", "ADC Module Fail to initialize.");
-        return E_OK;
-    }
-    
-    // Initialize ADC Driver 
-    for (uint8_t i = 0; i < HAL_ADC_CHANNEL_COUNT; i++) 
-    {
-
-        const HAL_ADC_Config_t *config = &g_hal_adc_configs[i];
-        if (HAL_ADC_CHANNEL_COUNT < i) 
-        {
-            LOGE("HAL_ADC", "Config array mismatch at index %d. Check hal_adc_cfg.c!", i);
-            return E_NOK; // Critical configuration error
+    // Configure NTC Temperature Sensor ADC1 channels with attenuation from array
+    for (size_t i = 0; i < s_num_adc_channel_attenuations; i++) {
+        const adc_channel_atten_cfg_t *channel_cfg = &s_adc_channel_attenuations[i];
+        ret = adc1_config_channel_atten(channel_cfg->channel, channel_cfg->attenuation);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "ADC1 channel %d config failed: %s", channel_cfg->channel, esp_err_to_name(ret));
+            return E_ERROR;
         }
-
-        // Apply default configurations during initialization
-        // ret =  adc1_config_channel_atten(config->mcal_channel, config->attenuation);
-
-        if (ret != E_OK) 
-        {
-            LOGE("HAL_ADC", "Failed to apply default config for channel %d.", config->logical_id);
-        }
-    }
-    
-    // 3. Characterize ADC to get calibration values
-    // esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN, ADC_WIDTH_BIT, DEFAULT_VREF, &adc_chars);
-
-    s_hal_adc_initialized = true;
-    LOGI("HAL_ADC", "Module initialized.");
-    return ret;
-}
-
-
-/**
- * @brief Reads the raw analog value from a specific ADC channel.
- * The returned value is the raw digital count based on the configured resolution.
- * @param channel The logical ID of the ADC channel to read.
- * @param raw_value_p Pointer to store the raw ADC value.
- * @return E_OK on success, E_NOK on failure (e.g., channel not configured, MCAL error).
- */
-Status_t HAL_ADC_ReadChannel(HAL_ADC_Channel_t channel, uint16_t *raw_value_p) 
-{
-    if (channel >= HAL_ADC_CHANNEL_COUNT || raw_value_p == NULL) 
-    {
-        LOGE("HAL_ADC", "Read failed: Invalid channel ID %d, not configured, or NULL raw_value_p.", channel);
-        return E_INVALID_PARAM;
+        ESP_LOGD(TAG, "ADC1 channel %d configured with attenuation %d.",
+                 channel_cfg->channel, channel_cfg->attenuation);
     }
 
-    Status_t ret = E_NOK;
-    uint32_t adc_reading = 0;
-    const HAL_ADC_Config_t *config = &g_hal_adc_configs[channel];
-    
-
-    // Multisample for stability
-    for (uint8_t i = 0; i < config->SampleRate; i++) {
-        // adc_reading += adc1_get_raw(config->mcal_channel);
-    }
-    adc_reading /= config->SampleRate;
-    *raw_value_p = adc_reading;
-
-    // LOGI("HAL_ADC", "Channel %d read raw value: %u", channel, *raw_value_p);
+    ESP_LOGI(TAG, "ADC1 configurations applied successfully.");
     return E_OK;
 }
 
 /**
- * @brief Converts a raw ADC value to millivolts (mV).
- * This function uses the configured resolution and attenuation to estimate the
- * analog voltage corresponding to the raw ADC reading.
- * @param channel The logical ID of the ADC channel (used to get its configuration).
- * @param raw_value The raw ADC value.
- * @param voltage_mv_p Pointer to store the converted voltage in millivolts.
- * @return E_OK on success, E_NOK on failure (e.g., invalid channel, unconfigured).
+ * @brief Reads a raw ADC value from a specified ADC1 channel.
+ * @param channel The ADC1 channel to read.
+ * @param raw_value_out Pointer to store the raw 12-bit ADC value (0-4095).
+ * @return E_OK on success, or an error code.
  */
-Status_t HAL_ADC_RawToMillivolts(uint16_t raw_value, uint32_t *voltage_mv_p) 
-{
-    if (voltage_mv_p == NULL) 
-    {
-        LOGE("HAL_ADC", "RawToMillivolts failed: NULL voltage_mv_p.");
+Status_t HAL_ADC_ReadRaw(adc1_channel_t channel, int *raw_value_out) {
+    if (raw_value_out == NULL) {
+        ESP_LOGE(TAG, "HAL_ADC1_ReadRaw: raw_value_out pointer is NULL for channel %d.", channel);
         return E_INVALID_PARAM;
     }
-    Status_t ret = E_OK;
-    uint32_t max_raw_value = 0;
-    uint8_t u8DefaultResolution = ACD1_RESOLUTION;
-    uint64_t calculated_mv = 0;
-
-    // Determine max raw value based on resolution
-    switch (u8DefaultResolution) 
-    {
-        case HAL_ADC_RES_8_BIT:  max_raw_value = (1 << 8) - 1;  break; // 255
-        case HAL_ADC_RES_10_BIT: max_raw_value = (1 << 10) - 1; break; // 1023
-        case HAL_ADC_RES_12_BIT: max_raw_value = (1 << 12) - 1; break; // 4095
-        case HAL_ADC_RES_16_BIT: max_raw_value = (1 << 16) - 1; break; // 65535
-        default:
-            LOGE("HAL_ADC", "Unknown resolution");
-            return E_NOK;
+    if (channel >= ADC1_CHANNEL_MAX) {
+        ESP_LOGE(TAG, "HAL_ADC1_ReadRaw: Invalid ADC1 channel: %d.", channel);
+        return E_INVALID_PARAM;
     }
 
-    // Ensure raw_value does not exceed max_raw_value
-    if (raw_value > max_raw_value) 
-    {
-        LOGE("HAL_ADC", "Raw value %u exceeds max %lu. Clamping.", raw_value, max_raw_value);
-        ret = E_NOK;
+    int raw = adc1_get_raw(channel);
+    if (raw == -1) { // adc1_get_raw returns -1 on error
+        ESP_LOGE(TAG, "Failed to get raw ADC reading for channel %d.", channel);
+        return E_ERROR;
     }
-
-    // Calculate voltage in millivolts
-    // Use 64-bit intermediate for precision if needed, then cast to uint32_t
-    calculated_mv = (raw_value * ACD1_VREF)/max_raw_value;
-
-
-    *voltage_mv_p = (uint32_t)calculated_mv;
-    // LOGI("HAL_ADC", "Channel %d raw %u converted to %lu mV", channel, raw_value, *voltage_mv_p);
+    *raw_value_out = raw;
     return E_OK;
 }
-

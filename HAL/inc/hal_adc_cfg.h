@@ -1,39 +1,41 @@
+/* ============================================================================
+ * SOURCE FILE: HardwareAbstractionLayer/inc/HAL_ADC_Cfg.h
+ * ============================================================================*/
 /**
- * @file hal_adc_cfg.h
- * @brief Configuration header for the HAL ADC component.
- *
- * This file defines the hardware-specific mapping and default configurations
- * for the logical ADC channels used by the HAL ADC module.
+ * @file HAL_ADC_Cfg.h
+ * @brief Declarations for external ADC configuration data.
+ * This header makes the static ADC configuration array and parameters available
+ * to HAL_ADC.c for initialization. It does not declare any functions.
  */
-
 #ifndef HAL_ADC_CFG_H
 #define HAL_ADC_CFG_H
 
-#include "hal_adc.h"   // For HAL_ADC_Channel_t, HAL_ADC_Resolution_t, etc.
+#include "driver/adc.h"     // For ADC_WIDTH_BIT_x, ADC_ATTEN_DB_x, adc1_channel_t
+#include <stddef.h>         // For size_t
 
-// --- Configuration Structure for each Logical ADC Channel ---
+// ADC Configuration Parameters
+#define ADC_WIDTH_BITS              ADC_WIDTH_BIT_12 // 12-bit resolution
+#define ADC_NTC_ATTENUATION         ADC_ATTEN_DB_11  // Approx. 0-3.3V input range for NTC
+
 /**
- * @brief Structure to hold the static configuration for each logical ADC channel.
+ * @brief Structure to hold an ADC channel and its desired attenuation.
+ * Defined here for external visibility, used in HAL_ADC_Cfg.c.
  */
 typedef struct {
-    uint8_t    logical_id;         /**< The logical ID of the ADC channel. */
-    uint8_t    mcal_channel;       /**< The corresponding MCAL (physical) ADC channel. */
-    uint8_t    attenuation;        /**< Default attenuation at initialization. */
-    uint8_t    SampleRate;        /**< Default attenuation at initialization. */
-    // Add more configuration parameters as needed (e.g., reference voltage)
-} HAL_ADC_Config_t;
+    adc1_channel_t channel;
+    adc_atten_t attenuation;
+} adc_channel_atten_cfg_t;
 
-
-// Configure ADC Default Resolution
-#define ACD1_RESOLUTION      HAL_ADC_RES_12_BIT
-#define ACD1_VREF            ((float)3.3)
-
-// --- External Declaration of Configuration Array ---
 /**
- * @brief Global array containing the configuration for all logical ADC channels.
- * This array is defined in hal_adc_cfg.c and accessed by the HAL_ADC module.
- * The order of elements in this array must match the HAL_ADC_Channel_t enum.
+ * @brief External declaration of the array containing all predefined ADC channel configurations.
+ * This array is defined in HAL_ADC_Cfg.c and accessed by HAL_ADC.c to perform
+ * initial ADC setup.
  */
-extern const HAL_ADC_Config_t g_hal_adc_configs[HAL_ADC_CHANNEL_COUNT];
+extern const adc_channel_atten_cfg_t s_adc_channel_attenuations[];
 
-#endif // HAL_ADC_CFG_H
+/**
+ * @brief External declaration of the number of elements in the ADC channel configurations array.
+ */
+extern const size_t s_num_adc_channel_attenuations;
+
+#endif /* HAL_ADC_CFG_H */

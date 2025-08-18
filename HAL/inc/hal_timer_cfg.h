@@ -1,42 +1,39 @@
+/* ============================================================================
+ * SOURCE FILE: HardwareAbstractionLayer/inc/HAL_Timer_Cfg.h
+ * ============================================================================*/
 /**
- * @file hal_timer_cfg.h
- * @brief Hardware Abstraction Layer for Timer - Configuration Header.
- *
- * This header defines the compile-time configuration parameters for each
- * timer channel. These settings are typically defined in `hal_timer_cfg.c`
- * and are used during the initialization of the Timer HAL.
+ * @file HAL_Timer_Cfg.h
+ * @brief Declarations for external Timer configuration data.
+ * This header makes the static Timer configuration array available to HAL_Timer.c
+ * for initialization. It does not declare any functions.
  */
-
 #ifndef HAL_TIMER_CFG_H
 #define HAL_TIMER_CFG_H
 
-#include <stdint.h>
-#include "hal_timer.h" // Include the main Timer HAL interface for enums and types
+#include "driver/timer.h"    // For timer_group_t, timer_idx_t, timer_config_t
+#include <stddef.h>          // For size_t
 
 /**
- * @brief Structure to hold compile-time configuration for a single Timer channel.
- *
- * This structure defines various parameters that configure the timer's behavior,
- * such as its mode, counting direction, prescaler, and default period.
+ * @brief Structure to hold timer configuration along with its group and index.
+ * Defined here for external visibility, used in HAL_Timer_Cfg.c.
  */
-typedef struct
-{
-    HAL_TIMER_Channel_t channel_id;     /**< The logical ID of the timer channel. */
-    HAL_TIMER_Mode_t mode;              /**< Timer operation mode (One-shot or Auto-reload). */
-    HAL_TIMER_Direction_t direction;    /**< Timer counting direction (Up or Down). */
-    uint32_t prescaler;                 /**< Timer prescaler value (e.g., 80 for 1 us tick with 80MHz APB_CLK). */
-    uint64_t default_period_us;         /**< Default period in microseconds for the timer. */
-    uint8_t interrupt_priority;         /**< Interrupt priority for the timer (1 to 3 on ESP32, 1 being lowest). */
-    HAL_TIMER_Callback_t default_callback; /**< Default callback function. Can be NULL. */
-    void *default_user_data;            /**< Default user data for the callback. Can be NULL. */
-} HAL_TIMER_ChannelConfig_t;
+typedef struct {
+    timer_group_t group_id;
+    timer_idx_t timer_id;
+    timer_config_t config;
+    uint64_t initial_alarm_value; // In microseconds, for setting alarm value
+} timer_cfg_item_t;
 
 /**
- * @brief External declaration for the global array of timer channel configurations.
- *
- * This array is defined in `hal_timer_cfg.c` and provides the static
- * configuration for all available timer channels.
+ * @brief External declaration of the array containing all predefined hardware timer configurations.
+ * This array is defined in HAL_Timer_Cfg.c and accessed by HAL_Timer.c to perform
+ * initial Timer setup.
  */
-extern const HAL_TIMER_ChannelConfig_t g_hal_timer_channel_configs[HAL_TIMER_CHANNEL_MAX];
+extern const timer_cfg_item_t s_timer_configurations[];
+
+/**
+ * @brief External declaration of the number of elements in the Timer configurations array.
+ */
+extern const size_t s_num_timer_configurations;
 
 #endif /* HAL_TIMER_CFG_H */

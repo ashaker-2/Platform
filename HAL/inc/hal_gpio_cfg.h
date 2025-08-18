@@ -1,37 +1,37 @@
+/* ============================================================================
+ * SOURCE FILE: HardwareAbstractionLayer/inc/HAL_GPIO_Cfg.h
+ * ============================================================================*/
 /**
- * @file hal_gpio_cfg.h
- * @brief Configuration header for the HAL GPIO component.
- *
- * This file defines the hardware-specific mapping and default configurations
- * for the logical GPIO pins used by the HAL GPIO module.
+ * @file HAL_GPIO_Cfg.h
+ * @brief Declarations for external GPIO configuration data.
+ * This header makes the static GPIO configuration array available to other HAL modules,
+ * particularly HAL_GPIO.c, for initialization. It does not declare any functions.
  */
-
 #ifndef HAL_GPIO_CFG_H
 #define HAL_GPIO_CFG_H
 
-#include "hal_gpio.h" // For HAL_GPIO_Pin_t, HAL_GPIO_Direction_t, etc.
-// #include "gpio.h" // For MCAL_GPIO_Pin_t, MCAL_GPIO_InterruptType_t etc. (MCU-specific)
+#include "driver/gpio.h"    // For gpio_config_t
 
-// --- Configuration Structure for each Logical GPIO Pin ---
-/**
- * @brief Structure to hold the static configuration for each logical GPIO pin.
- */
+// Structure to hold individual GPIO configuration.
+// Defined here for external visibility, used in HAL_GPIO_Cfg.c.
 typedef struct {
-    uint8_t   logical_id;     /**< The logical ID of the GPIO pin. */
-    uint8_t   mcal_pin;       /**< The corresponding MCAL (physical) pin number. */
-    uint8_t   direction; /**< Default direction at initialization. */
-    uint8_t   initial_state; /**< Default initial state for outputs. */
-    uint8_t   pull_mode; /**< Default pull mode for inputs. */
-    bool      is_interrupt_capable; /**< True if this pin can generate interrupts. */
-    // Add more configuration parameters as needed (e.g., drive strength, speed)
-} HAL_GPIO_Config_t;
+    uint64_t pin_bit_mask;
+    gpio_mode_t mode;
+    gpio_pulldown_t pull_down_en;
+    gpio_pullup_t pull_up_en;
+    gpio_int_type_t intr_type;
+} gpio_config_item_t;
 
-// --- External Declaration of Configuration Array ---
 /**
- * @brief Global array containing the configuration for all logical GPIO pins.
- * This array is defined in hal_gpio_cfg.c and accessed by the HAL_GPIO module.
- * The order of elements in this array must match the HAL_GPIO_Pin_t enum.
+ * @brief External declaration of the array containing all predefined GPIO configurations.
+ * This array is defined in HAL_GPIO_Cfg.c and accessed by HAL_GPIO.c to perform
+ * initial GPIO setup.
  */
-extern const HAL_GPIO_Config_t g_hal_gpio_configs[HAL_GPIO_PIN_COUNT];
+extern const gpio_config_item_t s_gpio_configurations[];
 
-#endif // HAL_GPIO_CFG_H
+/**
+ * @brief External declaration of the number of elements in the GPIO configurations array.
+ */
+extern const size_t s_num_gpio_configurations;
+
+#endif /* HAL_GPIO_CFG_H */

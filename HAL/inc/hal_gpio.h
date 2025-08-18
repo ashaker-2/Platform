@@ -1,129 +1,63 @@
+/* ============================================================================
+ * SOURCE FILE: HardwareAbstractionLayer/inc/HAL_GPIO.h
+ * ============================================================================*/
 /**
- * @file hal_gpio.h
- * @brief Public header for the Hardware Abstraction Layer (HAL) GPIO component.
- *
- * This component provides a hardware-independent interface for configuring and
- * controlling General Purpose Input/Output (GPIO) pins. It abstracts the
- * microcontroller-specific register access and provides a clean API for
- * higher-level modules.
+ * @file HAL_GPIO.h
+ * @brief Public API for interacting with ESP32 direct GPIO pins.
+ * This header declares functions for initializing the GPIOs, setting and getting
+ * GPIO levels, changing direction, and managing pull-up/down resistors.
  */
-
 #ifndef HAL_GPIO_H
 #define HAL_GPIO_H
 
-#include "common.h" // For Status_t and Status_t
-#include <stdint.h>     // For uint8_t
-#include <stdbool.h>    // For bool
-
-// --- GPIO Pin Definitions (Logical IDs) ---
-// These are logical IDs that map to physical pins in hal_gpio_cfg.c
-typedef enum
-{
-    HAL_GPIO_PIN_LED_STATUS = 0,         /**< Logical ID for a system status LED. */
-    HAL_GPIO_PIN_BUTTON_MODE,            /**< Logical ID for a mode selection button. */
-    HAL_GPIO_PIN_HEATER_RELAY,           /**< Logical ID for the heater control relay. */
-    HAL_GPIO_PIN_FAN_PWM,                /**< Logical ID for the fan PWM output. */
-    HAL_GPIO_PIN_PUMP_RELAY,             /**< Logical ID for the pump control relay. */
-    HAL_GPIO_PIN_VENTILATOR_RELAY,       /**< Logical ID for the ventilator control relay. */
-    HAL_GPIO_PIN_LIGHT_RELAY,            /**< Logical ID for the main light control relay. */
-    HAL_GPIO_PIN_TEMP_SENSOR_ADC_IN,     /**< Logical ID for the temperature sensor analog input. */
-    HAL_GPIO_PIN_HUMIDITY_SENSOR_ADC_IN, /**< Logical ID for the humidity sensor analog input. */
-    HAL_GPIO_PIN_COUNT /**< Total number of logical GPIO pins. */
-} HAL_GPIO_Pin_t;
-
-// --- GPIO Direction ---
-typedef enum
-{
-    HAL_GPIO_DIR_INPUT, /**< Configure pin as input. */
-    HAL_GPIO_DIR_OUTPUT /**< Configure pin as output. */
-} HAL_GPIO_Direction_t;
-
-// --- GPIO State ---
-typedef enum
-{
-    HAL_GPIO_STATE_LOW = 0, /**< Set output pin to low (0V). */
-    HAL_GPIO_STATE_HIGH     /**< Set output pin to high (VCC). */
-} HAL_GPIO_State_t;
-
-// --- GPIO Pull Mode (for inputs) ---
-typedef enum
-{
-    HAL_GPIO_PULL_NONE, /**< No pull-up or pull-down resistor. */
-    HAL_GPIO_PULL_UP,   /**< Enable internal pull-up resistor. */
-    HAL_GPIO_PULL_DOWN  /**< Enable internal pull-down resistor. */
-} HAL_GPIO_PullMode_t;
-
-// --- GPIO Interrupt Edge/Level ---
-typedef enum
-{
-    HAL_GPIO_INT_NONE,         /**< No interrupt. */
-    HAL_GPIO_INT_RISING_EDGE,  /**< Interrupt on rising edge. */
-    HAL_GPIO_INT_FALLING_EDGE, /**< Interrupt on falling edge. */
-    HAL_GPIO_INT_BOTH_EDGES,   /**< Interrupt on both rising and falling edges. */
-    HAL_GPIO_INT_HIGH_LEVEL,   /**< Interrupt on high level (if supported by MCAL). */
-    HAL_GPIO_INT_LOW_LEVEL     /**< Interrupt on low level (if supported by MCAL). */
-} HAL_GPIO_InterruptType_t;
-
-// --- Function Pointer for GPIO Interrupt Callback ---
-typedef void (*HAL_GPIO_InterruptCallback_t)(HAL_GPIO_Pin_t pin);
-
-// --- Public Functions ---
+#include "driver/gpio.h"    // For gpio_num_t, gpio_mode_t
+#include "status.h"  // For Status_t
 
 /**
- * @brief Initializes the HAL GPIO module.
- * This function should be called once during system startup.
- * It prepares the internal data structures and potentially the underlying MCAL.
- * @return E_OK on success, E_NOK on failure.
+ * @brief Initializes all ESP32 direct GPIO pins according to the configurations
+ * defined in `HAL_GPIO_Cfg.c`. This is the main initialization function for the GPIO HAL.
+ * @return E_OK if configuration is successful, otherwise an error code.
  */
 Status_t HAL_GPIO_Init(void);
 
+/**
+ * @brief Sets the output level of a configured GPIO pin.
+ * @param gpio_num The GPIO number to control (e.g., from HAL_Config.h).
+ * @param level The desired output level (0 for low, 1 for high).
+ * @return E_OK on success, or an error code.
+ */
+Status_t HAL_GPIO_SetLevel(gpio_num_t gpio_num, uint32_t level);
 
 /**
- * @brief Sets the state of an output GPIO pin.
- * @param pin The logical ID of the output GPIO pin.
- * @param state The desired state (HAL_GPIO_STATE_LOW or HAL_GPIO_STATE_HIGH).
- * @return E_OK on success, E_NOK on failure (e.g., pin not configured as output, MCAL error).
+ * @brief Reads the input level of a configured GPIO pin.
+ * @param gpio_num The GPIO number to read.
+ * @param level_out Pointer to store the read level (0 for low, 1 for high).
+ * @return E_OK on success, or an error code.
  */
-Status_t HAL_GPIO_Write(HAL_GPIO_Pin_t pin, HAL_GPIO_State_t state);
+Status_t HAL_GPIO_GetLevel(gpio_num_t gpio_num, uint32_t *level_out);
 
 /**
- * @brief Toggles the state of an output GPIO pin.
- * @param pin The logical ID of the output GPIO pin.
- * @return E_OK on success, E_NOK on failure (e.g., pin not configured as output, MCAL error).
+ * @brief Configures the direction of a specific GPIO pin at runtime.
+ * @param gpio_num The GPIO number to configure.
+ * @param mode The desired GPIO mode (e.g., GPIO_MODE_INPUT, GPIO_MODE_OUTPUT).
+ * @return E_OK on success, or an error code.
  */
-Status_t HAL_GPIO_Toggle(HAL_GPIO_Pin_t pin);
+Status_t HAL_GPIO_SetDirection(gpio_num_t gpio_num, gpio_mode_t mode);
 
 /**
- * @brief Reads the current state of a GPIO pin.
- * @param pin The logical ID of the GPIO pin to read.
- * @param state_p Pointer to store the read state (HAL_GPIO_STATE_LOW or HAL_GPIO_STATE_HIGH).
- * @return E_OK on success, E_NOK on failure (e.g., invalid pin, MCAL error).
+ * @brief Enables or disables the internal pull-up resistor for a GPIO pin.
+ * @param gpio_num The GPIO number.
+ * @param enable True to enable pull-up, false to disable.
+ * @return E_OK on success, or an error code.
  */
-Status_t HAL_GPIO_Read(HAL_GPIO_Pin_t pin, HAL_GPIO_State_t *state_p);
+Status_t HAL_GPIO_SetPullUp(gpio_num_t gpio_num, bool enable);
 
 /**
- * @brief Configures an interrupt for a specific GPIO pin.
- * @param pin The logical ID of the GPIO pin.
- * @param interrupt_type The type of interrupt (edge or level).
- * @param callback The function to be called when the interrupt occurs.
- * @param debounce_ms Debounce time in milliseconds (0 for no debouncing).
- * @return E_OK on success, E_NOK on failure (e.g., invalid pin, MCAL error).
+ * @brief Enables or disables the internal pull-down resistor for a GPIO pin.
+ * @param gpio_num The GPIO number.
+ * @param enable True to enable pull-down, false to disable.
+ * @return E_OK on success, or an error code.
  */
-Status_t HAL_GPIO_ConfigInterrupt(HAL_GPIO_Pin_t pin, HAL_GPIO_InterruptType_t interrupt_type,
-                                      HAL_GPIO_InterruptCallback_t callback, uint32_t debounce_ms);
+Status_t HAL_GPIO_SetPullDown(gpio_num_t gpio_num, bool enable);
 
-/**
- * @brief Enables the interrupt for a specific GPIO pin.
- * @param pin The logical ID of the GPIO pin.
- * @return E_OK on success, E_NOK on failure.
- */
-Status_t HAL_GPIO_EnableInterrupt(HAL_GPIO_Pin_t pin);
-
-/**
- * @brief Disables the interrupt for a specific GPIO pin.
- * @param pin The logical ID of the GPIO pin.
- * @return E_OK on success, E_NOK on failure.
- */
-Status_t HAL_GPIO_DisableInterrupt(HAL_GPIO_Pin_t pin);
-
-#endif // HAL_GPIO_H
+#endif /* HAL_GPIO_H */
