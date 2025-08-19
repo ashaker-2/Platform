@@ -7,7 +7,6 @@
 #include <stdint.h>
 
 // ... existing declarations ...
-#define bool	uint8_t
 #define true	1
 #define false	0
 // Define common status codes that can be used across various modules.

@@ -14,7 +14,7 @@ include(${Service_DIR}/cmake/Service_file_lists.cmake)
 idf_component_register(
     SRCS
         ${APPLICATION_SRCS}
-        # ${HAL_SRCS}
+        ${HAL_SRCS}
     INCLUDE_DIRS
         ${APP_DIR}/common/inc
         ${APPLICATION_PUBLIC_INC_DIRS}

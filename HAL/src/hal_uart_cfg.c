@@ -1,94 +1,64 @@
+/* ============================================================================
+ * SOURCE FILE: HardwareAbstractionLayer/src/HAL_UART_Cfg.c
+ * ============================================================================*/
 /**
- * @file hal_uart_cfg.c
- * @brief Hardware Abstraction Layer for UART (Universal Asynchronous Receiver/Transmitter) - Configuration Definitions.
- *
- * This file contains the compile-time configuration definitions for each
- * UART channel used in the system. These configurations are used by the
- * HAL_UART_Init function to set up the UART peripherals.
- *
- * Users should modify this file to configure their specific UART channels.
+ * @file HAL_UART_Cfg.c
+ * @brief Implements the static array of UART configuration settings.
+ * This file defines the initial baud rate, parity, stop bits, and pin assignments for UART.
+ * It does not contain any initialization functions; its purpose is purely
+ * to hold configuration data.
  */
 
-#include "hal_uart_cfg.h"
-#include "hal_uart.h" // Include main HAL for channel enums if not already included by cfg.h
-
-// Forward declarations for any UART RX completion callbacks, if used.
-// These would typically be implemented in application or higher layers.
-// For demonstration, we'll use NULL or simple dummy callbacks.
-// void App_UART0_RxCpltCallback(HAL_UART_Channel_t channel, uint8_t received_byte);
-// void App_UART1_RxCpltCallback(HAL_UART_Channel_t channel, uint8_t received_byte);
+#include "hal_uart_cfg.h"   // Header for UART configuration types and extern declarations
+#include "hal_cfg.h"     // Global hardware definitions (UART pins)
+#include <stddef.h>         // For size_t
 
 /**
- * @brief Array of UART channel configurations.
- *
- * This array defines the static configuration for each UART channel available
- * in the system. The index of the array corresponds to the HAL_UART_Channel_t enum.
- *
- * IMPORTANT: Ensure the number of entries matches HAL_UART_CHANNEL_MAX.
- * If a channel is not used, its entry can be initialized with default/dummy values,
- * but it must still be present to match the array size.
+ * @brief Array containing all predefined UART configurations.
+ * This array is made `const` and global (`extern` in header) to be accessed by `HAL_UART.c`.
  */
-const HAL_UART_ChannelConfig_t g_hal_uart_channel_configs[HAL_UART_CHANNEL_MAX] =
-{
-    [HAL_UART_CHANNEL_0] =
+const uart_cfg_item_t s_uart_configurations[] = {
     {
-        .channel_id        = HAL_UART_CHANNEL_0,
-        .baud_rate         = 115200,
-        .data_bits         = 8,
-        .stop_bits         = 1,
-        .parity_enable     = false,
-        .even_parity       = false, // Not applicable if parity_enable is false
-        .flow_control_enable = false,
-        .rx_buffer_size    = 256,   // Example: 256 bytes RX buffer
-        .tx_buffer_size    = 128,   // Example: 128 bytes TX buffer
-        // .rx_callback       = NULL   // No specific callback for UART0 in this example
-        // .tx_pin = GPIO_NUM_1, // Example GPIO pin, uncomment if HAL handles pinmux
-        // .rx_pin = GPIO_NUM_3,
+        .uart_num = UART_NUM_0, // ESP32's default console UART
+        .config = {
+            .baud_rate = 115200,
+            .data_bits = UART_DATA_8_BITS,
+            .parity = UART_PARITY_DISABLE,
+            .stop_bits = UART_STOP_BITS_1,
+            .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+            .source_clk = UART_SCLK_APB,
+        },
+        .tx_io_num = HW_UART0_TX_GPIO, // Typically GPIO1
+        .rx_io_num = HW_UART0_RX_GPIO, // Typically GPIO3
+        .rts_io_num = UART_PIN_NO_CHANGE, // No hardware flow control
+        .cts_io_num = UART_PIN_NO_CHANGE, // No hardware flow control
+        .rx_buffer_size = 256,
+        .tx_buffer_size = 0, // No TX buffer needed for console output
+        .event_queue_size = 0, // No event queue needed for console output
     },
-    [HAL_UART_CHANNEL_1] =
-    {
-        .channel_id        = HAL_UART_CHANNEL_1,
-        .baud_rate         = 9600,
-        .data_bits         = 8,
-        .stop_bits         = 1,
-        .parity_enable     = true,
-        .even_parity       = true, // Even parity
-        .flow_control_enable = false,
-        .rx_buffer_size    = 128,
-        .tx_buffer_size    = 64,
-        // .rx_callback       = NULL   // No specific callback for UART1 in this example
-        // .tx_pin = GPIO_NUM_10,
-        // .rx_pin = GPIO_NUM_9,
-    },
-    [HAL_UART_CHANNEL_2] =
-    {
-        .channel_id        = HAL_UART_CHANNEL_2,
-        .baud_rate         = 38400,
-        .data_bits         = 8,
-        .stop_bits         = 1,
-        .parity_enable     = false,
-        .even_parity       = false,
-        .flow_control_enable = true, // Enable hardware flow control
-        .rx_buffer_size    = 512,
-        .tx_buffer_size    = 256,
-        // .rx_callback       = NULL   // No specific callback for UART2 in this example
-        // .tx_pin = GPIO_NUM_17,
-        // .rx_pin = GPIO_NUM_16,
-        // .rts_pin = GPIO_NUM_18,
-        // .cts_pin = GPIO_NUM_19,
-    },
-    // Add more UART channel configurations here if HAL_UART_CHANNEL_MAX is larger
-    // and you have more physical UARTs to configure.
+    // Example for another UART port (e.g., for external sensor or communication module)
+    // {
+    //     .uart_num = UART_NUM_1,
+    //     .config = {
+    //         .baud_rate = 9600,
+    //         .data_bits = UART_DATA_8_BITS,
+    //         .parity = UART_PARITY_DISABLE,
+    //         .stop_bits = UART_STOP_BITS_1,
+    //         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+    //         .source_clk = UART_SCLK_APB,
+    //     },
+    //     .tx_io_num = HW_UART1_TX_GPIO_UNUSED, // Define in HAL_Config.h (e.g., GPIO10)
+    //     .rx_io_num = HW_UART1_RX_GPIO_UNUSED, // Define in HAL_Config.h (e.g., GPIO9)
+    //     .rts_io_num = UART_PIN_NO_CHANGE,
+    //     .cts_io_num = UART_PIN_NO_CHANGE,
+    //     .rx_buffer_size = 512, // Larger buffer for incoming data
+    //     .tx_buffer_size = 1024, // Buffer for outgoing data
+    //     .event_queue_size = 10, // For handling UART events like RX_FIFO_OVF, etc.
+    // },
 };
 
-// Example of a dummy callback function (if you were to assign it)
-/*
-void App_UART0_RxCpltCallback(HAL_UART_Channel_t channel, uint8_t received_byte)
-{
-    // This function would be implemented in the application layer
-    // and registered with HAL_UART_Init if needed.
-    // For example, put the received_byte into a FreeRTOS queue.
-    (void)channel; // Unused parameter
-    (void)received_byte; // Unused parameter
-}
-*/
+/**
+ * @brief Defines the number of elements in the `s_uart_configurations` array.
+ * This variable is made `const` and global (`extern` in header) to be accessed by `HAL_UART.c`.
+ */
+const size_t s_num_uart_configurations = sizeof(s_uart_configurations) / sizeof(s_uart_configurations[0]);

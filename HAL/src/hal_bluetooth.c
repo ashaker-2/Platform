@@ -243,7 +243,7 @@ Status_t HAL_BLE_StopScanning(void)
 
     // HAL_BLE_UpdateState(HAL_BLE_STATE_DISCONNECTED); // Or previous state if not scanning
     // // LOG_INFO("HAL_BLE", "Scanning stopped.");
-    // return E_OK;
+    return E_OK;
 }
 
 /**
@@ -347,7 +347,7 @@ Status_t HAL_BLE_SendData(const uint8_t *data_p, uint16_t length)
  * @return The current HAL_BLE_State_t.
  */
 HAL_BLE_State_t HAL_BLE_GetState(void) {
-    // return s_ble_module_state.current_state;
+    return s_ble_module_state.current_state;
 }
 
 // --- Private Function Implementations ---

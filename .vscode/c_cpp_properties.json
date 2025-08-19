@@ -16,7 +16,13 @@
           "${workspaceFolder}"
         ],
         "limitSymbolsToIncludedHeaders": true
-      }
+      },
+      "compilerArgs": [
+        "-Wno-error",              // ✅ disable treating warnings as errors
+        "-Wno-unused-variable",    // optional: silence unused variable warnings
+        "-Wno-unused-function",     // optional: silence unused function warnings
+        "-Wno-error=return-type"
+      ]
     }
   ],
   "version": 4

@@ -8,6 +8,7 @@
     "gpio.h": "c",
     "timer.h": "c",
     "uart.h": "c",
-    "freertos.h": "c"
+    "freertos.h": "c",
+    "hal_cfg.h": "c"
   }
 }

@@ -9,9 +9,9 @@
  * to hold configuration data.
  */
 
-#include "HAL_ADC_Cfg.h"    // Header for ADC configuration types and extern declarations
-#include "HAL_Config.h.h"     // Global hardware definitions (ADC channels like HW_ADC1_NTC_TEMP0_CHANNEL)
-#include <stddef.h>         // For size_t
+#include "HAL_ADC_Cfg.h" // Header for ADC configuration types and extern declarations
+#include "hal_cfg.h"   // Global hardware definitions (ADC channels like HW_ADC1_NTC_TEMP0_CHANNEL)
+#include <stddef.h>      // For size_t
 
 /**
  * @brief Array containing all predefined ADC channel configurations.

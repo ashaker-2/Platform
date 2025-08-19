@@ -9,8 +9,8 @@
 #ifndef HAL_ADC_H
 #define HAL_ADC_H
 
-#include "driver/adc.h"     // For adc1_channel_t
-#include "common.h" // For Status_t
+#include "driver/adc.h" // For adc1_channel_t
+#include "common.h"     // For Status_t
 
 /**
  * @brief Initializes the ADC peripheral (ADC1 unit) with its specific configuration
@@ -22,7 +22,7 @@ Status_t HAL_ADC_Init(void);
 
 /**
  * @brief Reads a raw ADC value from a specified ADC1 channel.
- * @param channel The ADC1 channel to read (e.g., HW_ADC1_NTC_TEMP0_CHANNEL from HAL_Config.h).
+ * @param channel The ADC1 channel to read (e.g., HW_ADC1_NTC_TEMP0_CHANNEL from hal_cfg.h).
  * @param raw_value_out Pointer to store the raw 12-bit ADC value (0-4095).
  * @return E_OK on success, or an error code.
  */

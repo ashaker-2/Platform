@@ -12,7 +12,21 @@
 # Define source files for the HAL component by globbing
 
 # Define configuration source files for the HAL component (if any)
-file(GLOB HAL_SRCS "${HAL_DIR}/src/*.c") # Assuming src/ for sources
+# file(GLOB HAL_SRCS "${HAL_DIR}/src/*.c") # Assuming src/ for sources
+set(HAL_SRCS
+    "${HAL_DIR}/src/hal_init.c"
+    "${HAL_DIR}/src/hal_adc.c"
+    "${HAL_DIR}/src/hal_adc_cfg.c"
+    "${HAL_DIR}/src/hal_gpio.c"
+    "${HAL_DIR}/src/hal_gpio_cfg.c"
+    "${HAL_DIR}/src/hal_i2c.c"
+    "${HAL_DIR}/src/hal_i2c_cfg.c"
+    "${HAL_DIR}/src/hal_timer.c"    
+    "${HAL_DIR}/src/hal_timer_cfg.c"
+    "${HAL_DIR}/src/hal_uart.c"    
+    "${HAL_DIR}/src/hal_uart_cfg.c"
+)
+
 
 # Define public include directories for the HAL component
 # This sets the actual path to the 'inc' directory.

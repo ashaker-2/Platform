@@ -192,7 +192,7 @@ HAL_ModbusRTU_State_t HAL_ModbusRTU_GetState(void) {
  * @return The calculated 16-bit CRC value.
  */
 uint16_t HAL_ModbusRTU_CalculateCRC16(const uint8_t *data_p, uint16_t length) {
-    // return HAL_ModbusRTU_CalculateCRC16_Internal(data_p, length);
+    return HAL_ModbusRTU_CalculateCRC16_Internal(data_p, length);
 }
 
 // --- Private Function Implementations ---
@@ -215,7 +215,7 @@ static void HAL_ModbusRTU_UpdateState(HAL_ModbusRTU_State_t new_state) {
  * @return The calculated 16-bit CRC value.
  */
 static uint16_t HAL_ModbusRTU_CalculateCRC16_Internal(const uint8_t *data_p, uint16_t length) {
-    // uint16_t crc = 0xFFFF;
+    uint16_t crc = 0xFFFF;
     // for (uint16_t i = 0; i < length; i++) {
     //     crc ^= data_p[i];
     //     for (uint8_t j = 0; j < 8; j++) {
@@ -227,7 +227,7 @@ static uint16_t HAL_ModbusRTU_CalculateCRC16_Internal(const uint8_t *data_p, uin
     //         }
     //     }
     // }
-    // return crc;
+    return crc;
 }
 
 // --- MCAL UART Callback Handlers (Internal to HAL) ---

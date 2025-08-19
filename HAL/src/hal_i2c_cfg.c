@@ -9,9 +9,9 @@
  * functions; its purpose is purely to hold configuration data.
  */
 
-#include "HAL_I2C_Cfg.h"    // Header for I2C configuration types and extern declarations
-#include "HAL_Config.h"     // Global hardware pin definitions (e.g., HW_I2C_EXPANDER_PORT)
-#include <stddef.h>         // For size_t
+#include "HAL_I2C_Cfg.h" // Header for I2C configuration types and extern declarations
+#include "hal_cfg.h"     // Global hardware pin definitions (e.g., HW_I2C_EXPANDER_PORT)
+#include <stddef.h>      // For size_t
 
 /**
  * @brief Array containing all predefined I2C bus configurations.
@@ -29,7 +29,7 @@ const i2c_cfg_item_t s_i2c_configurations[] = {
             .sda_pullup_en = GPIO_PULLUP_ENABLE, // Internal pull-ups, though external are preferred for robust I2C
             .scl_pullup_en = GPIO_PULLUP_ENABLE,
             .master.clk_speed = (400 * 1000), // 400 KHz
-            .clk_flags = 0, // No specific flags
+            .clk_flags = 0,                   // No specific flags
         },
     },
     // Add other I2C bus configurations here if needed for future expansion

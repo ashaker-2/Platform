@@ -95,6 +95,7 @@ static HAL_SPI_Mode_t hal_spi_mode_to_esp_mode(HAL_SPI_Mode_t mode)
     // default:
     //     return SPI_MODE0; // Default to mode 0
     // }
+    return HAL_SPI_STATUS_OK;
 }
 
 /**
@@ -113,6 +114,7 @@ static HAL_SPI_Channel_t hal_spi_channel_to_esp_host(HAL_SPI_Channel_t channel)
     // default:
     //     return SPI1_HOST; // Fallback, though should be caught by validation
     // }
+    return HAL_SPI_STATUS_OK;
 }
 
 HAL_SPI_Status_t HAL_SPI_Init(HAL_SPI_Channel_t channel)
@@ -304,6 +306,8 @@ static HAL_SPI_Status_t spi_execute_transaction(HAL_SPI_Channel_t channel,
     //     }
     //     return HAL_SPI_STATUS_OK;
     // }
+
+    return HAL_SPI_STATUS_OK;
 }
 
 HAL_SPI_Status_t HAL_SPI_Master_TransmitReceive(HAL_SPI_Channel_t channel,
@@ -312,7 +316,7 @@ HAL_SPI_Status_t HAL_SPI_Master_TransmitReceive(HAL_SPI_Channel_t channel,
                                                 uint32_t length,
                                                 uint32_t timeout_ms)
 {
-    // return spi_execute_transaction(channel, tx_buffer, rx_buffer, length, timeout_ms, false);
+    return spi_execute_transaction(channel, tx_buffer, rx_buffer, length, timeout_ms, false);
 }
 
 HAL_SPI_Status_t HAL_SPI_Master_Transmit(HAL_SPI_Channel_t channel,
@@ -320,7 +324,7 @@ HAL_SPI_Status_t HAL_SPI_Master_Transmit(HAL_SPI_Channel_t channel,
                                          uint32_t length,
                                          uint32_t timeout_ms)
 {
-    // return spi_execute_transaction(channel, tx_buffer, NULL, length, timeout_ms, false);
+    return spi_execute_transaction(channel, tx_buffer, NULL, length, timeout_ms, false);
 }
 
 HAL_SPI_Status_t HAL_SPI_Master_Receive(HAL_SPI_Channel_t channel,
@@ -329,7 +333,7 @@ HAL_SPI_Status_t HAL_SPI_Master_Receive(HAL_SPI_Channel_t channel,
                                         uint32_t timeout_ms)
 {
     // For receive-only, ESP-IDF will send dummy bytes automatically.
-    // return spi_execute_transaction(channel, NULL, rx_buffer, length, timeout_ms, false);
+    return spi_execute_transaction(channel, NULL, rx_buffer, length, timeout_ms, false);
 }
 
 HAL_SPI_Status_t HAL_SPI_Master_TransmitReceive_IT(HAL_SPI_Channel_t channel,
@@ -345,7 +349,7 @@ HAL_SPI_Status_t HAL_SPI_Master_TransmitReceive_IT(HAL_SPI_Channel_t channel,
     // }
 
     // g_spi_channel_data[channel].callback = callback;
-    // return spi_execute_transaction(channel, tx_buffer, rx_buffer, length, 0, true); // Timeout not used for IT
+    return spi_execute_transaction(channel, tx_buffer, rx_buffer, length, 0, true); // Timeout not used for IT
 }
 
 HAL_SPI_Status_t HAL_SPI_Master_Transmit_IT(HAL_SPI_Channel_t channel,
@@ -360,7 +364,7 @@ HAL_SPI_Status_t HAL_SPI_Master_Transmit_IT(HAL_SPI_Channel_t channel,
     // }
 
     // g_spi_channel_data[channel].callback = callback;
-    // return spi_execute_transaction(channel, tx_buffer, NULL, length, 0, true);
+    return spi_execute_transaction(channel, tx_buffer, NULL, length, 0, true);
 }
 
 HAL_SPI_Status_t HAL_SPI_Master_Receive_IT(HAL_SPI_Channel_t channel,
@@ -386,7 +390,7 @@ HAL_SPI_Status_t HAL_SPI_GetStatus(HAL_SPI_Channel_t channel)
     // }
     // // For blocking transfers, status is implicitly OK upon return, or an error code.
     // // For IT transfers, we can return the stored async_status.
-    // return g_spi_channel_data[channel].async_status;
+    return g_spi_channel_data[channel].async_status;
 }
 
 HAL_SPI_Status_t HAL_SPI_SetChipSelect(HAL_SPI_Channel_t channel, uint8_t cs_pin, bool state)

@@ -10,8 +10,8 @@
 #ifndef HAL_GPIO_H
 #define HAL_GPIO_H
 
-#include "driver/gpio.h"    // For gpio_num_t, gpio_mode_t
-#include "common.h" // For Status_t
+#include "driver/gpio.h" // For gpio_num_t, gpio_mode_t
+#include "common.h"      // For Status_t
 
 /**
  * @brief Initializes all ESP32 direct GPIO pins according to the configurations
@@ -22,7 +22,7 @@ Status_t HAL_GPIO_Init(void);
 
 /**
  * @brief Sets the output level of a configured GPIO pin.
- * @param gpio_num The GPIO number to control (e.g., from HAL_Config.h).
+ * @param gpio_num The GPIO number to control (e.g., from hal_cfg.h).
  * @param level The desired output level (0 for low, 1 for high).
  * @return E_OK on success, or an error code.
  */

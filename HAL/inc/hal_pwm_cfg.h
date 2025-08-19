@@ -21,7 +21,7 @@ typedef struct {
     HAL_PWM_Channel_t       logical_id;         /**< The logical ID of the PWM channel. */
     HAL_PWM_Channel_t      mcal_channel;       /**< The corresponding MCAL (physical) PWM channel. */
     HAL_PWM_Channel_t        mcal_timer;         /**< The MCAL timer associated with this PWM channel. */
-    HAL_GPIO_Pin_t          gpio_pin;           /**< The logical GPIO pin associated with this PWM output. */
+    uint8_t               gpio_pin;           /**< The logical GPIO pin associated with this PWM output. */
     uint32_t                default_frequency_hz; /**< Default PWM frequency in Hertz. */
     uint8_t                 default_duty_cycle_percent; /**< Default initial duty cycle (0-100%). */
     // Add more configuration parameters as needed (e.g., polarity, resolution bits)

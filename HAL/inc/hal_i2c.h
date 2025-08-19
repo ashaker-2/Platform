@@ -10,8 +10,8 @@
 #ifndef HAL_I2C_H
 #define HAL_I2C_H
 
-#include "common.h"  // For Status_t
-#include "driver/i2c.h"     // For i2c_port_t (used in public APIs for port selection)
+#include "common.h"     // For Status_t
+#include "driver/i2c.h" // For i2c_port_t (used in public APIs for port selection)
 
 /**
  * @brief Initializes all I2C master peripherals according to configurations
@@ -22,7 +22,7 @@ Status_t HAL_I2C_Init(void);
 
 /**
  * @brief Performs an I2C master write operation.
- * @param i2c_port The I2C port number (e.g., HW_I2C_EXPANDER_PORT from HAL_Config.h).
+ * @param i2c_port The I2C port number (e.g., HW_I2C_EXPANDER_PORT from hal_cfg.h).
  * @param i2c_addr The 7-bit I2C slave address.
  * @param write_buffer Pointer to the data to write.
  * @param write_len The number of bytes to write.
@@ -60,7 +60,7 @@ Status_t HAL_I2C_MasterWriteRead(i2c_port_t i2c_port, uint8_t i2c_addr, const ui
 /**
  * @brief Sets the state of a specific GPIO pin on the CH423S I/O Expander.
  * This function handles the read-modify-write operation required for the CH423S,
- * using the predefined I2C port for the expander from HAL_Config.h.
+ * using the predefined I2C port for the expander from hal_cfg.h.
  * @param gp_pin The GPIO pin number on the CH423S (0-15).
  * @param state The desired state (0 for low, 1 for high).
  * @return E_OK on success, or an error code if I2C communication fails.

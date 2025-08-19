@@ -8,11 +8,13 @@
  * These functions wrap the ESP-IDF UART driver calls with a common status return.
  */
 
-#include "HAL_UART.h"       // Header for HAL_UART functions
-#include "HAL_UART_Cfg.h"   // To access UART configuration array
+#include "hal_uart.h"       // Header for HAL_UART functions
+#include "hal_uart_cfg.h"   // To access UART configuration array
 #include "esp_log.h"        // ESP-IDF logging library
 #include "driver/uart.h"    // ESP-IDF UART driver
 #include "esp_err.h"        // For ESP_OK, ESP_FAIL etc.
+#include "freertos/FreeRTOS.h" // For pdMS_TO_TICKS
+#include "freertos/task.h"   // For pdMS_TO_TICKS
 
 static const char *TAG = "HAL_UART";
 
