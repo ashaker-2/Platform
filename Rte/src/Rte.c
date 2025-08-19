@@ -83,11 +83,11 @@ void RTE_HwInitTask(void *pvParameters)
 void RTE_AppInitTask(void *pvParameters)
 {
     // LOGI(TAG, "RTE_AppInitTask started: Initializing Application modules...");
-    if (FanCtrl_Init() != E_OK)
-    {
-        // // LOGE(TAG, "Fan APP Init failed! Halting.");
-        vTaskSuspend(NULL);
-    }
+    // if (FanCtrl_Init() != E_OK)
+    // {
+    //     // // LOGE(TAG, "Fan APP Init failed! Halting.");
+    //     vTaskSuspend(NULL);
+    // }
     if (TempCtrl_Init() != E_OK)
     {
         // // LOGE(TAG, "Temperature Sensor APP Init failed! Halting.");
@@ -135,11 +135,11 @@ void RTE_AppInitTask(void *pvParameters)
         // // LOGE(TAG, "System Manager Init failed! Halting.");
         vTaskSuspend(NULL);
     }
-    if (SysMon_Init() != E_OK)
-    {
-        // // LOGE(TAG, "System Monitor Init failed! Halting.");
-        vTaskSuspend(NULL);
-    }
+    // if (SysMon_Init() != E_OK)
+    // {
+    //     // // LOGE(TAG, "System Monitor Init failed! Halting.");
+    //     vTaskSuspend(NULL);
+    // }
 
     // NEW: Call the ComM_Init (now defined in Rte.c)
     if (ComM_Init() != E_OK)
