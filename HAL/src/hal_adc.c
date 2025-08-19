@@ -8,8 +8,8 @@
  * These functions wrap the ESP-IDF ADC driver calls with a common status return.
  */
 
-#include "HAL_ADC.h"        // Header for HAL_ADC functions
-#include "HAL_ADC_Cfg.h"    // To access ADC configuration array and parameters
+#include "hal_adc.h"        // Header for HAL_ADC functions
+#include "hal_adc_cfg.h"    // To access ADC configuration array and parameters
 #include "esp_log.h"        // ESP-IDF logging library
 #include "driver/adc.h"     // ESP-IDF ADC driver
 #include "esp_err.h"        // For ESP_OK, ESP_FAIL, etc.
@@ -19,16 +19,16 @@ static const char *TAG = "HAL_ADC";
 /**
  * @brief Initializes the ADC peripheral (ADC1 unit) with its specific configuration
  * and configures the channels based on the internal `s_adc_channel_attenuations` array
- * from `HAL_ADC_Cfg.c`.
+ * from `hal_adc_cfg.c`.
  *
  * @return E_OK if initialization is successful, otherwise an error code.
  */
 Status_t HAL_ADC_Init(void) {
     esp_err_t ret;
 
-    ESP_LOGI(TAG, "Applying ADC configurations from HAL_ADC_Cfg.c...");
+    ESP_LOGI(TAG, "Applying ADC configurations from hal_adc_cfg.c...");
 
-    // Configure ADC1 unit for 12-bit resolution (ADC_WIDTH_BITS is from HAL_ADC_Cfg.h)
+    // Configure ADC1 unit for 12-bit resolution (ADC_WIDTH_BITS is from hal_adc_cfg.h)
     ret = adc1_config_width(ADC_WIDTH_BITS);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "ADC1 width config failed: %s", esp_err_to_name(ret));
@@ -58,7 +58,8 @@ Status_t HAL_ADC_Init(void) {
  * @param raw_value_out Pointer to store the raw 12-bit ADC value (0-4095).
  * @return E_OK on success, or an error code.
  */
-Status_t HAL_ADC_ReadRaw(adc1_channel_t channel, int *raw_value_out) {
+Status_t HAL_ADC_ReadRaw(adc1_channel_t channel, int *raw_value_out) 
+{
     if (raw_value_out == NULL) {
         ESP_LOGE(TAG, "HAL_ADC1_ReadRaw: raw_value_out pointer is NULL for channel %d.", channel);
         return E_INVALID_PARAM;

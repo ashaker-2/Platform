@@ -147,56 +147,56 @@
 
 
 ## Console & Flash Wiring
-| HW Component   | Pin Assignment            | Pin Direction         | Notes / Usage                                     |
-|----------------|---------------------------|---------------------- |-------------------------------------------------- |
-| Console/Flash  | TX0 = GPIO1, RX0 = GPIO3  | TX: Output, RX: Input | Standard debug and programming interface (UART0). |
+| HW Component   | Pin Assignment            | Pin Direction         | Implemented | Notes /Usage                                      |
+|----------------|---------------------------|---------------------- | ----------- |-------------------------------------------------- |
+| Console/Flash  | TX0 = GPIO1, RX0 = GPIO3  | TX: Output, RX: Input |     YES     | Standard debug and programming interface (UART0). |
 
 ---
 
 ## IO Expander
-| HW Component   | Pin Assignment             | Pin Direction         | Notes / Usage                                            |
-|----------------|--------------------------- |---------------------- |--------------------------------------------------------- |
-| IO Expander    | SDA = GPIO21, SCL = GPIO22 | Bidirectional (I/O)   | I²C1 bus for communication with the CH423S GPIO Expander.|
+| HW Component   | Pin Assignment             | Pin Direction       | Implemented | Notes / Usage                                            |
+|----------------|--------------------------- |---------------------| ----------- |--------------------------------------------------------- |
+| IO Expander    | SDA = GPIO21, SCL = GPIO22 | Bidirectional (I/O) |     YES     | I²C1 bus for communication with the CH423S GPIO Expander.|
 
 ---
 
 ## Display Wiring (4-bit Mode)
-| HW Component | Pin Assignment | Pin Direction | Notes / Usage                                   |
-|--------------|----------------|---------------|-------------------------------------------------|
-| Display      | RS = GPIO25, E = GPIO26, DB4 = GPIO27, DB5 = GPIO32, DB6 = GPIO33, DB7 = GPIO14  | Output | Displays system status on the character screen. **Note: GPIO14 is a strapping pin; its state during boot affects boot mode. Ensure proper external pull-up/down if it needs to be high/low at boot.** |
+| HW Component | Pin Assignment | Pin Direction | Implemented | Notes / Usage                                   |
+|--------------|----------------|---------------| ----------- |-------------------------------------------------|
+| Display      | RS = GPIO25, E = GPIO26, DB4 = GPIO27, DB5 = GPIO32, DB6 = GPIO33, DB7 = GPIO14  | Output |     YES     | Displays system status on the character screen. **Note: GPIO14 is a strapping pin; its state during boot affects boot mode. Ensure proper external pull-up/down if it needs to be high/low at boot.** |
 
 ---
 
 
 ## Keypad Wiring (4x4 Matrix)
-| HW Component | Pin Assignment                 | Pin Direction | Notes / Usage              |
-|--------------|--------------------------------|---------------|----------------------------|
-| Keypad Rows | R1 = GPIO4, R2 = GPIO12, R3 = GPIO13, R4 = GPIO0 | Output | Sends signals to scan rows. **CAUTION: GPIO0 is a strapping pin (boot button); holding it low during boot enters flash mode. GPIO4, 12, 13 are also strapping pins. Careful hardware design (external pull-ups/downs) is crucial to ensure correct boot behavior and prevent unintended actions.** |
-| Keypad Columns | Col1 = GPIO36, Col2 = GPIO37, Col3 = GPIO38, Col4 = GPIO39 | Input | Reads signals to detect key presses. **Ideal as these are input-only GPIOs (ADC1 channels 0-3 respectively) and do not conflict with Wi-Fi/BLE.** |
+| HW Component | Pin Assignment                 | Pin Direction | Implemented | Notes / Usage              |
+|--------------|--------------------------------|---------------| ----------- |----------------------------|
+| Keypad Rows  | R1 = GPIO4, R2 = GPIO12, R3 = GPIO13, R4 = GPIO0 | Output  |     YES     | Sends signals to scan rows. **CAUTION: GPIO0 is a strapping pin (boot button); holding it low during boot enters flash mode. GPIO4, 12, 13 are also strapping pins. Careful hardware design (external pull-ups/downs) is crucial to ensure correct boot behavior and prevent unintended actions.** |
+| Keypad Columns | Col1 = GPIO36, Col2 = GPIO37, Col3 = GPIO38, Col4 = GPIO39 | Input |     YES     | Reads signals to detect key presses. **Ideal as these are input-only GPIOs (ADC1 channels 0-3 respectively) and do not conflict with Wi-Fi/BLE.** |
 
 ---
 
 ## NTC Temperature Sensors
-| HW Component  | Pin Assignment       | Pin Direction | Notes / Usage           |
-|---------------|----------------------|---------------|-------------------------|
-| Temp0 NTC     | GPIO34 (ADC1_CH6)    | Input         | NTC temperature sensing.|
-| Temp1 NTC     | GPIO35 (ADC1_CH7)    | Input         | NTC temperature sensing.|
+| HW Component  | Pin Assignment       | Pin Direction | Implemented | Notes / Usage           |
+|---------------|----------------------|---------------| ----------- |-------------------------|
+| Temp0 NTC     | GPIO34 (ADC1_CH6)    | Input         |     YES     | NTC temperature sensing.|
+| Temp1 NTC     | GPIO35 (ADC1_CH7)    | Input         |     YES     | NTC temperature sensing.|
 ---
 
 ## Digital Temp/Humidity Sensors
-| HW Component   | Pin Assignment | Pin Direction        | Notes / Usage                        |
-|----------------|----------------|----------------------|--------------------------------------|
-| Temp_Hum0      | GPIO19         | Bidirectional (I/O)  | Digital temperature/humidity sensor  |
-| Temp_Hum1      | GPIO23         | Bidirectional (I/O)  | Digital temperature/humidity sensor. |
-| Temp_Hum2      | GPIO18         | Bidirectional (I/O)  | Digital temperature/humidity sensor. |
-| Temp_Hum3      | GPIO5          | Bidirectional (I/O)  | Digital temperature/humidity sensor. **Note: GPIO5 is a strapping pin; its state during boot affects boot mode (strap low for boot). Use with caution, especially if configured as output.** |
+| HW Component   | Pin Assignment | Pin Direction        | Implemented | Notes / Usage                        |
+|----------------|----------------|----------------------| ----------- |--------------------------------------|
+| Temp_Hum0      | GPIO19         | Bidirectional (I/O)  |     YES     | Digital temperature/humidity sensor  |
+| Temp_Hum1      | GPIO23         | Bidirectional (I/O)  |     YES     | Digital temperature/humidity sensor. |
+| Temp_Hum2      | GPIO18         | Bidirectional (I/O)  |     YES     | Digital temperature/humidity sensor. |
+| Temp_Hum3      | GPIO5          | Bidirectional (I/O)  |     YES     | Digital temperature/humidity sensor. **Note: GPIO5 is a strapping pin; its state during boot affects boot mode (strap low for boot). Use with caution, especially if configured as output.** |
 
 ---
 
-## Digital Temp/Humidity Sensors
-| HW Component   | Pin Assignment | Pin Direction        | Notes / Usage                        |
-|----------------|----------------|----------------------|--------------------------------------|
-| Alarm          | GPIO2          | Output               | For Warning. **Note: GPIO2 is a strapping pin (strap high for boot); ensure its state at boot does not interfere with boot mode. Also an ADC2 channel, so avoid analog use if Wi-Fi/BLE are active.** |
+## Alarm
+| HW Component   | Pin Assignment | Pin Direction        | Implemented | Notes / Usage                        |
+|----------------|----------------|----------------------| ----------- |--------------------------------------|
+| Alarm          | GPIO2          | Output               |     YES     | For Warning. **Note: GPIO2 is a strapping pin (strap high for boot); ensure its state at boot does not interfere with boot mode. Also an ADC2 channel, so avoid analog use if Wi-Fi/BLE are active.** |
 
 ---
 

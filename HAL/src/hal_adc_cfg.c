@@ -1,15 +1,15 @@
 /* ============================================================================
- * SOURCE FILE: HardwareAbstractionLayer/src/HAL_ADC_Cfg.c
+ * SOURCE FILE: HardwareAbstractionLayer/src/hal_adc_cfg.c
  * ============================================================================*/
 /**
- * @file HAL_ADC_Cfg.c
+ * @file hal_adc_cfg.c
  * @brief Implements the static array of ADC channel configuration settings.
  * This file defines the specific initial resolution and channel attenuations.
  * It does not contain any initialization functions; its purpose is purely
  * to hold configuration data.
  */
 
-#include "HAL_ADC_Cfg.h" // Header for ADC configuration types and extern declarations
+#include "hal_adc_cfg.h" // Header for ADC configuration types and extern declarations
 #include "hal_cfg.h"   // Global hardware definitions (ADC channels like HW_ADC1_NTC_TEMP0_CHANNEL)
 #include <stddef.h>      // For size_t
 

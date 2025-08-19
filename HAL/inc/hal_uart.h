@@ -14,7 +14,7 @@
 
 /**
  * @brief Initializes and configures all UART peripherals according to configurations
- * defined in `HAL_UART_Cfg.c`. This is the main initialization function for the UART HAL.
+ * defined in `hal_uart.c`. This is the main initialization function for the UART HAL.
  * @return E_OK on success, or an error code.
  */
 Status_t HAL_UART_Init(void);

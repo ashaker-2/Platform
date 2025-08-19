@@ -13,9 +13,9 @@
 // This enumeration provides a standardized way for functions to report
 // their outcome (success or specific types of failure).
 typedef enum {
+    E_ERROR = -1,              // General unspecified error. Use this when a more specific error isn't available.
     E_OK = 0,             // Operation completed successfully.
     E_NOK = 1,             // Operation completed successfully.
-    E_ERROR,              // General unspecified error. Use this when a more specific error isn't available.
     E_INVALID_PARAM,      // A function received an invalid or out-of-range parameter.
     E_NOT_INITIALIZED,    // A module or component was used before being properly initialized.
     E_TIMEOUT,            // An operation failed due to a timeout (e.g., waiting for a response, mutex).

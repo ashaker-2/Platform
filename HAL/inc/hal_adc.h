@@ -14,7 +14,7 @@
 
 /**
  * @brief Initializes the ADC peripheral (ADC1 unit) with its specific configuration
- * and configures the channels based on the data in `HAL_ADC_Cfg.c`.
+ * and configures the channels based on the data in `hal_adc_cfg.c`.
  * This is the main initialization function for the ADC HAL.
  * @return E_OK if initialization is successful, otherwise an error code.
  */

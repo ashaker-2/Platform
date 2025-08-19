@@ -2,14 +2,14 @@
  * SOURCE FILE: HardwareAbstractionLayer/src/HAL_I2C_Cfg.c
  * ============================================================================*/
 /**
- * @file HAL_I2C_Cfg.c
+ * @file hal_i2c_cfg.c
  * @brief Implements the static array of I2C bus configuration settings.
  * This file defines the specific initial modes, clock speeds, and pins for
  * all I2C buses used by the hardware. It does not contain any initialization
  * functions; its purpose is purely to hold configuration data.
  */
 
-#include "HAL_I2C_Cfg.h" // Header for I2C configuration types and extern declarations
+#include "hal_i2c_cfg.h" // Header for I2C configuration types and extern declarations
 #include "hal_cfg.h"     // Global hardware pin definitions (e.g., HW_I2C_EXPANDER_PORT)
 #include <stddef.h>      // For size_t
 

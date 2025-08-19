@@ -1,15 +1,15 @@
 /* ============================================================================
- * SOURCE FILE: HardwareAbstractionLayer/src/HAL_GPIO_Cfg.c
+ * SOURCE FILE: HardwareAbstractionLayer/src/hal_gpio_cfg.c
  * ============================================================================*/
 /**
- * @file HAL_GPIO_Cfg.c
+ * @file hal_gpio_cfg.c
  * @brief Implements the static array of GPIO configuration settings.
  * This file defines the specific initial modes, pull-ups/downs, and interrupt types
  * for all direct ESP32 GPIOs used by the hardware. It does not contain any
  * initialization functions; its purpose is purely to hold configuration data.
  */
 
-#include "HAL_GPIO_Cfg.h" // Header for GPIO configuration types and extern declarations
+#include "hal_gpio_cfg.h" // Header for GPIO configuration types and extern declarations
 #include "hal_cfg.h"      // Global hardware pin definitions (e.g., HW_DISPLAY_RS_GPIO)
 #include <stddef.h>       // For size_t
 

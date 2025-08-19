@@ -9,6 +9,7 @@
     "timer.h": "c",
     "uart.h": "c",
     "freertos.h": "c",
-    "hal_cfg.h": "c"
+    "hal_cfg.h": "c",
+    "adc.h": "c"
   }
 }

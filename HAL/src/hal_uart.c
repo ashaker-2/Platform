@@ -29,7 +29,8 @@ Status_t HAL_UART_Init(void) {
 
     ESP_LOGI(TAG, "Applying UART configurations from HAL_UART_Cfg.c...");
 
-    for (size_t i = 0; i < s_num_uart_configurations; i++) {
+    for (size_t i = 0; i < s_num_uart_configurations; i++) 
+    {
         const uart_cfg_item_t *cfg_item = &s_uart_configurations[i];
 
         // Configure UART parameters
