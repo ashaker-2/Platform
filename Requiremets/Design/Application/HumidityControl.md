@@ -70,6 +70,7 @@ The HumCtrl component will consist of the following files:
 ### **5.2. Public Interface (API)**
 
 // In Application/humctrl/inc/humctrl.h
+
 ```c
 #include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h> // For uint32_t  
@@ -104,11 +105,13 @@ APP_Status_t HumCtrl_GetSensorHumidity(uint32_t sensorId, float *humidity_rh);
  */  
 void HumCtrl_MainFunction(void);
 ```
+
 ### **5.3. Internal Design**
 
 The HumCtrl module will manage its own sensor reading cycle for multiple sensors.
 
 1. **Internal State**:  
+
 ```c
    // Array to store the latest valid humidity reading for each sensor  
    static float s_latest_humidities_rh[HUMCTRL_SENSOR_COUNT];  
@@ -116,7 +119,9 @@ The HumCtrl module will manage its own sensor reading cycle for multiple sensors
    static uint32_t s_last_read_timestamps_ms[HUMCTRL_SENSOR_COUNT];  
    static bool s_is_initialized = false; // Module initialization status
 ```
-   * All these variables will be initialized in HumCtrl_Init(). s_latest_humidities_rh elements will be initialized to NAN (Not a Number) or a specific error value to indicate no valid data yet.  
+
+* All these variables will be initialized in HumCtrl_Init(). s_latest_humidities_rh elements will be initialized to NAN (Not a Number) or a specific error value to indicate no valid data yet.  
+
 2. **Initialization (HumCtrl_Init)**:  
    * **Zeroing Variables**:  
      * Initialize all elements of s_latest_humidities_rh to NAN.  
@@ -161,6 +166,7 @@ The HumCtrl module will manage its own sensor reading cycle for multiple sensors
    * Return E_OK.
 
 **Sequence Diagram (Example: Periodic Humidity Reading for Multiple Sensors and systemMgr Query):**
+
 ```mermaid
 sequenceDiagram  
     participant RTE_Task as RTE_PeriodicTask_MediumPrio_100ms  
@@ -185,14 +191,14 @@ sequenceDiagram
         end  
         HumCtrl->>HumCtrl: Validate raw data, calibrate, convert  
         alt Converted humidity is out of range  
-            HumCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_HUMCTRL_SENSOR_OUT_OF_RANGE, SEVERITY_LOW, Sensor_ID_X)  
+            HumCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_HUMCTRL_SENSOR_OUT_OF_RANGE,  Sensor_ID_X)  
             SystemMonitor-->>HumCtrl: Return E_OK  
         end  
         HumCtrl->>HumCtrl: Update s_latest_humidities_rh[Sensor_ID_X]  
         HumCtrl->>Logger: LOGD("HumCtrl sensor %d read success: %.1f %%RH", Sensor_ID_X, ...)  
     end  
     alt Any sensor read failed after retries  
-        HumCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_HUMCTRL_SENSOR_READ_FAILED, SEVERITY_HIGH, Failed_Sensor_ID)  
+        HumCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_HUMCTRL_SENSOR_READ_FAILED,  Failed_Sensor_ID)  
         SystemMonitor-->>HumCtrl: Return E_OK  
         HumCtrl->>HumCtrl: s_latest_humidities_rh[Failed_Sensor_ID] = NAN  
     end  
@@ -246,6 +252,7 @@ The Application/humctrl/cfg/humctrl_cfg.h file will contain:
 * **Valid Data Range**: HUMCTRL_MIN_VALID_RH, HUMCTRL_MAX_VALID_RH for sanity checks.
 
 // Example: Application/humctrl/cfg/humctrl_cfg.h
+
 ```c
 #include "Mcal/adc/inc/mcal_adc.h" // Example for ADC channel definitions  
 #include "Mcal/i2c/inc/mcal_i2c.h" // Example for I2C port definitions  
@@ -328,6 +335,7 @@ const HumCtrl_SensorConfig_t humctrl_sensor_configs[HUMCTRL_SENSOR_COUNT] = {
 #define HUMCTRL_MIN_VALID_RH                0.0f  
 #define HUMCTRL_MAX_VALID_RH                100.0f
 ```
+
 ### **5.7. Resource Usage**
 
 * **Flash**: Low to moderate, depending on the complexity of the sensor protocols and number of sensor types supported.  

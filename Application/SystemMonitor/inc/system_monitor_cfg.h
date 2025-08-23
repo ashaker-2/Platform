@@ -11,8 +11,8 @@
 /* --- Fault Definitions --- */
 typedef enum 
 {
-    FAULT_ID_NONE = 0,
     
+    FAULT_ID_NONE = 0,
     /* Temperature Faults */
     FAULT_ID_TEMP_OVER_RANGE = 0x0001,
     FAULT_ID_TEMP_UNDER_RANGE = 0x0002,
@@ -40,7 +40,8 @@ typedef enum
     FAULT_ID_WIFI_CONN_FAILURE = 0x0010,
     FAULT_ID_STORAGE_FAILURE = 0x0011,
     FAULT_ID_POWER_FAILURE = 0x0012,
-    
+
+    FAULT_ID_SYS_INIT_ERROR = 0x0020,
     FAULT_ID_MAX
 } SystemMonitor_FaultId_t;
 

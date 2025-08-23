@@ -70,6 +70,7 @@ The ComM component will consist of the following files:
 * Service/ComM/cfg/comm_cfg.h: Configuration header for channel priorities, timeouts, and buffer sizes.
 
 ### **5.2. Public Interface (API)**
+
 ```c
 // In Service/ComM/inc/comm.h
 
@@ -181,11 +182,13 @@ void ComM_BluetoothConnectionCallback(bool connected);
  */  
 void ComM_WifiConnectionCallback(bool connected);
 ```
+
 ### **5.3. Internal Design**
 
 The ComM module will manage the state of each communication channel, implement arbitration logic, and route data.
 
 1. **Internal State**:  
+
    ```c
    // Structure to hold state for each communication channel  
    typedef struct {  
@@ -199,6 +202,7 @@ The ComM module will manage the state of each communication channel, implement a
    static ComM_ChannelId_t    s_active_control_channel = COMM_CHANNEL_COUNT; // No channel active by default  
    static bool s_is_initialized = false;
    ```
+
    * ComM_Init() will initialize these variables.  
 2. **Initialization (ComM_Init)**:  
    * Initialize s_comm_channel_states to COMM_STATUS_DISCONNECTED and is_active_control_interface = false.  
@@ -289,6 +293,7 @@ The ComM module will manage the state of each communication channel, implement a
    * Report FAULT_ID_COMM_CONNECTION_LOST if a critical connection drops.
 
 **Sequence Diagram (Example: Modbus Command Received):**
+
 ```mermaid
 sequenceDiagram  
     participant HAL_Modbus as HAL/Modbus  
@@ -306,7 +311,7 @@ sequenceDiagram
         Security-->>RTE: Return E_OK/E_NOK  
         RTE-->>ComM: Return E_OK/E_NOK  
         alt If authentication/decryption fails  
-            ComM->>RTE: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_COMM_SECURITY_FAILURE, SEVERITY_HIGH, ...)  
+            ComM->>RTE: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_COMM_SECURITY_FAILURE,  ...)  
             RTE-->>ComM: Return  
             ComM->>ComM: Discard data, return  
         end  
@@ -327,6 +332,7 @@ sequenceDiagram
     HAL_Modbus-->>ComM: Return E_OK  
     ComM-->>HAL_Modbus: Return
 ```
+
 ### **5.4. Dependencies**
 
 * Application/common/inc/common.h: For APP_Status_t, E_OK/E_NOK, and APP_COMMON_GetUptimeMs().  
@@ -360,6 +366,7 @@ The Service/ComM/cfg/comm_cfg.h file will contain:
 * COMM_CHANNEL_PRIORITY_MODBUS, COMM_CHANNEL_PRIORITY_BLUETOOTH, COMM_CHANNEL_PRIORITY_WIFI: Numerical priorities for each channel (higher number = higher priority for control arbitration).  
 * COMM_ENABLE_SECURITY_MODBUS, COMM_ENABLE_SECURITY_BLUETOOTH, COMM_ENABLE_SECURITY_WIFI: Macros to enable/disable security for each channel.  
 * COMM_POLLING_PERIOD_MS: The frequency at which COMM_MainFunction() is called by RTE.
+
 ```c
 // Example: Service/ComM/cfg/comm_cfg.h  
 #ifndef COMM_CFG_H  
@@ -386,6 +393,7 @@ The Service/ComM/cfg/comm_cfg.h file will contain:
 
 #endif // COMM_CFG_H
 ```
+
 ### **5.7. Resource Usage**
 
 * **Flash**: Moderate, for communication logic, arbitration, and data routing.  

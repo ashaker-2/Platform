@@ -44,7 +44,7 @@ Status_t LightInd_Init(void)
     // s_lightind_mutex = xSemaphoreCreateMutex();
     // if (s_lightind_mutex == NULL) {
     //     LOGF("LightInd: Failed to create state mutex.");
-    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_LIGHT_IND_INIT_FAILED, SEVERITY_CRITICAL, 0);
+    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_LIGHT_IND_INIT_FAILED,  0);
     //     return E_NOK;
     // }
 
@@ -58,7 +58,7 @@ Status_t LightInd_Init(void)
 
     //     if (MCAL_GPIO_Init(config->gpio_pin, GPIO_MODE_OUTPUT) != E_OK) {
     //         LOGF("LightInd: GPIO init failed for indicator ID %lu.", config->id);
-    //         RTE_Service_SystemMonitor_ReportFault(FAULT_ID_LIGHT_IND_INIT_FAILED, SEVERITY_CRITICAL, config->id);
+    //         RTE_Service_SystemMonitor_ReportFault(FAULT_ID_LIGHT_IND_INIT_FAILED,  config->id);
     //         xSemaphoreGive(s_lightind_mutex);
     //         return E_NOK;
     //     }

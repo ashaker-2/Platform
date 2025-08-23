@@ -60,6 +60,7 @@ The HAL_FLASH component will consist of the following files:
 * HAL/cfg/hal_flash_cfg.h: Configuration header for Flash memory layout (base addresses, sector sizes, total size).
 
 ### **5.2. Public Interface (API)**
+
 ```c
 // In HAL/inc/hal_flash.h
 
@@ -148,6 +149,7 @@ The HAL_FLASH module will act as a wrapper around the MCAL_FLASH functions. It w
    * These functions simply return the values defined in hal_flash_cfg.h.
 
 **Sequence Diagram (Example: HAL_FLASH_Write):**
+
 ```mermaid
 sequenceDiagram  
     participant AppLayer as Application Layer (e.g., Storage Module)  
@@ -162,7 +164,7 @@ sequenceDiagram
     HAL_FLASH->>MCAL_FLASH: MCAL_FLASH_Write(CONFIG_FLASH_ADDR_MCAL, config_data, len)  
     alt MCAL_FLASH_Write returns MCAL_ERROR  
         MCAL_FLASH--xHAL_FLASH: Return MCAL_ERROR  
-        HAL_FLASH->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_FLASH_ERROR_WRITE_FAILED, SEVERITY_HIGH, ...)  
+        HAL_FLASH->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_FLASH_ERROR_WRITE_FAILED,  ...)  
         HAL_FLASH--xRTE: Return E_NOK  
         RTE--xAppLayer: Return E_NOK  
     else MCAL_FLASH_Write returns MCAL_OK  
@@ -195,6 +197,7 @@ The HAL/cfg/hal_flash_cfg.h file will contain:
 * Total usable Flash size.  
 * Flash sector/block size.  
 * Any specific memory map definitions (e.g., for bootloader, application banks, data storage).
+
 ```c
 // Example: HAL/cfg/hal_flash_cfg.h  
 #define HAL_FLASH_BASE_ADDRESS      0x00000000 // Example: Start of Flash  

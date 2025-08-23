@@ -10,6 +10,7 @@
     "uart.h": "c",
     "freertos.h": "c",
     "hal_cfg.h": "c",
-    "adc.h": "c"
+    "adc.h": "c",
+    "esp_log.h": "c"
   }
 }

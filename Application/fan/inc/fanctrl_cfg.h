@@ -1,34 +1,73 @@
+/* ============================================================================
+ * SOURCE FILE: Application/fanCtrl/inc/fan_ctrl_cfg.h
+ * ============================================================================*/
 /**
- * @file fanctrl_cfg.h
- * @brief Configuration header for the Fan Control (FAN_CTL) component.
+ * @file fan_ctrl_cfg.h
+ * @brief Configuration definitions for the Fan Control (FanCtrl) module.
  *
- * This file defines configurable parameters for the Fan Control module,
- * primarily related to the hardware interface (e.g., PWM channel assignments).
+ * This file declares the structure for individual fan configurations,
+ * allowing control via either direct GPIO or an I/O expander.
  */
 
-#ifndef FAN_CONTROL_CFG_H
-#define FAN_CONTROL_CFG_H
+#ifndef FAN_CTRL_CFG_H
+#define FAN_CTRL_CFG_H
 
-#include <stdlib.h>
-#include <stdint.h>
-// #include "hal_pwm.h" // For HAL_PWM_Channel_t
+#include <stdint.h> // For uint8_t
+#include <stddef.h> // For size_t
 
-// Enum definition for fan types
+/**
+ * @brief Enumeration for unique Fan IDs.
+ * These IDs are used to reference specific fans within the Fan Control module.
+ */
 typedef enum {
-    FAN_TYPE_PWM = 1,  // PWM Controlled Fan
-    FAN_TYPE_ON_OFF = 2,  // ON/OFF Fan
-    // Add more fan types as needed
-} FAN_Type_t;
+    FAN_ID_ALL = 0,   ///< First fan
+    FAN_ID_1,       ///< Second fan
+    FAN_ID_2,       ///< Third fan
+    FAN_ID_3,       ///< Fourth fan
+    FAN_ID_4,       ///< Fourth fan
+    FAN_ID_COUNT    ///< Total number of fans configured
+} Fan_ID_t;
 
-// Structure to hold fan configuration
+/**
+ * @brief Enumeration for fan states.
+ */
+typedef enum {
+    FAN_STATE_OFF = 0, ///< Fan is off
+    FAN_STATE_ON,      ///< Fan is on
+    FAN_STATE_INVALID  ///< Invalid fan state
+} Fan_State_t;
+
+/**
+ * @brief Enumeration for the type of control mechanism for a fan.
+ */
+typedef enum {
+    FAN_CONTROL_TYPE_IO_EXPANDER = 0, ///< Controlled via CH423S I/O expander
+    FAN_CONTROL_TYPE_GPIO,            ///< Controlled via direct ESP32 GPIO pin
+    FAN_CONTROL_TYPE_COUNT            ///< Total number of control types
+} Fan_Control_Type_t;
+
+/**
+ * @brief Structure to hold the configuration for a single fan.
+ *
+ * This includes the control type and the specific pin number.
+ * The interpretation of `pinNum` depends on `control_type`.
+ */
 typedef struct {
-    FAN_Type_t fan_type;                  // Type of fan: PWM or ON/OFF
-    uint32_t control_gpio_id;             // GPIO ID used to control the fan
-    uint8_t has_aux_gpio_control;            // Flag for aux GPIO control (only for PWM)
-    uint32_t on_off_gpio_active_state;    // Active state for ON/OFF fans (HIGH or LOW)
-    uint32_t pwm_channel_id;              // PWM channel for PWM fans
-    uint32_t min_speed_duty_percent;      // Minimum PWM duty for PWM fans
-    uint32_t max_speed_duty_percent;      // Maximum PWM duty for PWM fans
-} FAN_Config_t;
+    Fan_ID_t fan_id;                   ///< Unique identifier for the fan
+    Fan_Control_Type_t control_type;   ///< How this fan is controlled
+    uint8_t pinNum;                    ///< The pin number (either CH423S GP pin or direct GPIO pin)
+    Fan_State_t initial_state;         ///< Initial state of the fan (ON/OFF)
+} fan_config_item_t;
 
-#endif // fanctrl_cfg
+/**
+ * @brief External declaration of the array containing all predefined fan configurations.
+ * This array is defined in fan_ctrl_cfg.c and accessed by fan_ctrl.c for initialization.
+ */
+extern const fan_config_item_t s_fan_configurations[];
+
+/**
+ * @brief External declaration of the number of elements in the fan configurations array.
+ */
+extern const size_t s_num_fan_configurations;
+
+#endif /* FAN_CTRL_CFG_H */

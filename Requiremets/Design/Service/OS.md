@@ -63,6 +63,7 @@ The OS component will consist of the following files:
 ### **5.2. Public Interface (API)**
 
 // In Service/os/inc/os.h
+
 ```c
 #include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h>   // For uint32_t, uint8_t  
@@ -249,6 +250,7 @@ void *OS_Malloc(size_t xWantedSize);
  */  
 void OS_Free(void *pv);
 ```
+
 ### **5.3. Internal Design**
 
 The OS module's implementation (os.c) will primarily consist of direct calls to the corresponding FreeRTOS APIs. It will handle error checking and return E_OK/E_NOK where appropriate, and potentially log failures.
@@ -283,6 +285,7 @@ The OS module's implementation (os.c) will primarily consist of direct calls to 
    * OS_Free: Calls vPortFree().
 
 **Sequence Diagram (Example: Task Creation via OS Module):**
+
 ```mermaid
 sequenceDiagram  
     participant RTE_AppInitTask as RTE Task  
@@ -296,13 +299,14 @@ sequenceDiagram
     alt FreeRTOS returns pdFAIL  
         FreeRTOS--xOS: Return pdFAIL  
         OS->>Logger: LOGE("OS", "Failed to create task: SensorTask")  
-        OS->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_OS_TASK_CREATE_FAILURE, SEVERITY_CRITICAL, ...)  
+        OS->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_OS_TASK_CREATE_FAILURE,  ...)  
         OS--xRTE_AppInitTask: Return E_NOK  
     else FreeRTOS returns pdPASS  
         FreeRTOS-->>OS: Return pdPASS  
         OS-->>RTE_AppInitTask: Return E_OK  
     end
 ```
+
 ### **5.4. Dependencies**
 
 * FreeRTOS.h, task.h, semphr.h, queue.h, timers.h: Core FreeRTOS headers. These are included directly in os.c but are abstracted in os.h using forward declarations.  
@@ -313,7 +317,7 @@ sequenceDiagram
 
 ### **5.5. Error Handling**
 
-* **API Return Values**: All OS_ functions that can fail (e.g., creation, take/send with timeout) return E_OK or E_NOK.  
+* **API Return Values**: All OS_functions that can fail (e.g., creation, take/send with timeout) return E_OK or E_NOK.  
 * **Logging**: Failures (e.g., task creation failure, mutex acquisition timeout) are logged using LOGE or LOGW.  
 * **Fault Reporting**: For critical OS resource allocation failures (e.g., OS_TaskCreate returning E_NOK), the OS module will report a FAULT_ID_OS_RESOURCE_FAILURE to SystemMonitor via RTE.  
 * **Input Validation**: Basic input validation (e.g., checking for NULL handles) is performed where appropriate.
@@ -326,6 +330,7 @@ The Service/os/cfg/os_cfg.h file will contain:
 * Default queue lengths.  
 * Default block times for blocking operations.  
 * Any FreeRTOS configuration macros that need to be exposed or customized from a higher level (though most FreeRTOS config is in FreeRTOSConfig.h).
+
 ```c
 // Example: Service/os/cfg/os_cfg.h  
 #ifndef OS_CFG_H  
@@ -345,6 +350,7 @@ The Service/os/cfg/os_cfg.h file will contain:
 
 #endif // OS_CFG_H
 ```
+
 ### **5.7. Resource Usage**
 
 * **Flash**: Low, as it's mostly wrapper functions.  

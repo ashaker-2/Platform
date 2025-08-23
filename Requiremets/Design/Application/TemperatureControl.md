@@ -71,6 +71,7 @@ The TempCtrl component will consist of the following files:
 ### **5.2. Public Interface (API)**
 
 // In Application/tempctrl/inc/tempctrl.h
+
 ```c
 #include "Application/common/inc/common.h" 
 // For APP_Status_t  
@@ -112,6 +113,7 @@ void TempCtrl_MainFunction(void);
 The TempCtrl module will manage its own sensor reading cycle for multiple sensors.
 
 1. **Internal State**:  
+
 ```c
    // Array to store the latest valid temperature reading for each sensor  
    static float s_latest_temperatures_c[TempCtrl_SENSOR_COUNT];  
@@ -119,7 +121,9 @@ The TempCtrl module will manage its own sensor reading cycle for multiple sensor
    static uint32_t s_last_read_timestamps_ms[TempCtrl_SENSOR_COUNT];  
    static bool s_is_initialized = false; // Module initialization status
 ```
-   * All these variables will be initialized in TempCtrl_Init(). s_latest_temperatures_c elements will be initialized to NAN (Not a Number) or a specific error value to indicate no valid data yet.  
+
+* All these variables will be initialized in TempCtrl_Init(). s_latest_temperatures_c elements will be initialized to NAN (Not a Number) or a specific error value to indicate no valid data yet.  
+
 2. **Initialization (TempCtrl_Init)**:  
    * **Zeroing Variables**:  
      * Initialize all elements of s_latest_temperatures_c to NAN.  
@@ -164,6 +168,7 @@ The TempCtrl module will manage its own sensor reading cycle for multiple sensor
    * Return E_OK.
 
 **Sequence Diagram (Example: Periodic Temperature Reading for Multiple Sensors and systemMgr Query):**
+
 ```mermaid
 sequenceDiagram  
     participant RTE_Task as RTE_PeriodicTask_MediumPrio_100ms  
@@ -188,14 +193,14 @@ sequenceDiagram
         end  
         TempCtrl->>TempCtrl: Validate raw data, calibrate, convert  
         alt Converted temp is out of range  
-            TempCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_TempCtrl_SENSOR_OUT_OF_RANGE, SEVERITY_LOW, Sensor_ID_X)  
+            TempCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_TempCtrl_SENSOR_OUT_OF_RANGE,  Sensor_ID_X)  
             SystemMonitor-->>TempCtrl: Return E_OK  
         end  
         TempCtrl->>TempCtrl: Update s_latest_temperatures_c[Sensor_ID_X]  
         TempCtrl->>Logger: LOGD("TempCtrl sensor %d read success: %.1f C", Sensor_ID_X, ...)  
     end  
     alt Any sensor read failed after retries  
-        TempCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_TempCtrl_SENSOR_READ_FAILED, SEVERITY_HIGH, Failed_Sensor_ID)  
+        TempCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_TempCtrl_SENSOR_READ_FAILED,  Failed_Sensor_ID)  
         SystemMonitor-->>TempCtrl: Return E_OK  
         TempCtrl->>TempCtrl: s_latest_temperatures_c[Failed_Sensor_ID] = NAN  
     end  
@@ -208,6 +213,7 @@ sequenceDiagram
     TempCtrl-->>RTE: Return E_OK (s_latest_temperatures_c[SENSOR_ID_ROOM] copied)  
     RTE-->>SystemMgr: Return E_OK
 ```
+
 ### **5.4. Dependencies**
 
 * **Application/common/inc/common.h**: For APP_Status_t, APP_COMMON_GetUptimeMs().  
@@ -249,6 +255,7 @@ The Application/tempctrl/cfg/tempctrl_cfg.h file will contain:
 * **Valid Data Range**: TempCtrl_MIN_VALID_C, TempCtrl_MAX_VALID_C for sanity checks.
 
 // Example: Application/tempctrl/cfg/tempctrl_cfg.h
+
 ```c
 #include "Mcal/adc/inc/mcal_adc.h" // Example for ADC channel definitions  
 #include "Mcal/i2c/inc/mcal_i2c.h" // Example for I2C port definitions  

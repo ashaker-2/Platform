@@ -23,9 +23,17 @@ typedef enum {
     E_MUTEX_ERROR,        // An error occurred during a mutex (semaphore) operation (e.g., acquisition failure).
     E_HAL_INVALID_PARAM,
     E_NULL_ERROR,
-    // Add more common status codes as needed for your system, for example:
-    // COMMON_NO_MEMORY,       // Failed to allocate memory.
-    // COMMON_NOT_SUPPORTED,   // Feature or operation is not supported.
+    E_INVALID_ARG,          /**< Invalid argument provided */
+    E_NULL_POINTER,         /**< Null pointer encountered */
+    E_NO_RESOURCE,          /**< No resource available */
+    E_ALREADY_INITIALIZED,  /**< Module is already initialized */
+    E_NOT_SUPPORTED,        /**< Feature/operation not supported */
+    E_COMM_ERROR,           /**< Communication error with sensor */
+    E_SENSOR_ERROR,         /**< Sensor internal error */
+    E_DATA_STALE,           /**< Sensor data is stale/not yet updated, or last read failed */
+    E_NOT_CONFIGURED,        /**< Sensor is not configured */
+    E_FAIL,
+    E_NOT_FOUND
 } Status_t;
 
 /**

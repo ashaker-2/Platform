@@ -74,7 +74,7 @@ Status_t SYS_MGR_Init(void)
     // if (status != E_OK)
     // {
     //     LOGW("SystemMgr", "Failed to load operational parameters from storage. Using defaults.");
-    //     SysMon_ReportFault(FAULT_ID_NVM_READ_FAILURE, SEVERITY_MEDIUM, 0);
+    //     SysMon_ReportFaultStatus(FAULT_ID_NVM_READ_FAILURE, 0);
     // }
 
     // xSemaphoreGive(sys_mgr_state_mutex);
@@ -132,7 +132,7 @@ Status_t SYS_MGR_SetOperationalTemperature(float min_temp, float max_temp)
     // if (min_temp > max_temp || min_temp < -50.0f || max_temp > 100.0f)
     // {
     //     LOGE("SystemMgr", "Invalid operational temperature range provided.");
-    //     SysMon_ReportFault(FAULT_ID_SYS_INIT_ERROR, SEVERITY_MEDIUM, 0);
+    //     SysMon_ReportFaultStatus(FAULT_ID_SYS_INIT_ERROR, 0);
     //     xSemaphoreGive(sys_mgr_state_mutex);
     //     return E_NOK;
     // }
@@ -145,7 +145,7 @@ Status_t SYS_MGR_SetOperationalTemperature(float min_temp, float max_temp)
     //                                                       sizeof(SystemOperationalParams_t));
     // if (status != E_OK)
     // {
-    //     SysMon_ReportFault(FAULT_ID_NVM_WRITE_FAILURE, SEVERITY_MEDIUM, 0);
+    //     SysMon_ReportFaultStatus(FAULT_ID_NVM_WRITE_FAILURE,  0);
     // }
 
     // xSemaphoreGive(sys_mgr_state_mutex);
@@ -253,7 +253,7 @@ static void SYS_MGR_UpdateSensorReadings(void)
     // {
     //     sys_mgr_state.critical_alarm_active = true;
     //     LOGW("SystemMgr", "Fire alarm triggered! Temperature: %.2fC", sys_mgr_state.current_room_temp_c);
-    //     SysMon_ReportFault(FAULT_ID_SYS_MGR_FIRE_ALARM, SEVERITY_CRITICAL, (uint32_t)(sys_mgr_state.current_room_temp_c * 100));
+    //     SysMon_ReportFaultStatus(FAULT_ID_SYS_MGR_FIRE_ALARM,  (uint32_t)(sys_mgr_state.current_room_temp_c * 100));
     // }
     // else
     // {

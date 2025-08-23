@@ -73,6 +73,7 @@ The Power component will consist of the following files:
 ### **5.2. Public Interface (API)**
 
 // In Application/power/inc/power.h
+
 ```c
 #include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h>   // For uint32_t, uint8_t  
@@ -132,11 +133,13 @@ void PowerMgr_MainFunction(void);
 The Power module will maintain its current power mode, last measured consumption metrics, and handle transitions by interacting with HAL/MCAL drivers.
 
 1. **Internal State**:  
+
    ```c
    static Power_Mode_t s_current_power_mode = POWER_MODE_OFF; // Default to OFF until Init  
    static Power_Consumption_t s_last_consumption = {0};  
    static bool s_is_initialized = false;
    ```
+
    * Power_Init() will initialize these variables.  
 2. **Initialization (Power_Init)**:  
    * Initialize internal state variables (s_current_power_mode = POWER_MODE_ON;).  
@@ -190,11 +193,11 @@ The Power module will maintain its current power mode, last measured consumption
      * RTE_Service_SYS_MGR_UpdatePowerConsumption(s_last_consumption.current_mA, s_last_consumption.voltage_mV, s_last_consumption.power_mW);  
    * **Threshold Check & Fault Reporting**:  
      * If s_last_consumption.current_mA > POWER_OVERCURRENT_THRESHOLD_MA:  
-       RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_OVER_CURRENT, SEVERITY_HIGH, (uint32_t)s_last_consumption.current_mA);  
+       RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_OVER_CURRENT,  (uint32_t)s_last_consumption.current_mA);  
      * If s_last_consumption.voltage_mV < POWER_UNDERVOLTAGE_THRESHOLD_MV:  
-       RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_UNDER_VOLTAGE, SEVERITY_HIGH, (uint32_t)s_last_consumption.voltage_mV);  
+       RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_UNDER_VOLTAGE,  (uint32_t)s_last_consumption.voltage_mV);  
      * If s_last_consumption.power_mW > POWER_OVERPOWER_THRESHOLD_MW:  
-       RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_OVER_POWER, SEVERITY_HIGH, (uint32_t)s_last_consumption.power_mW);  
+       RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_OVER_POWER,  (uint32_t)s_last_consumption.power_mW);  
    * Log LOGD("Power: V:%.1f mV, I:%.1f mA, P:%.1f mW", ...);.  
 6. **Get Consumption (POWER_GetConsumption)**:  
    * Validate consumption pointer.  
@@ -202,6 +205,7 @@ The Power module will maintain its current power mode, last measured consumption
    * Return E_OK.
 
 **Sequence Diagram (Example: Power Consumption Monitoring):**
+
 ```mermaid
 sequenceDiagram  
     participant RTE_MainLoopTask as RTE Task  
@@ -229,13 +233,14 @@ sequenceDiagram
     RTE-->>Power: Return E_OK
 
     alt Current > Overcurrent Threshold  
-        Power->>RTE: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_OVER_CURRENT, SEVERITY_HIGH, current_mA)  
+        Power->>RTE: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_OVER_CURRENT,  current_mA)  
         RTE->>SystemMonitor: SYSTEMMONITOR_ReportFault(...)  
         SystemMonitor-->>RTE: Return E_OK  
         RTE-->>Power: Return E_OK  
     end  
     Power-->>RTE_MainLoopTask: Return E_OK
 ```
+
 ### **5.4. Dependencies**
 
 * Application/common/inc/common.h: For APP_Status_t.  
@@ -273,6 +278,7 @@ The Application/power/cfg/power_cfg.h file will contain:
   * POWER_OVERPOWER_THRESHOLD_MW  
 * **Periodic Task Settings**:  
   * POWER_MONITOR_PERIOD_MS: The frequency at which POWER_MainFunction() is called by RTE.
+
 ```c
 // Example: Application/power/cfg/power_cfg.h  
 #ifndef POWER_CFG_H  
@@ -311,6 +317,7 @@ The Application/power/cfg/power_cfg.h file will contain:
 
 #endif // POWER_CFG_H
 ```
+
 ### **5.7. Resource Usage**
 
 * **Flash**: Moderate, for power management logic, calculations, and configuration data.  

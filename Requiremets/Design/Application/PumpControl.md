@@ -68,6 +68,7 @@ The PumpCtrl component will consist of the following files:
 ### **5.2. Public Interface (API)**
 
 // In Application/pump/inc/pumpctrl.h
+
 ```c
 #include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h> // For uint32_t  
@@ -118,11 +119,13 @@ APP_Status_t PumpCtrl_GetState(uint32_t actuatorId, PumpCtrl_State_t *state);
  */  
 void PumpCtrl_MainFunction(void);
 ```
+
 ### **5.3. Internal Design**
 
 The PumpCtrl module will manage its own pump control cycle for multiple pumps.
 
 1. **Internal State**:  
+
    ```c
    // Array to store the latest commanded state for each pump  
    static PumpCtrl_State_t s_commanded_states[PumpCtrl_COUNT];  
@@ -130,6 +133,7 @@ The PumpCtrl module will manage its own pump control cycle for multiple pumps.
    static PumpCtrl_State_t s_actual_states[PumpCtrl_COUNT];  
    static bool s_is_initialized = false; // Module initialization status
    ```
+
    * All these variables will be initialized in PumpCtrl_Init(). s_commanded_states will be initialized to PumpCtrl_STATE_OFF. s_actual_states will be initialized to PumpCtrl_STATE_OFF.  
 2. **Initialization (PumpCtrl_Init)**:  
    * **Zeroing Variables**:  
@@ -177,6 +181,7 @@ The PumpCtrl module will manage its own pump control cycle for multiple pumps.
    * Return E_OK.
 
 **Sequence Diagram (Example: systemMgr commands pump state, PumpCtrl applies it):**
+
 ```mermaid
 sequenceDiagram  
     participant SystemMgr as Application/systemMgr  
@@ -199,7 +204,7 @@ sequenceDiagram
     PumpCtrl->>MCAL_GPIO: MCAL_GPIO_WritePin(GPIO_PIN_PUMP_RELAY, GPIO_STATE_HIGH)  
     MCAL_GPIO-->>PumpCtrl: Return E_OK  
     alt MCAL_GPIO_WritePin fails  
-        PumpCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_PumpCtrl_CONTROL_FAILED, SEVERITY_HIGH, PUMP_ID_HUMIDITY)  
+        PumpCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_PumpCtrl_CONTROL_FAILED,  PUMP_ID_HUMIDITY)  
         SystemMonitor-->>PumpCtrl: Return E_OK  
     end  
     Note over PumpCtrl: (Optional: Read feedback, update s_actual_states)  
@@ -212,6 +217,7 @@ sequenceDiagram
     PumpCtrl-->>RTE: Return E_OK (current_state=ON)  
     RTE-->>SystemMgr: Return E_OK
 ```
+
 ### **5.4. Dependencies**
 
 * Application/common/inc/common.h: For APP_Status_t.  
@@ -232,6 +238,7 @@ sequenceDiagram
 ### **5.6. Configuration**
 
 The Application/pump/cfg/pumpctrl_cfg.h file will contain:
+
 ```c
 * **Pump Count**: PumpCtrl_COUNT.  
 * **Pump IDs**: Define unique enum values for each pump (e.g., PUMP_ID_HUMIDITY, PUMP_ID_DRAIN).  
@@ -332,6 +339,7 @@ const PumpCtrl_Config_t pump_configs[PumpCtrl_COUNT] = {
 // --- Periodic Control Settings for PumpCtrl_MainFunction() ---  
 #define PumpCtrl_CONTROL_PERIOD_MS             100 // PumpCtrl_MainFunction called every 100 ms
 ```
+
 ### **5.7. Resource Usage**
 
 * **Flash**: Low to moderate, depending on the number of pump types and feedback mechanisms supported.  

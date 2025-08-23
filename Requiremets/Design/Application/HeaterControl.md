@@ -59,6 +59,7 @@ The HeaterControl component will consist of the following files:
 ### **5.2. Public Interface (API)**
 
 // In HeaterControl/inc/heater.h
+
 ```c
 #include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdbool.h> // For bool
@@ -110,6 +111,7 @@ The HeaterControl module will maintain the current commanded heater state intern
    * Return E_OK.
 
 **Sequence Diagram (Example: systemMgr Turns Heater On):**
+
 ```mermaid
 sequenceDiagram  
     participant SystemMgr as Application/systemMgr  
@@ -124,7 +126,7 @@ sequenceDiagram
     Heater->>MCAL_GPIO: MCAL_GPIO_SetState(HEATER_CONTROL_GPIO_PIN, MCAL_GPIO_STATE_HIGH)  
     alt MCAL_GPIO_SetState returns E_NOK  
         MCAL_GPIO--xHeater: Return E_NOK  
-        Heater->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_HEATER_CONTROL_ERROR, SEVERITY_HIGH, 0)  
+        Heater->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_HEATER_CONTROL_ERROR,  0)  
         Heater--xRTE: Return E_NOK  
         RTE--xSystemMgr: Return E_NOK  
     else MCAL_GPIO_SetState returns E_OK  
@@ -157,8 +159,8 @@ The HeaterControl/cfg/heater_cfg.h file will contain:
 
 // Example: HeaterControl/cfg/heater_cfg.h
 
-#define HEATER_CONTROL_GPIO_PIN         20 // Example GPIO pin for heater relay control  
-#define HEATER_DEFAULT_STATE_ON         false // Heater is off by default
+# define HEATER_CONTROL_GPIO_PIN         20 // Example GPIO pin for heater relay control  
+# define HEATER_DEFAULT_STATE_ON         false // Heater is off by default
 
 ### **5.7. Resource Usage**
 

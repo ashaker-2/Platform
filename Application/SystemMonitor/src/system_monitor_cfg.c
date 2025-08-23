@@ -25,8 +25,8 @@ SystemMonitor_FaultRecord_t SystemMonitor_FaultTable[SYSMON_MAX_FAULTS] = {
     {FAULT_ID_WIFI_CONN_FAILURE,       false},
     {FAULT_ID_STORAGE_FAILURE,         false},
     {FAULT_ID_POWER_FAILURE,           false},
-    {FAULT_ID_NONE,                    false}, /* Reserved */
-    {FAULT_ID_NONE,                    false}  /* Reserved */
+    {FAULT_ID_SYS_INIT_ERROR,          false}, /* Reserved */
+    {FAULT_ID_SYS_INIT_ERROR,          false}  /* Reserved */
 };
 
 

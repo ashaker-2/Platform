@@ -60,6 +60,7 @@ The HAL_EEPROM component will consist of the following files:
 * HAL/cfg/hal_eeprom_cfg.h: Configuration header for EEPROM size, page size (if applicable), and communication interface details (e.g., I2C address).
 
 ### **5.2. Public Interface (API)**
+
 ```c
 // In HAL/inc/hal_eeprom.h
 
@@ -156,6 +157,7 @@ The HAL_EEPROM module will act as a wrapper around the MCAL_EEPROM functions (or
    * This function simply returns the value defined in hal_eeprom_cfg.h.
 
 **Sequence Diagram (Example: HAL_EEPROM_WriteBlock to External I2C EEPROM):**
+
 ```mermaid
 sequenceDiagram  
     participant AppLayer as Application Layer (e.g., Storage Module)  
@@ -174,7 +176,7 @@ sequenceDiagram
         alt MCAL_I2C_MasterTransmit returns MCAL_ERROR  
             MCAL_I2C--xHAL_I2C: Return MCAL_ERROR  
             HAL_I2C--xHAL_EEPROM: Return E_NOK  
-            HAL_EEPROM->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_EEPROM_ERROR_COMM_FAILED, SEVERITY_HIGH, ...)  
+            HAL_EEPROM->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_EEPROM_ERROR_COMM_FAILED,  ...)  
             HAL_EEPROM--xRTE: Return HAL_EEPROM_ERROR_WRITE_FAILED  
             RTE--xAppLayer: Return E_NOK  
             break loop  
@@ -187,6 +189,7 @@ sequenceDiagram
     HAL_EEPROM-->>RTE: Return HAL_EEPROM_OK  
     RTE-->>AppLayer: Return E_OK
 ```
+
 ### **5.4. Dependencies**
 
 * **Mcal/eeprom/inc/mcal_eeprom.h**: If using an MCU's dedicated internal EEPROM driver.  
@@ -206,6 +209,7 @@ sequenceDiagram
 ### **5.6. Configuration**
 
 The HAL/cfg/hal_eeprom_cfg.h file will contain:
+
 ```c
 * Total EEPROM size.  
 * EEPROM page size (if applicable for block writes).  

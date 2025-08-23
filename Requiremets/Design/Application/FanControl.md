@@ -69,6 +69,7 @@ The FanCtrl component will consist of the following files:
 ### **5.2. Public Interface (API)**
 
 // In Application/fan/inc/fanctrl.h
+
 ```c
 #include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h> // For uint32_t  
@@ -126,11 +127,13 @@ APP_Status_t FanCtrl_GetSpeed(uint32_t actuatorId, uint8_t *speed_percent, FanCt
  */  
 void FanCtrl_MainFunction(void);
 ```
+
 ### **5.3. Internal Design**
 
 The FanCtrl module will manage its own fan control cycle for multiple fans.
 
 1. **Internal State**:  
+
 ```c
    // Array to store the latest commanded speed for each fan (0-100%)  
    static uint8_t s_commanded_speeds_percent[FANCTRL_COUNT];  
@@ -140,7 +143,9 @@ The FanCtrl module will manage its own fan control cycle for multiple fans.
    static FanCtrl_State_t s_actual_states[FANCTRL_COUNT];  
    static bool s_is_initialized = false; // Module initialization status
 ```
-   * All these variables will be initialized in FanCtrl_Init(). s_commanded_speeds_percent will be initialized to 0. s_actual_speeds_percent will be initialized to 0. s_actual_states will be initialized to FANCTRL_STATE_OFF.  
+
+* All these variables will be initialized in FanCtrl_Init(). s_commanded_speeds_percent will be initialized to 0. s_actual_speeds_percent will be initialized to 0. s_actual_states will be initialized to FANCTRL_STATE_OFF.  
+
 2. **Initialization (FanCtrl_Init)**:  
    * **Zeroing Variables**:  
      * Initialize all elements of s_commanded_speeds_percent to 0.  
@@ -192,6 +197,7 @@ The FanCtrl module will manage its own fan control cycle for multiple fans.
    * Return E_OK.
 
 **Sequence Diagram (Example: systemMgr commands fan speed, FanCtrl applies it):**
+
 ```mermaid
 sequenceDiagram  
     participant SystemMgr as Application/systemMgr  
@@ -214,7 +220,7 @@ sequenceDiagram
     FanCtrl->>MCAL_PWM: MCAL_PWM_SetDutyCycle(PWM_CHANNEL_FAN_EXHAUST, 75)  
     MCAL_PWM-->>FanCtrl: Return E_OK  
     alt MCAL_PWM_SetDutyCycle fails  
-        FanCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_FANCTRL_CONTROL_FAILED, SEVERITY_HIGH, FAN_ID_MAIN_EXHAUST)  
+        FanCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_FANCTRL_CONTROL_FAILED,  FAN_ID_MAIN_EXHAUST)  
         SystemMonitor-->>FanCtrl: Return E_OK  
     end  
     Note over FanCtrl: (Optional: Read feedback, update s_actual_speeds_percent/s_actual_states)  
@@ -227,6 +233,7 @@ sequenceDiagram
     FanCtrl-->>RTE: Return E_OK (current_speed=75, current_state=ON)  
     RTE-->>SystemMgr: Return E_OK
 ```
+
 ### **5.4. Dependencies**
 
 * Application/common/inc/common.h: For APP_Status_t.  
@@ -263,6 +270,7 @@ The Application/fan/cfg/fanctrl_cfg.h file will contain:
   * FANCTRL_CONTROL_PERIOD_MS: The frequency at which FANCTRL_MainFunction() is called by RTE.
 
 // Example: Application/fan/cfg/fanctrl_cfg.h
+
 ```c
 #include "Mcal/pwm/inc/mcal_pwm.h" // Example for PWM channel definitions  
 #include "Mcal/gpio/inc/mcal_gpio.h" // Example for GPIO pin definitions  
@@ -350,6 +358,7 @@ const FanCtrl_Config_t fan_configs[FANCTRL_COUNT] = {
 // --- Periodic Control Settings for FANCTRL_MainFunction() ---  
 #define FANCTRL_CONTROL_PERIOD_MS             100 // FANCTRL_MainFunction called every 100 ms
 ```
+
 ### **5.7. Resource Usage**
 
 * **Flash**: Low to moderate, depending on the number of fan types and feedback mechanisms supported.  

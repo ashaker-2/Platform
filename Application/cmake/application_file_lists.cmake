@@ -13,7 +13,7 @@
 
 # === CONFIGURE PATH ===
 
-file(TO_CMAKE_PATH "${APP_DIR}/temperature"      TEMP_DIR)
+file(TO_CMAKE_PATH "${APP_DIR}/temphum"      TEMPHUM_DIR)
 file(TO_CMAKE_PATH "${APP_DIR}/fan"              FAN_DIR)
 file(TO_CMAKE_PATH "${APP_DIR}/heater"           HEAT_DIR)
 file(TO_CMAKE_PATH "${APP_DIR}/humadity"         HUM_DIR)
@@ -38,16 +38,14 @@ file(TO_CMAKE_PATH "${APP_DIR}/common"           COMMON_DIR)
 set(APPLICATION_SRCS
 
     "${SysStart_DIR}/src/startup.c"
-    "${TEMP_DIR}/src/tempctrl.c"
-    "${TEMP_DIR}/src/tempctrl_cfg.c"
+    "${TEMPHUM_DIR}/src/temphumctrl.c"
+    "${TEMPHUM_DIR}/src/temphumctrl_cfg.c"
     "${FAN_DIR}/src/fanctrl.c"
     "${FAN_DIR}/src/fanctrl_cfg.c"
     "${HEAT_DIR}/src/Heaterctrl.c"
     "${HEAT_DIR}/src/Heaterctrl_cfg.c"
-    "${HUM_DIR}/src/humctrl.c"
-    "${HUM_DIR}/src/humctrl_cfg.c"
-    # "${DISP_DIR}/src/char_display.c"
-    # "${DISP_DIR}/src/char_display_cfg.c"
+    "${DISP_DIR}/src/char_display.c"
+    "${DISP_DIR}/src/char_display_cfg.c"
     # "${DIAG_DIR}/src/Diag_cfg.c"
     # "${DIAG_DIR}/src/Diag.c"
     "${LigCtrl_DIR}/src/lightctrl.c"
@@ -72,10 +70,9 @@ set(APPLICATION_SRCS
 # Define public include directories for the component
 set(APPLICATION_PUBLIC_INC_DIRS
     
-    "${TEMP_DIR}/inc"
+    "${TEMPHUM_DIR}/inc"
     "${FAN_DIR}/inc"
     "${HEAT_DIR}/inc"
-    "${HUM_DIR}/inc"
     "${DISP_DIR}/inc"
     "${DIAG_DIR}/inc"
     "${LigCtrl_DIR}/inc"

@@ -68,6 +68,7 @@ The LightCtrl component will consist of the following files:
 ### **5.2. Public Interface (API)**
 
 // In Application/lightControl/inc/lightctrl.h
+
 ```c
 #include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h> // For uint32_t  
@@ -125,11 +126,13 @@ APP_Status_t LightCtrl_GetState(uint32_t actuatorId, LightCtrl_State_t *state, u
  */  
 void LightCtrl_MainFunction(void);
 ```
+
 ### **5.3. Internal Design**
 
 The LightCtrl module will manage its own light control cycle for multiple lights.
 
 1. **Internal State**:  
+
    ```c
    // Array to store the latest commanded state for each light  
    static LightCtrl_State_t s_commanded_states[LightCtrl_COUNT];  
@@ -141,6 +144,7 @@ The LightCtrl module will manage its own light control cycle for multiple lights
    static uint8_t s_actual_brightness_percent[LightCtrl_COUNT];  
    static bool s_is_initialized = false; // Module initialization status
    ```
+
    * All these variables will be initialized in LightCtrl_Init(). s_commanded_states and s_actual_states will be initialized to LightCtrl_STATE_OFF. s_commanded_brightness_percent and s_actual_brightness_percent will be initialized to 0.  
 2. **Initialization (LightCtrl_Init)**:  
    * **Zeroing Variables**:  
@@ -200,6 +204,7 @@ The LightCtrl module will manage its own light control cycle for multiple lights
    * Return E_OK.
 
 **Sequence Diagram (Example: systemMgr commands light state, LightCtrl applies it):**
+
 ```mermaid
 sequenceDiagram  
     participant SystemMgr as Application/systemMgr  
@@ -229,7 +234,7 @@ sequenceDiagram
         MCAL_GPIO-->>LightCtrl: Return E_OK  
     end  
     alt MCAL control fails  
-        LightCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_LightCtrl_CONTROL_FAILED, SEVERITY_HIGH, LIGHT_ID_ROOM_MAIN)  
+        LightCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_LightCtrl_CONTROL_FAILED,  LIGHT_ID_ROOM_MAIN)  
         SystemMonitor-->>LightCtrl: Return E_OK  
     end  
     Note over LightCtrl: (Optional: Read feedback, update s_actual_brightness_percent/s_actual_states)  
@@ -242,6 +247,7 @@ sequenceDiagram
     LightCtrl-->>RTE: Return E_OK (current_state=ON, current_brightness=70)  
     RTE-->>SystemMgr: Return E_OK
 ```
+
 ### **5.4. Dependencies**
 
 * Application/common/inc/common.h: For APP_Status_t.  
@@ -278,6 +284,7 @@ The Application/lightControl/cfg/lightctrl_cfg.h file will contain:
   * LightCtrl_CONTROL_PERIOD_MS: The frequency at which LightCtrl_MainFunction() is called by RTE.
 
 // Example: Application/lightControl/cfg/lightctrl_cfg.h
+
 ```c
 #include "Mcal/gpio/inc/mcal_gpio.h" // Example for GPIO pin definitions  
 #include "Mcal/pwm/inc/mcal_pwm.h" // Example for PWM channel definitions  
@@ -391,6 +398,7 @@ const LightCtrl_Config_t light_configs[LightCtrl_COUNT] = {
 // --- Periodic Control Settings for LightCtrl_MainFunction() ---  
 #define LightCtrl_CONTROL_PERIOD_MS             100 // LightCtrl_MainFunction called every 100 ms
 ```
+
 ### **5.7. Resource Usage**
 
 * **Flash**: Low to moderate, depending on the number of light types and feedback mechanisms supported.  

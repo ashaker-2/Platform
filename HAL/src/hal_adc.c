@@ -58,7 +58,7 @@ Status_t HAL_ADC_Init(void) {
  * @param raw_value_out Pointer to store the raw 12-bit ADC value (0-4095).
  * @return E_OK on success, or an error code.
  */
-Status_t HAL_ADC_ReadRaw(adc1_channel_t channel, int *raw_value_out) 
+Status_t HAL_ADC_ReadRaw(adc1_channel_t channel, uint16_t *raw_value_out) 
 {
     if (raw_value_out == NULL) {
         ESP_LOGE(TAG, "HAL_ADC1_ReadRaw: raw_value_out pointer is NULL for channel %d.", channel);

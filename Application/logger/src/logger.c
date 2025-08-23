@@ -32,26 +32,30 @@ Status_t LOGGER_Init(void)
     }
 
     // Create a mutex for thread-safe access to the logging buffer and UART
-    s_log_mutex = xSemaphoreCreateMutex();
-    if (s_log_mutex == NULL)
-    {
-        // We can't log a failure here, as the logger is not yet initialized
-        return E_NOK;
-    }
+    // s_log_mutex = xSemaphoreCreateMutex();
+    // if (s_log_mutex == NULL)
+    // {
+    //     // We can't log a failure here, as the logger is not yet initialized
+    //     return E_NOK;
+    // }
 
     // Initialize the underlying output peripheral (e.g., UART)
-    if (LOGGER_output_function_ptr(NULL, 0) != E_OK)
-    { // A special call to initialize the peripheral
-        // We can't log this failure either
-        return E_NOK;
-    }
+    // if (LOGGER_output_function_ptr(NULL, 0) != E_OK)
+    // { // A special call to initialize the peripheral
+    //     // We can't log this failure either
+    //     return E_NOK;
+    // }
 
+    // LOGGER_SetLogLevel(LOGGER_DEFAULT_LOG_LEVEL);
+    esp_log_level_set(ESP_LOG_DEBUG);
     s_is_initialized = true;
-    LOGGER_SetLogLevel(LOGGER_DEFAULT_LOG_LEVEL);
+    
 
     // Now we can log a success message
-    LOGI("Logger", "Module initialized. Default log level is: %s", LOGGER_GetLevelString(LOGGER_DEFAULT_LOG_LEVEL));
+    // LOGI("Logger", "Module initialized. Default log level is: %s", LOGGER_GetLevelString(LOGGER_DEFAULT_LOG_LEVEL));
+    LOGI("Logger", "Module initialized. Default log level is: %s", esp_log_level_get(LOGGER_DEFAULT_LOG_LEVEL));
 
+    
     return E_OK;
 }
 

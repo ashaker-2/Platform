@@ -61,6 +61,7 @@ The LightInd component will consist of the following files:
 ### **5.2. Public Interface (API)**
 
 // In Application/lightIndication/inc/lightIndication.h
+
 ```c
 #include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h>   // For uint32_t, uint8_t  
@@ -112,11 +113,13 @@ APP_Status_t LIGHTIND_SetState(LightInd_Id_t led_id, LightInd_State_t state, uin
  */  
 void LIGHTIND_MainFunction(void);
 ```
+
 ### **5.3. Internal Design**
 
 The LightInd module will manage the state and blinking logic for each configured LED.
 
 1. **Internal State**:  
+
    ```c
    // Structure to hold the state for each LED  
    typedef struct {  
@@ -130,6 +133,7 @@ The LightInd module will manage the state and blinking logic for each configured
    static LightInd_LedState_t s_led_states[LIGHT_IND_COUNT];  
    static bool s_is_initialized = false; // Module initialization status
    ```
+
    * All these variables will be initialized in LightInd_Init().  
 2. **Initialization (LightInd_Init)**:  
    * **Zeroing Variables**:  
@@ -184,6 +188,7 @@ The LightInd module will manage the state and blinking logic for each configured
        * If any RTE_Service_HAL_GPIO_SetState call fails during blinking, report FAULT_ID_LIGHTIND_GPIO_CONTROL_FAILURE to SystemMonitor.
 
 **Sequence Diagram (Example: System Status LED Blinking):**
+
 ```mermaid
 sequenceDiagram  
     participant RTE_DisplayAlarmTask as RTE Task  
@@ -214,11 +219,12 @@ sequenceDiagram
         end  
         alt HAL_GPIO_SetState fails  
             HAL_GPIO--xLightInd: Return E_NOK  
-            LightInd->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_LIGHTIND_GPIO_CONTROL_FAILURE, SEVERITY_LOW, ...)  
+            LightInd->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_LIGHTIND_GPIO_CONTROL_FAILURE,  ...)  
         end  
         LightInd-->>RTE_DisplayAlarmTask: Return  
     end
 ```
+
 ### **5.4. Dependencies**
 
 * Application/common/inc/common.h: For APP_Status_t, E_OK/E_NOK, and APP_COMMON_GetUptimeMs().  
@@ -241,6 +247,7 @@ The Application/lightIndication/cfg/lightIndication_cfg.h file will contain:
 
 * **LED GPIO Mappings**: An array of LightInd_LedConfig_t structures, mapping each LightInd_Id_t to its physical GPIO pin.  
 * **Periodic Update Rate**: LIGHTIND_UPDATE_PERIOD_MS: The frequency at which LIGHTIND_MainFunction() is called by RTE.
+
 ```c
 // Example: Application/lightIndication/cfg/lightIndication_cfg.h  
 #ifndef LIGHT_INDICATION_CFG_H  
@@ -279,6 +286,7 @@ const LightInd_LedConfig_t light_ind_configs[LIGHT_IND_COUNT] = {
 
 #endif // LIGHT_INDICATION_CFG_H
 ```
+
 ### **5.7. Resource Usage**
 
 * **Flash**: Low, for the module's code and the light_ind_configs array.  

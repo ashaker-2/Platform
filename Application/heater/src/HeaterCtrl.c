@@ -31,7 +31,7 @@ Status_t HeaterCtrl_Init(void)
     // s_heater_mutex = xSemaphoreCreateMutex();
     // if (s_heater_mutex == NULL) {
     //     LOGF("HeaterCtrl: Failed to create state mutex.");
-    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_HEATER_CONTROL_FAILED, SEVERITY_CRITICAL, 0);
+    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_HEATER_CONTROL_FAILED,  0);
     //     return E_NOK;
     // }
 
@@ -42,7 +42,7 @@ Status_t HeaterCtrl_Init(void)
     // // Initialize the GPIO pin connected to the heater relay
     // if (MCAL_GPIO_Init(config->gpio_pin, GPIO_MODE_OUTPUT) != E_OK) {
     //     LOGF("HeaterCtrl: GPIO init failed for heater pin %u.", config->gpio_pin);
-    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_HEATER_CONTROL_FAILED, SEVERITY_CRITICAL, config->id);
+    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_HEATER_CONTROL_FAILED,  config->id);
     //     xSemaphoreGive(s_heater_mutex);
     //     return E_NOK;
     // }
@@ -71,7 +71,7 @@ Status_t HeaterCtrl_SetState(HeaterCtrl_State_t state)
 
     // if (MCAL_GPIO_WritePin(config->gpio_pin, gpio_state) != E_OK) {
     //     LOGE("HeaterCtrl: Failed to set GPIO pin %u for heater.", config->gpio_pin);
-    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_HEATER_CONTROL_FAILED, SEVERITY_HIGH, config->id);
+    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_HEATER_CONTROL_FAILED,  config->id);
     //     xSemaphoreGive(s_heater_mutex);
     //     return E_NOK;
     // }

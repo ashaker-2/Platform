@@ -23,7 +23,7 @@ The scope of this document covers the SystemMonitor module's architecture, funct
 The SystemMonitor component provides the following core functionalities:
 
 1. **Initialization (SystemMonitor_Init)**: Initialize internal data structures for fault storage and system health metrics.  
-2. **Report Fault (SysMon_ReportFault)**: Receive fault notifications from other modules, classify them by severity and domain, and record them in an internal fault log.  
+2. **Report Fault (SysMon_ReportFaultStatus)**: Receive fault notifications from other modules, classify them by severity and domain, and record them in an internal fault log.  
 3. **Periodic Monitoring (SysMon_MainFunction)**: This is the module's primary periodic function. It is responsible for:  
    * Calculating and monitoring CPU load.  
    * Monitoring FreeRTOS task stack High Water Marks (HWM).  
@@ -37,7 +37,7 @@ The SystemMonitor component provides the following core functionalities:
 
 ### **3.1. Performance**
 
-* **Responsiveness (Fault Reporting)**: SysMon_ReportFault shall be highly responsive and non-blocking to ensure immediate fault capture.  
+* **Responsiveness (Fault Reporting)**: SysMon_ReportFaultStatus shall be highly responsive and non-blocking to ensure immediate fault capture.  
 * **Update Rate (Monitoring)**: SysMon_MainFunction shall execute frequently enough to provide timely monitoring of system health (defined by SysMon_MONITOR_PERIOD_MS).  
 * **Efficiency**: CPU load and stack monitoring shall have minimal overhead on system performance.
 
@@ -69,6 +69,7 @@ The SystemMonitor component will consist of the following files:
 ### **5.2. Public Interface (API)**
 
 // In Application/SystemMonitor/inc/system_monitor.h
+
 ```c
 #include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h>   // For uint32_t  
@@ -92,9 +93,9 @@ typedef enum {
 // Example Fault Severity  
 typedef enum {  
     SEVERITY_NONE,  
-    SEVERITY_LOW,      // Minor issue, informational  
-    SEVERITY_MEDIUM,   // Non-critical, but requires attention  
-    SEVERITY_HIGH,     // Critical, requires immediate action, might trigger fail-safe  
+          // Minor issue, informational  
+       // Non-critical, but requires attention  
+         // Critical, requires immediate action, might trigger fail-safe  
     SEVERITY_CRITICAL  // System-impacting, likely requires reboot or immediate shutdown  
 } SystemMonitor_FaultSeverity_t;
 
@@ -132,7 +133,7 @@ APP_Status_t SystemMonitor_Init(void);
  * @param data Optional data related to the fault (e.g., sensor ID, error code).  
  * @return E_OK on success, E_NOK if the fault could not be recorded.  
  */  
-APP_Status_t SysMon_ReportFault(SystemMonitor_FaultId_t fault_id,  
+APP_Status_t SysMon_ReportFaultStatus(SystemMonitor_FaultId_t fault_id,  
                                        SystemMonitor_FaultSeverity_t severity,  
                                        uint32_t data);
 
@@ -162,11 +163,13 @@ uint32_t SysMon_GetTotalMinFreeStack(void);
  */  
 APP_Status_t SysMon_GetFaultStatus(SystemMonitor_FaultStatus_t *status);
 ```
+
 ### **5.3. Internal Design**
 
 The SystemMonitor module will maintain internal data structures for active and historical faults, and variables for system health metrics. It will use FreeRTOS APIs to gather raw CPU and stack data.
 
 1. **Internal State**:  
+
    ```c
    // Circular buffer for historical faults  
    static SystemMonitor_FaultRecord_t s_historical_fault_log[SysMon_HISTORY_SIZE];  
@@ -184,6 +187,7 @@ The SystemMonitor module will maintain internal data structures for active and h
    // Mutex to protect access to internal fault logs and metrics  
    static SemaphoreHandle_t s_system_monitor_mutex;
    ```
+
    * SystemMonitor_Init() will initialize all these variables, create the mutex, and clear fault logs.  
 2. **Initialization (SystemMonitor_Init)**:  
    * Create s_system_monitor_mutex. If creation fails, log a critical error and return E_NOK.  
@@ -194,7 +198,7 @@ The SystemMonitor module will maintain internal data structures for active and h
    * Release mutex.  
    * Set s_is_initialized = true;.  
    * Return E_OK.  
-3. **Report Fault (SysMon_ReportFault)**:  
+3. **Report Fault (SysMon_ReportFaultStatus)**:  
    * If !s_is_initialized, return E_NOK.  
    * Acquire s_system_monitor_mutex.  
    * Validate fault_id and severity.  
@@ -210,8 +214,8 @@ The SystemMonitor module will maintain internal data structures for active and h
    * **CPU Load Calculation**: Use FreeRTOS API uxTaskGetSystemState() to get task statistics and calculate CPU load. Update s_current_cpu_load_percent.  
    * **Stack Usage Monitoring**: Iterate through all tasks (obtained via uxTaskGetSystemState()) and get their HWM using uxTaskGetStackHighWaterMark(). Calculate s_total_min_free_stack_bytes.  
    * **Threshold Evaluation**:  
-     * If s_current_cpu_load_percent exceeds SysMon_CPU_LOAD_THRESHOLD_PERCENT, call SysMon_ReportFault(FAULT_ID_CPU_OVERLOAD, SEVERITY_MEDIUM, s_current_cpu_load_percent).  
-     * If s_total_min_free_stack_bytes falls below SysMon_MIN_FREE_STACK_THRESHOLD_BYTES, call SysMon_ReportFault(FAULT_ID_STACK_OVERFLOW_RISK, SEVERITY_HIGH, s_total_min_free_stack_bytes).  
+     * If s_current_cpu_load_percent exceeds SysMon_CPU_LOAD_THRESHOLD_PERCENT, call SysMon_ReportFaultStatus(FAULT_ID_CPU_OVERLOAD,  s_current_cpu_load_percent).  
+     * If s_total_min_free_stack_bytes falls below SysMon_MIN_FREE_STACK_THRESHOLD_BYTES, call SysMon_ReportFaultStatus(FAULT_ID_STACK_OVERFLOW_RISK,  s_total_min_free_stack_bytes).  
      * (Future) Evaluate active faults and their severity. If a critical fault (SEVERITY_HIGH or CRITICAL) is active, call RTE_Service_SYS_MGR_SetFailSafeMode(true) to request systemMgr to enter fail-safe.  
    * **Periodic Logging**: Log current CPU load and stack usage using LOGI.  
    * Release mutex.  
@@ -222,6 +226,7 @@ The SystemMonitor module will maintain internal data structures for active and h
    * For SysMon_GetFaultStatus, ensure the status pointer is not NULL before copying data.
 
 **Sequence Diagram (Example: Module reports fault to SystemMonitor):**
+
 ```mermaid
 sequenceDiagram  
     participant TempSensor as Application/temperature  
@@ -230,8 +235,8 @@ sequenceDiagram
     participant Logger as Application/logger  
     participant FreeRTOS as FreeRTOS
 
-    TempSensor->>RTE: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_TEMP_SENSOR_FAILURE, SEVERITY_HIGH, Sensor_ID_X)  
-    RTE->>SystemMonitor: SysMon_ReportFault(FAULT_ID_TEMP_SENSOR_FAILURE, SEVERITY_HIGH, Sensor_ID_X)  
+    TempSensor->>RTE: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_TEMP_SENSOR_FAILURE,  Sensor_ID_X)  
+    RTE->>SystemMonitor: SysMon_ReportFaultStatus(FAULT_ID_TEMP_SENSOR_FAILURE,  Sensor_ID_X)  
     SystemMonitor->>FreeRTOS: xSemaphoreTake(s_system_monitor_mutex, portMAX_DELAY)  
     SystemMonitor->>SystemMonitor: Add fault to s_historical_fault_log  
     SystemMonitor->>SystemMonitor: Add/Update fault in s_active_faults  
@@ -249,6 +254,7 @@ sequenceDiagram
     end  
     SystemMonitor->>FreeRTOS: xSemaphoreGive(s_system_monitor_mutex)
 ```
+
 ### **5.4. Dependencies**
 
 * Application/common/inc/common.h: For APP_Status_t, APP_COMMON_GetUptimeMs().  
@@ -260,7 +266,7 @@ sequenceDiagram
 
 * **Initialization Failure**: If mutex creation fails, SystemMonitor_Init will return E_NOK.  
 * **Mutex Protection**: All access to internal state (s_historical_fault_log, s_active_faults, system metrics) is protected by s_system_monitor_mutex to ensure thread safety.  
-* **Input Validation**: SysMon_ReportFault validates fault_id and severity. SysMon_GetFaultStatus validates the input pointer.  
+* **Input Validation**: SysMon_ReportFaultStatus validates fault_id and severity. SysMon_GetFaultStatus validates the input pointer.  
 * **Fault Log Overflow**: The historical fault log uses a circular buffer. The active fault log has a fixed size; if it overflows, older active faults might be overwritten or new faults might be rejected, depending on the chosen strategy (overwriting is generally preferred for continuous operation).  
 * **Reporting to systemMgr**: SystemMonitor's primary "error handling" for critical issues is to report them to systemMgr via RTE, allowing systemMgr to take system-level corrective actions (e.g., fail-safe mode).
 
@@ -280,6 +286,7 @@ The Application/SystemMonitor/cfg/system_monitor_cfg.h file will contain:
   * SysMon_MONITOR_PERIOD_MS: The frequency at which SysMon_MainFunction() is called by SYS_MON_Task.
 
 // Example: Application/SystemMonitor/cfg/system_monitor_cfg.h
+
 ```c
 #ifndef SYSTEM_MONITOR_CFG_H  
 #define SYSTEM_MONITOR_CFG_H
@@ -351,6 +358,7 @@ typedef enum {
 
 #endif // SYSTEM_MONITOR_CFG_H
 ```
+
 ### **5.7. Resource Usage**
 
 * **Flash**: Low to moderate, depending on the size of the fault ID enum and configuration.  
@@ -364,7 +372,7 @@ typedef enum {
 * **Mock Dependencies**: Unit tests for SystemMonitor will mock FreeRTOS APIs (uxTaskGetSystemState, uxTaskGetStackHighWaterMark, mutex functions), APP_COMMON_GetUptimeMs(), LOGGER_Log(), and RTE_Service_SYS_MGR_SetFailSafeMode().  
 * **Test Cases**:  
   * SystemMonitor_Init: Verify mutex creation, log clearing, and variable initialization. Test initialization failure.  
-  * SysMon_ReportFault:  
+  * SysMon_ReportFaultStatus:  
     * Test reporting various fault IDs, severities, and data. Verify correct recording in historical and active logs.  
     * Test adding duplicate active faults (should update timestamp/data, not add new entry).  
     * Test active fault log overflow (verify behavior, e.g., oldest overwritten).  
@@ -372,7 +380,7 @@ typedef enum {
     * Test with invalid fault_id or severity.  
   * SysMon_MainFunction:  
     * Mock FreeRTOS APIs to simulate various CPU loads and stack usages. Verify s_current_cpu_load_percent and s_total_min_free_stack_bytes are updated correctly.  
-    * Test when CPU load/stack usage exceeds thresholds. Verify SysMon_ReportFault is called for FAULT_ID_CPU_OVERLOAD or FAULT_ID_STACK_OVERFLOW_RISK.  
+    * Test when CPU load/stack usage exceeds thresholds. Verify SysMon_ReportFaultStatus is called for FAULT_ID_CPU_OVERLOAD or FAULT_ID_STACK_OVERFLOW_RISK.  
     * Test when a critical fault is active in s_active_faults. Verify RTE_Service_SYS_MGR_SetFailSafeMode(true) is called.  
     * Verify periodic logging.  
   * SysMon_GetCPULoad, SysMon_GetTotalMinFreeStack: Verify they return the latest calculated values.  

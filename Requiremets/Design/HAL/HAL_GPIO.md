@@ -3,18 +3,23 @@
 ## 1. Introduction
 
 ### 1.1. Purpose  
+
 This document details the design of the HAL_GPIO component, which provides a hardware abstraction layer for General Purpose Input/Output (GPIO) pins. Its primary purpose is to offer a standardized, microcontroller-independent interface for configuring and controlling GPIO pins, abstracting the low-level register access and specific MCU details from higher layers.
 
 ### 1.2. Scope  
+
 The scope of this document covers the HAL_GPIO module's architecture, functional behavior, interfaces, dependencies, and resource considerations. It details how the HAL layer interacts with the underlying Microcontroller Abstraction Layer (MCAL) for GPIO operations.
 
 ### 1.3. References  
+
 - Software Architecture Document (SAD) - Environmental Monitoring & Control System (Final Version)  
 - MCAL GPIO Driver Specification (Conceptual, as it's the lower layer)  
 - MCU Datasheet / Reference Manual (for specific GPIO capabilities)
 
 ## 2. Functional Description  
+
 The HAL_GPIO component provides the following core functionalities:  
+
 - Pin Initialization: Configure individual GPIO pins for input or output, including pull-up/down resistors, drive strength, and initial state, based on a predefined configuration.  
 - Digital Output Control: Set the state (high/low) of GPIO pins configured as outputs.  
 - Digital Input Read: Read the current state (high/low) of GPIO pins configured as inputs.  
@@ -24,29 +29,36 @@ The HAL_GPIO component provides the following core functionalities:
 ## 3. Non-Functional Requirements
 
 ### 3.1. Performance  
+
 - Responsiveness: GPIO operations (setting/reading state) shall be highly responsive with minimal latency.  
 - Throughput: High-frequency toggling or reading operations shall be supported where hardware permits.
 
 ### 3.2. Memory  
+
 - Minimal Footprint: The HAL_GPIO code and data shall have a minimal memory footprint.  
 - Configuration Storage: Configuration data for pins shall be stored efficiently.
 
 ### 3.3. Reliability  
+
 - Robustness: The module shall handle invalid pin configurations or hardware access failures gracefully.  
 - Safety: Incorrect GPIO operations (e.g., writing to an input pin) shall be prevented or flagged as errors.
 
 ## 4. Architectural Context  
+
 As per the SAD (Section 3.1.2, HAL Layer), HAL_GPIO resides in the Hardware Abstraction Layer. It acts as an intermediary between Application/Service Layer components (via RTE services) and the MCAL_GPIO driver. HAL_GPIO translates generic GPIO requests into MCAL-specific calls.
 
 ## 5. Design Details
 
 ### 5.1. Module Structure  
+
 The HAL_GPIO component will consist of the following files:  
+
 - HAL/inc/hal_gpio.h: Public header file containing function prototypes, data types, and error codes.  
 - HAL/src/hal_gpio.c: Source file containing the implementation of the HAL_GPIO functions.  
 - HAL/cfg/hal_gpio_cfg.h: Configuration header for static pin definitions and initial settings.
 
 ### 5.2. Public Interface (API)  
+
 ```c
 // In HAL/inc/hal_gpio.h
 
@@ -142,6 +154,7 @@ The HAL_GPIO module will primarily act as a wrapper around the MCAL_GPIO functio
 **Initialization (HAL_GPIO_Init):**  
 This function will loop through the `hal_gpio_initial_config` array defined in `HAL/cfg/hal_gpio_cfg.h`.  
 For each entry in the array:  
+
 - Validate the `gpio_pin` against a predefined range.  
 - Translate `HAL_GPIO_Direction_t`, `HAL_GPIO_PullMode_t`, and `HAL_GPIO_State_t` into MCAL_GPIO specific enums/macros.  
 - Call `MCAL_GPIO_Init(mcal_pin, mcal_direction, mcal_pull, mcal_state)`.  
@@ -149,17 +162,20 @@ For each entry in the array:
 - If all pins are initialized successfully, return `E_OK`.  
 
 **Set State (HAL_GPIO_SetState, HAL_GPIO_ToggleState):**  
+
 - Validate `gpio_pin` and ensure it's configured as an output.  
 - Call `MCAL_GPIO_SetState(mcal_pin, mcal_state)`.  
 - If `MCAL_GPIO_SetState` returns an error, report `HAL_GPIO_STATE_ERROR` to SystemMonitor.  
 
 **Read State (HAL_GPIO_ReadState):**  
+
 - Validate `gpio_pin` and ensure it's configured as an input.  
 - Call `MCAL_GPIO_ReadState(mcal_pin, &mcal_state)`.  
 - Translate `mcal_state` back to `HAL_GPIO_State_t`.  
 - If `MCAL_GPIO_ReadState` returns an error, report `HAL_GPIO_STATE_ERROR` to SystemMonitor.  
 
 **Interrupt Configuration (HAL_GPIO_ConfigInterrupt, HAL_GPIO_EnableInterrupt, HAL_GPIO_DisableInterrupt):**  
+
 - Maintain an internal array or map to store `HAL_GPIO_InterruptCallback_t` functions indexed by `gpio_pin`.  
 - Validate `gpio_pin` and `trigger_type`.  
 - Translate `HAL_GPIO_InterruptTrigger_t` to MCAL_GPIO specific values.  
@@ -182,7 +198,7 @@ sequenceDiagram
         HAL_GPIO->>MCAL_GPIO: MCAL_GPIO_Init(pin, direction, pull, state)
         alt MCAL_GPIO_Init returns MCAL_ERROR
             MCAL_GPIO--xHAL_GPIO: Return MCAL_ERROR
-            HAL_GPIO->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_GPIO_CONFIG_FAILURE, SEVERITY_HIGH, pin)
+            HAL_GPIO->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_GPIO_CONFIG_FAILURE,  pin)
             HAL_GPIO--xRTE: Return E_NOK (after attempting all pins)
         else MCAL_GPIO_Init returns MCAL_OK
             MCAL_GPIO-->>HAL_GPIO: Return MCAL_OK
@@ -213,6 +229,7 @@ sequenceDiagram
 ### 5.6. Configuration
 
 The `HAL/cfg/hal_gpio_cfg.h` file will contain:  
+
 - Macros or enums for mapping logical pin names (e.g., `LED1_GPIO_PIN`) to physical MCU pin numbers.  
 - The `hal_gpio_initial_config` array, which defines the initial configuration for all GPIO pins used by the system.  
 - The size of the `hal_gpio_initial_config` array.  

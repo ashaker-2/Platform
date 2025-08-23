@@ -59,6 +59,7 @@ The HAL_PWM component will consist of the following files:
 * HAL/cfg/hal_pwm_cfg.h: Configuration header for static PWM channel definitions and initial settings.
 
 ### **5.2. Public Interface (API)**
+
 ```c
 // In HAL/inc/hal_pwm.h
 
@@ -147,6 +148,7 @@ The HAL_PWM module will primarily act as a wrapper around the MCAL_PWM functions
    * If the MCAL call returns an error, report HAL_PWM_CONTROL_FAILURE to SystemMonitor.
 
 **Sequence Diagram (Example: HAL_PWM_SetDutyCycle):**
+
 ```mermaid
 sequenceDiagram  
     participant App as Application Layer (e.g., Fan Control)  
@@ -161,7 +163,7 @@ sequenceDiagram
     HAL_PWM->>MCAL_PWM: MCAL_PWM_SetDutyCycle(MCAL_PWM_CHANNEL_FAN1, raw_duty_value)  
     alt MCAL_PWM_SetDutyCycle returns MCAL_ERROR  
         MCAL_PWM--xHAL_PWM: Return MCAL_ERROR  
-        HAL_PWM->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_PWM_DUTY_CYCLE_FAILURE, SEVERITY_LOW, ...)  
+        HAL_PWM->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_PWM_DUTY_CYCLE_FAILURE,  ...)  
         HAL_PWM--xRTE: Return E_NOK  
         RTE--xApp: Return E_NOK  
     else MCAL_PWM_SetDutyCycle returns MCAL_OK  
@@ -170,6 +172,7 @@ sequenceDiagram
         RTE-->>App: Return E_OK  
     end
 ```
+
 ### **5.4. Dependencies**
 
 * **Mcal/pwm/inc/mcal_pwm.h**: For calling low-level PWM driver functions.  
@@ -192,6 +195,7 @@ The HAL/cfg/hal_pwm_cfg.h file will contain:
 * Macros or enums for logical PWM channel IDs.  
 * The hal_pwm_initial_config array, which defines the initial configuration for all PWM channels used by the system.  
 * The size of the hal_pwm_initial_config array.
+
 ```c
 // Example: HAL/cfg/hal_pwm_cfg.h  
 #define PWM_CHANNEL_FAN_MAIN    HAL_PWM_CHANNEL_FAN1  
@@ -201,6 +205,7 @@ The HAL/cfg/hal_pwm_cfg.h file will contain:
 extern const HAL_PWM_Config_t hal_pwm_initial_config[];  
 extern const uint32_t hal_pwm_initial_config_size;
 ```
+
 ### **5.7. Resource Usage**
 
 * **Flash**: Moderate, depending on the number of API functions and the size of the hal_pwm_initial_config array.  

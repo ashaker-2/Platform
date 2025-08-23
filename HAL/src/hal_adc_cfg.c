@@ -10,7 +10,7 @@
  */
 
 #include "hal_adc_cfg.h" // Header for ADC configuration types and extern declarations
-#include "hal_cfg.h"   // Global hardware definitions (ADC channels like HW_ADC1_NTC_TEMP0_CHANNEL)
+#include "hal_cfg.h"     // Global hardware definitions (ADC channels like HW_ADC1_NTC_TEMP1_CHANNEL)
 #include <stddef.h>      // For size_t
 
 /**
@@ -20,11 +20,11 @@
  */
 const adc_channel_atten_cfg_t s_adc_channel_attenuations[] = {
     {
-        .channel = HW_ADC1_NTC_TEMP0_CHANNEL,
+        .channel = HW_ADC1_NTC_TEMP1_CHANNEL,
         .attenuation = ADC_NTC_ATTENUATION,
     },
     {
-        .channel = HW_ADC1_NTC_TEMP1_CHANNEL,
+        .channel = HW_ADC1_NTC_TEMP2_CHANNEL,
         .attenuation = ADC_NTC_ATTENUATION,
     },
     // Add other ADC1 channel configurations here if needed

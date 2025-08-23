@@ -27,8 +27,6 @@ static const char *TAG = "HAL_UART";
 Status_t HAL_UART_Init(void) {
     esp_err_t ret;
 
-    ESP_LOGI(TAG, "Applying UART configurations from HAL_UART_Cfg.c...");
-
     for (size_t i = 0; i < s_num_uart_configurations; i++) 
     {
         const uart_cfg_item_t *cfg_item = &s_uart_configurations[i];
@@ -36,7 +34,6 @@ Status_t HAL_UART_Init(void) {
         // Configure UART parameters
         ret = uart_param_config(cfg_item->uart_num, &cfg_item->config);
         if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "UART%d param config failed: %s", cfg_item->uart_num, esp_err_to_name(ret));
             return E_ERROR;
         }
 
@@ -47,7 +44,6 @@ Status_t HAL_UART_Init(void) {
                            cfg_item->rts_io_num,
                            cfg_item->cts_io_num);
         if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "UART%d pin set failed: %s", cfg_item->uart_num, esp_err_to_name(ret));
             return E_ERROR;
         }
 
@@ -59,12 +55,8 @@ Status_t HAL_UART_Init(void) {
                                   NULL, // No event queue handle needed if queue_size is 0
                                   0);   // No ISR flags
         if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "UART%d driver install failed: %s", cfg_item->uart_num, esp_err_to_name(ret));
             return E_ERROR;
         }
-
-        ESP_LOGD(TAG, "UART%d initialized: Baud=%ld, TX=%d, RX=%d",
-                 cfg_item->uart_num, cfg_item->config.baud_rate, cfg_item->tx_io_num, cfg_item->rx_io_num);
     }
 
     ESP_LOGI(TAG, "All UARTs initialized successfully.");

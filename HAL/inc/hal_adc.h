@@ -22,11 +22,11 @@ Status_t HAL_ADC_Init(void);
 
 /**
  * @brief Reads a raw ADC value from a specified ADC1 channel.
- * @param channel The ADC1 channel to read (e.g., HW_ADC1_NTC_TEMP0_CHANNEL from hal_cfg.h).
+ * @param channel The ADC1 channel to read (e.g., HW_ADC1_NTC_TEMP1_CHANNEL from hal_cfg.h).
  * @param raw_value_out Pointer to store the raw 12-bit ADC value (0-4095).
  * @return E_OK on success, or an error code.
  */
-Status_t HAL_ADC_ReadRaw(adc1_channel_t channel, int *raw_value_out);
+Status_t HAL_ADC_ReadRaw(adc1_channel_t channel, uint16_t *raw_value_out);
 
 // Note: For advanced usage like ADC calibration, refer to ESP-IDF's esp_adc_cal functions
 // as this typically lives at a higher layer than the raw HAL.

@@ -27,7 +27,7 @@ static Status_t power_transition_to_off(void);
 
 // --- Public Function Implementations ---
 
-Status_t Power_Init(void) 
+Status_t Power_Init(void)
 {
     // if (s_is_initialized) {
     //     return E_OK;
@@ -37,33 +37,33 @@ Status_t Power_Init(void)
     // memset(&s_last_consumption, 0, sizeof(Power_Consumption_t));
 
     // // Initialize the main power rail enable GPIO
-    // if (MCAL_GPIO_Init(POWER_MAIN_RAIL_ENABLE_GPIO_PIN, GPIO_MODE_OUTPUT) != E_OK) 
+    // if (MCAL_GPIO_Init(POWER_MAIN_RAIL_ENABLE_GPIO_PIN, GPIO_MODE_OUTPUT) != E_OK)
     // {
     //     LOGF("PowerMgr: Main rail GPIO init failed.");
-    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_INIT_FAILURE, SEVERITY_CRITICAL, 0);
+    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_INIT_FAILURE,  0);
     //     return E_NOK;
     // }
 
     // // Initialize ADC channels for voltage and current sensing
-    // if (MCAL_ADC_Init(POWER_VOLTAGE_ADC_UNIT) != E_OK || MCAL_ADC_Init(POWER_CURRENT_ADC_UNIT) != E_OK) 
+    // if (MCAL_ADC_Init(POWER_VOLTAGE_ADC_UNIT) != E_OK || MCAL_ADC_Init(POWER_CURRENT_ADC_UNIT) != E_OK)
     // {
     //     LOGF("PowerMgr: ADC unit init failed.");
-    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_INIT_FAILURE, SEVERITY_CRITICAL, 1);
+    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_INIT_FAILURE,  1);
     //     return E_NOK;
     // }
 
     // if (MCAL_ADC_ConfigChannel(POWER_VOLTAGE_ADC_UNIT, POWER_VOLTAGE_ADC_CHANNEL) != E_OK ||
-    //     MCAL_ADC_ConfigChannel(POWER_CURRENT_ADC_UNIT, POWER_CURRENT_ADC_CHANNEL) != E_OK) 
+    //     MCAL_ADC_ConfigChannel(POWER_CURRENT_ADC_UNIT, POWER_CURRENT_ADC_CHANNEL) != E_OK)
     //     {
     //     LOGF("PowerMgr: ADC channel config failed.");
-    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_INIT_FAILURE, SEVERITY_CRITICAL, 2);
+    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_INIT_FAILURE,  2);
     //     return E_NOK;
     // }
 
     // // Set initial power mode to ON
     // if (power_transition_to_on() != E_OK) {
     //     LOGF("PowerMgr: Initial transition to ON mode failed.");
-    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_INIT_FAILURE, SEVERITY_CRITICAL, 3);
+    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_INIT_FAILURE,  3);
     //     return E_NOK;
     // }
 
@@ -72,7 +72,7 @@ Status_t Power_Init(void)
     return E_OK;
 }
 
-Status_t PowerMgr_SetMode(Power_Mode_t mode) 
+Status_t PowerMgr_SetMode(Power_Mode_t mode)
 {
     // if (!s_is_initialized) {
     //     return E_NOK;
@@ -113,9 +113,9 @@ Status_t PowerMgr_SetMode(Power_Mode_t mode)
     return status;
 }
 
-Status_t PowerMgr_GetConsumption(Power_Consumption_t *consumption) 
+Status_t PowerMgr_GetConsumption(Power_Consumption_t *consumption)
 {
-    // if (consumption == NULL || !s_is_initialized) 
+    // if (consumption == NULL || !s_is_initialized)
     // {
     //     return E_NOK;
     // }
@@ -123,7 +123,7 @@ Status_t PowerMgr_GetConsumption(Power_Consumption_t *consumption)
     return E_OK;
 }
 
-void PowerMgr_MainFunction(void) 
+void PowerMgr_MainFunction(void)
 {
     // if (!s_is_initialized) {
     //     return;
@@ -140,12 +140,12 @@ void PowerMgr_MainFunction(void)
     // // Read raw ADC values
     // if (MCAL_ADC_ReadChannel(POWER_VOLTAGE_ADC_UNIT, POWER_VOLTAGE_ADC_CHANNEL, &raw_voltage) != E_OK) {
     //     LOGE("PowerMgr: Failed to read voltage ADC.");
-    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_ADC_READ_FAILURE, SEVERITY_MEDIUM, POWER_VOLTAGE_ADC_CHANNEL);
+    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_ADC_READ_FAILURE,  POWER_VOLTAGE_ADC_CHANNEL);
     //     status = E_NOK;
     // }
     // if (MCAL_ADC_ReadChannel(POWER_CURRENT_ADC_UNIT, POWER_CURRENT_ADC_CHANNEL, &raw_current) != E_OK) {
     //     LOGE("PowerMgr: Failed to read current ADC.");
-    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_ADC_READ_FAILURE, SEVERITY_MEDIUM, POWER_CURRENT_ADC_CHANNEL);
+    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_ADC_READ_FAILURE,  POWER_CURRENT_ADC_CHANNEL);
     //     status = E_NOK;
     // }
 
@@ -165,15 +165,15 @@ void PowerMgr_MainFunction(void)
 
     // // Threshold Check & Fault Reporting
     // if (s_last_consumption.current_mA > POWER_OVERCURRENT_THRESHOLD_MA) {
-    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_OVER_CURRENT, SEVERITY_HIGH, (uint32_t)s_last_consumption.current_mA);
+    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_OVER_CURRENT,  (uint32_t)s_last_consumption.current_mA);
     //     LOGW("PowerMgr: Overcurrent detected: %.1f mA", s_last_consumption.current_mA);
     // }
     // if (s_last_consumption.voltage_mV < POWER_UNDERVOLTAGE_THRESHOLD_MV) {
-    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_UNDER_VOLTAGE, SEVERITY_HIGH, (uint32_t)s_last_consumption.voltage_mV);
+    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_UNDER_VOLTAGE,  (uint32_t)s_last_consumption.voltage_mV);
     //     LOGW("PowerMgr: Undervoltage detected: %.1f mV", s_last_consumption.voltage_mV);
     // }
     // if (s_last_consumption.power_mW > POWER_OVERPOWER_THRESHOLD_MW) {
-    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_OVER_POWER, SEVERITY_HIGH, (uint32_t)s_last_consumption.power_mW);
+    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_POWER_OVER_POWER,  (uint32_t)s_last_consumption.power_mW);
     //     LOGW("PowerMgr: Overpower detected: %.1f mW", s_last_consumption.power_mW);
     // }
 
@@ -182,47 +182,52 @@ void PowerMgr_MainFunction(void)
 
 // --- Private Helper Function Implementations ---
 
-static Status_t power_transition_to_on(void) {
+static Status_t power_transition_to_on(void)
+{
     // Enable the main power rail
     // if (MCAL_GPIO_WritePin(POWER_MAIN_RAIL_ENABLE_GPIO_PIN, GPIO_STATE_HIGH) != E_OK) {
     //     return E_NOK;
     // }
     // // Disable any wake-up sources
     // MCAL_GPIO_Deinit(POWER_WAKEUP_BUTTON_GPIO_PIN); // Assuming a simple de-init for now
-    
+
     // In a real system, more peripherals would be enabled here
     return E_OK;
 }
 
-static Status_t power_transition_to_sleep(void) {
+static Status_t power_transition_to_sleep(void)
+{
     // Configure wake-up sources
     // if (MCAL_GPIO_Init(POWER_WAKEUP_BUTTON_GPIO_PIN, GPIO_MODE_INPUT_IT_RISING) != E_OK) {
     //     return E_NOK;
     // }
-    
+
     // Disable non-essential peripherals/power rails here
     // ...
-    
+
     // Enter low-power sleep mode
     // Note: This function would typically not return until a wake-up event occurs
     // A placeholder call is used here for conceptual purposes
     // MCAL_MCU_EnterSleepMode();
-    
+
     // LOGW("PowerMgr: System entering Sleep mode.");
     return E_OK;
 }
 
-static Status_t power_transition_to_off(void) {
+static Status_t power_transition_to_off(void)
+{
     // Disable all power rails
     // MCAL_GPIO_WritePin(POWER_MAIN_RAIL_ENABLE_GPIO_PIN, GPIO_STATE_LOW);
-    
+
     // In a real system, you might save state to NVM here before shutting down
     // RTE_Service_Nvm_WriteParam(...);
-    
+
     // Call low-level MCU shutdown function (this function likely won't return)
     // MCAL_MCU_Shutdown();
-    
+
     // LOGW("PowerMgr: System entering OFF mode. Halting execution.");
-    while(1) {} // The MCU is effectively off, but for simulation, we'll halt
+    while (1)
+    {
+    } // The MCU is effectively off, but for simulation, we'll halt
     return E_OK;
 }

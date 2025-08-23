@@ -191,7 +191,7 @@ sequenceDiagram
     HAL_ADC->>MCAL_ADC: MCAL_ADC_ReadChannel(MCAL_ADC_UNIT_0, MCAL_ADC_CHANNEL_TEMP, &value)
     alt MCAL_ADC_ReadChannel returns MCAL_ERROR
         MCAL_ADC--xHAL_ADC: Return MCAL_ERROR
-        HAL_ADC->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_ADC_CONVERSION_ERROR, SEVERITY_LOW, ...)
+        HAL_ADC->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_ADC_CONVERSION_ERROR,  ...)
         HAL_ADC--xRTE: Return E_NOK
         RTE--xApp: Return E_NOK
     else MCAL_ADC_ReadChannel returns MCAL_OK
@@ -266,13 +266,13 @@ extern const uint32_t hal_adc_initial_config_size;
 
 * **Test Cases**:
 
-    * `HAL_ADC_Init`: Test with a valid `hal_adc_initial_config` array. Verify `MCAL_ADC_Init` and `MCAL_ADC_ConfigChannel` calls. Test scenarios where MCAL calls fail (verify `E_NOK` return and `SystemMonitor` fault reporting).
+  * `HAL_ADC_Init`: Test with a valid `hal_adc_initial_config` array. Verify `MCAL_ADC_Init` and `MCAL_ADC_ConfigChannel` calls. Test scenarios where MCAL calls fail (verify `E_NOK` return and `SystemMonitor` fault reporting).
 
-    * `HAL_ADC_ReadChannel`: Test valid/invalid unit/channel. Verify correct `MCAL_ADC_ReadChannel` calls and return values. Test error propagation from MCAL.
+  * `HAL_ADC_ReadChannel`: Test valid/invalid unit/channel. Verify correct `MCAL_ADC_ReadChannel` calls and return values. Test error propagation from MCAL.
 
-    * `HAL_ADC_Calibrate`: Test valid/invalid unit. Verify `MCAL_ADC_Calibrate` call and error propagation.
+  * `HAL_ADC_Calibrate`: Test valid/invalid unit. Verify `MCAL_ADC_Calibrate` call and error propagation.
 
-    * Error reporting: Verify that `RTE_Service_SystemMonitor_ReportFault()` is called with the correct fault ID on various error conditions.
+  * Error reporting: Verify that `RTE_Service_SystemMonitor_ReportFault()` is called with the correct fault ID on various error conditions.
 
 ### 6.2. Integration Testing
 
@@ -292,6 +292,6 @@ extern const uint32_t hal_adc_initial_config_size;
 
 * **Power Modes**: Ensure ADC behaves correctly during power mode transitions (e.g., low-power states, re-initialization on wake-up).
 
- * @return E_OK on success, E_NOK on failure.
+* @return E_OK on success, E_NOK on failure.
  */
 APP_Status_t HAL_ADC_Calibrate(HAL_ADC_Unit_t unit);

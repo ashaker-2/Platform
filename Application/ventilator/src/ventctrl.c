@@ -24,13 +24,14 @@ static uint8_t s_actual_speeds_percent[VentCtrl_COUNT];
 static bool s_is_initialized = false;
 
 // --- Private Helper Function Prototypes ---
-static Status_t VentCtrl_ApplyControl(const VentCtrl_Config_t* config, VentCtrl_State_t state, uint8_t speed);
-static Status_t VentCtrl_ReadFeedback(const VentCtrl_Config_t* config, uint8_t* actual_speed);
-static Status_t VentCtrl_ConvertTachometerToSpeed(uint32_t pulse_count, uint8_t* speed_percent);
+static Status_t VentCtrl_ApplyControl(const VentCtrl_Config_t *config, VentCtrl_State_t state, uint8_t speed);
+static Status_t VentCtrl_ReadFeedback(const VentCtrl_Config_t *config, uint8_t *actual_speed);
+static Status_t VentCtrl_ConvertTachometerToSpeed(uint32_t pulse_count, uint8_t *speed_percent);
 
 // --- Public Function Implementations ---
 
-Status_t VentCtrl_Init(void) {
+Status_t VentCtrl_Init(void)
+{
     // if (s_is_initialized) {
     //     return E_OK;
     // }
@@ -56,16 +57,16 @@ Status_t VentCtrl_Init(void) {
     //             break;
     //         default:
     //             LOGE("VentCtrl: Unknown ventilator type for ID %lu", config->id);
-    //             RTE_Service_SystemMonitor_ReportFault(FAULT_ID_VENTILATOR_INIT_FAILED, SEVERITY_HIGH, config->id);
+    //             RTE_Service_SystemMonitor_ReportFault(FAULT_ID_VENTILATOR_INIT_FAILED,  config->id);
     //             return E_NOK;
     //     }
 
     //     if (status != E_OK) {
     //         LOGE("VentCtrl: Control interface init failed for ID %lu", config->id);
-    //         RTE_Service_SystemMonitor_ReportFault(FAULT_ID_VENTILATOR_INIT_FAILED, SEVERITY_HIGH, config->id);
+    //         RTE_Service_SystemMonitor_ReportFault(FAULT_ID_VENTILATOR_INIT_FAILED,  config->id);
     //         return E_NOK;
     //     }
-        
+
     //     // Initialize feedback interface (if configured)
     //     if (config->feedback_type != VentCtrl_FEEDBACK_TYPE_NONE) {
     //         status = E_NOK;
@@ -83,7 +84,7 @@ Status_t VentCtrl_Init(void) {
     //         if (status != E_OK) {
     //             LOGW("VentCtrl: Feedback interface init failed for ID %lu", config->id);
     //             // Report a medium severity fault as the ventilator might still be controllable
-    //             RTE_Service_SystemMonitor_ReportFault(FAULT_ID_VENTILATOR_FEEDBACK_FAILURE, SEVERITY_MEDIUM, config->id);
+    //             RTE_Service_SystemMonitor_ReportFault(FAULT_ID_VENTILATOR_FEEDBACK_FAILURE,  config->id);
     //         }
     //     }
     // }
@@ -93,7 +94,7 @@ Status_t VentCtrl_Init(void) {
     return E_OK;
 }
 
-Status_t VentCtrl_SetState(uint32_t actuatorId, VentCtrl_State_t state, uint8_t speed_percent) 
+Status_t VentCtrl_SetState(uint32_t actuatorId, VentCtrl_State_t state, uint8_t speed_percent)
 {
     // if (!s_is_initialized) {
     //     LOGW("VentCtrl: SetState called before initialization.");
@@ -109,7 +110,7 @@ Status_t VentCtrl_SetState(uint32_t actuatorId, VentCtrl_State_t state, uint8_t 
     //     LOGE("VentCtrl: Invalid state %u for actuatorId %lu", state, actuatorId);
     //     return E_NOK;
     // }
-    
+
     // if (speed_percent > VentCtrl_MAX_PWM_SPEED_PERCENT) {
     //     speed_percent = VentCtrl_MAX_PWM_SPEED_PERCENT;
     //     LOGW("VentCtrl: Clamping speed_percent to max for actuatorId %lu", actuatorId);
@@ -122,7 +123,7 @@ Status_t VentCtrl_SetState(uint32_t actuatorId, VentCtrl_State_t state, uint8_t 
     return E_OK;
 }
 
-Status_t VentCtrl_GetState(uint32_t actuatorId, VentCtrl_State_t *state, uint8_t *speed_percent) 
+Status_t VentCtrl_GetState(uint32_t actuatorId, VentCtrl_State_t *state, uint8_t *speed_percent)
 {
     // if (!s_is_initialized || state == NULL || speed_percent == NULL) {
     //     LOGE("VentCtrl: GetState called with NULL pointer or before initialization.");
@@ -139,38 +140,39 @@ Status_t VentCtrl_GetState(uint32_t actuatorId, VentCtrl_State_t *state, uint8_t
     return E_OK;
 }
 
-void VentCtrl_MainFunction(void) {
+void VentCtrl_MainFunction(void)
+{
     // if (!s_is_initialized) {
     //     return;
     // }
-    
+
     // for (uint32_t i = 0; i < VentCtrl_COUNT; i++) {
     //     const VentCtrl_Config_t* config = &vent_configs[i];
-        
+
     //     // 1. Apply commanded state/speed to hardware
     //     if (VentCtrl_ApplyControl(config, s_commanded_states[i], s_commanded_speeds_percent[i]) != E_OK) {
-    //         RTE_Service_SystemMonitor_ReportFault(FAULT_ID_VENTILATOR_CONTROL_FAILED, SEVERITY_HIGH, config->id);
+    //         RTE_Service_SystemMonitor_ReportFault(FAULT_ID_VENTILATOR_CONTROL_FAILED,  config->id);
     //         LOGE("VentCtrl: Control failed for actuator ID %lu", config->id);
     //         // On failure, set actual state to off
     //         s_actual_states[i] = VentCtrl_STATE_OFF;
     //         s_actual_speeds_percent[i] = 0;
     //         continue; // Move to next ventilator
     //     }
-        
+
     //     // 2. Read feedback (if configured)
     //     uint8_t actual_speed = 0;
     //     if (config->feedback_type != VentCtrl_FEEDBACK_TYPE_NONE) {
     //         if (VentCtrl_ReadFeedback(config, &actual_speed) != E_OK) {
-    //             RTE_Service_SystemMonitor_ReportFault(FAULT_ID_VENTILATOR_FEEDBACK_FAILURE, SEVERITY_MEDIUM, config->id);
+    //             RTE_Service_SystemMonitor_ReportFault(FAULT_ID_VENTILATOR_FEEDBACK_FAILURE,  config->id);
     //             LOGW("VentCtrl: Feedback read failed for actuator ID %lu", config->id);
     //         } else {
     //             // 3. Compare commanded vs. actual (only if feedback is available)
     //             if (s_commanded_states[i] == VentCtrl_STATE_ON && actual_speed < VentCtrl_MIN_OPERATIONAL_SPEED) {
-    //                 RTE_Service_SystemMonitor_ReportFault(FAULT_ID_VENTILATOR_FEEDBACK_MISMATCH, SEVERITY_MEDIUM, config->id);
+    //                 RTE_Service_SystemMonitor_ReportFault(FAULT_ID_VENTILATOR_FEEDBACK_MISMATCH,  config->id);
     //                 LOGW("VentCtrl: Feedback mismatch for actuator ID %lu. Commanded ON, but actual speed is %u%%", config->id, actual_speed);
     //                 s_actual_states[i] = VentCtrl_STATE_OFF;
     //             } else if (s_commanded_states[i] == VentCtrl_STATE_OFF && actual_speed > VentCtrl_MIN_OPERATIONAL_SPEED) {
-    //                 RTE_Service_SystemMonitor_ReportFault(FAULT_ID_VENTILATOR_FEEDBACK_MISMATCH, SEVERITY_MEDIUM, config->id);
+    //                 RTE_Service_SystemMonitor_ReportFault(FAULT_ID_VENTILATOR_FEEDBACK_MISMATCH,  config->id);
     //                 LOGW("VentCtrl: Feedback mismatch for actuator ID %lu. Commanded OFF, but actual speed is %u%%", config->id, actual_speed);
     //                 s_actual_states[i] = VentCtrl_STATE_ON;
     //             } else {
@@ -188,7 +190,8 @@ void VentCtrl_MainFunction(void) {
 
 // --- Private Helper Function Implementations ---
 
-static Status_t VentCtrl_ApplyControl(const VentCtrl_Config_t* config, VentCtrl_State_t state, uint8_t speed) {
+static Status_t VentCtrl_ApplyControl(const VentCtrl_Config_t *config, VentCtrl_State_t state, uint8_t speed)
+{
     // if (state == VentCtrl_STATE_OFF) {
     //     speed = 0;
     // }
@@ -205,7 +208,7 @@ static Status_t VentCtrl_ApplyControl(const VentCtrl_Config_t* config, VentCtrl_
     return E_NOK;
 }
 
-static Status_t VentCtrl_ReadFeedback(const VentCtrl_Config_t* config, uint8_t* actual_speed) 
+static Status_t VentCtrl_ReadFeedback(const VentCtrl_Config_t *config, uint8_t *actual_speed)
 {
     // uint32_t raw_data = 0;
     Status_t status = E_NOK;

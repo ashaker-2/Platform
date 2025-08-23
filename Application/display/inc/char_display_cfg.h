@@ -1,15 +1,36 @@
-// app/inc/character_display_config.h
+/* ============================================================================
+ * SOURCE FILE: char_display_cfg.h
+ * ============================================================================*/
+/**
+ * @file char_display_cfg.h
+ * @brief Configuration definitions for the character display module.
+ *
+ * This file declares the structure and external configuration constant
+ * for the character LCD display's GPIO pin assignments.
+ */
 
-#ifndef CHARACTER_DISPLAY_CONFIG_H
-#define CHARACTER_DISPLAY_CONFIG_H
+#ifndef CHAR_DISPLAY_CFG_H
+#define CHAR_DISPLAY_CFG_H
 
-#include <stdint.h>
-#include "character_display.h" // Includes CHARACTER_DISPLAY_Config_t definition
+#include "driver/gpio.h" // Required for gpio_num_t type
 
-// Declare the external constant array defined in character_display_config.c
-extern const CHARACTER_DISPLAY_Config_t character_display_configurations[];
+/**
+ * @brief Structure to hold the GPIO pin assignments for the character display.
+ */
+typedef struct {
+    gpio_num_t rs_pin;  ///< Register Select pin
+    gpio_num_t e_pin;   ///< Enable pin
+    gpio_num_t db4_pin; ///< Data Bus 4 pin
+    gpio_num_t db5_pin; ///< Data Bus 5 pin
+    gpio_num_t db6_pin; ///< Data Bus 6 pin
+    gpio_num_t db7_pin; ///< Data Bus 7 pin
+} char_display_cfg_t;
 
-// Declare the external constant for the number of configurations
-extern const uint32_t CHARACTER_DISPLAY_NUM_CONFIGURATIONS;
+/**
+ * @brief External declaration of the character display configuration.
+ * This constant is defined in char_display_cfg.c and holds the specific
+ * GPIO pin assignments for your display.
+ */
+extern const char_display_cfg_t s_char_display_config;
 
-#endif /* CHARACTER_DISPLAY_CONFIG_H */
+#endif /* CHAR_DISPLAY_CFG_H */

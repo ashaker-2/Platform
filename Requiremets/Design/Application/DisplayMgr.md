@@ -62,6 +62,7 @@ The Display component will consist of the following files:
 ### **5.2. Public Interface (API)**
 
 // In Application/display/inc/display.h
+
 ```c
 #include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h>   // For uint32_t, uint8_t  
@@ -132,11 +133,13 @@ APP_Status_t DisplayMgr_SetSetpointContext(uint32_t function_id, int32_t setpoin
  */  
 void DisplayMgr_MainFunction(void);
 ```
+
 ### **5.3. Internal Design**
 
 The Display module will manage its own internal state, including the current display mode, and will format data retrieved from systemMgr before sending it to the LCD driver via HAL.
 
 1. **Internal State**:
+
    ```c  
    static Display_Mode_t s_current_display_mode = DisplayMgr_MODE_VERSION;  
    static uint32_t s_last_mode_change_time_ms = 0; // For alternating displays  
@@ -144,6 +147,7 @@ The Display module will manage its own internal state, including the current dis
    static int32_t s_current_setpoint_value = 0;       // For setpoint config mode  
    static bool s_is_initialized = false;
    ```
+
    * All these variables will be initialized in Display_Init().  
 2. **Initialization (Display_Init)**:  
    * Initialize internal state variables.  
@@ -196,6 +200,7 @@ The Display module will manage its own internal state, including the current dis
    * This function is primarily used by systemMgr or diagnostic when entering/exiting a configuration flow.
 
 **Sequence Diagram (Example: Displaying Temperature/Humidity):**
+
 ```mermaid
 sequenceDiagram  
     participant RTE_DisplayAlarmTask as RTE Task  
@@ -218,10 +223,11 @@ sequenceDiagram
     HAL_LCD-->>Display: Return E_OK  
     alt HAL_LCD_WriteString or HAL_LCD_UpdateDisplay fails  
         HAL_LCD--xDisplay: Return E_NOK  
-        Display->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_DisplayMgr_COMM_ERROR, SEVERITY_LOW, ...)  
+        Display->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_DisplayMgr_COMM_ERROR,  ...)  
     end  
     Display-->>RTE_DisplayAlarmTask: Return E_OK
 ```
+
 ### **5.4. Dependencies**
 
 * common.h: For APP_Status_t, E_OK/E_NOK, and APP_COMMON_GetUptimeMs().  
@@ -241,6 +247,7 @@ sequenceDiagram
 ### **5.6. Configuration**
 
 The Application/display/cfg/display_cfg.h file will contain:
+
 ```c
 /* DisplayMgr_LCD_ROWS, DisplayMgr_LCD_COLUMNS: Dimensions of the LCD.  
 * DisplayMgr_VERSION_SHOW_TIME_MS: How long the version number is displayed on startup.  
@@ -268,6 +275,7 @@ The Application/display/cfg/display_cfg.h file will contain:
 
 #endif // DisplayMgr_CFG_H
 ```
+
 ### **5.7. Resource Usage**
 
 * **Flash**: Moderate, for content formatting logic, string handling, and various display modes.  

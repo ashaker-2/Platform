@@ -21,13 +21,14 @@ static PumpCtrl_State_t s_actual_states[PumpCtrl_COUNT];
 static bool s_is_initialized = false;
 
 // --- Private Helper Function Prototypes ---
-static Status_t PumpCtrl_ApplyControl(const PumpCtrl_Config_t* config, PumpCtrl_State_t state);
-static Status_t PumpCtrl_ReadFeedback(const PumpCtrl_Config_t* config, PumpCtrl_State_t* actual_state);
+static Status_t PumpCtrl_ApplyControl(const PumpCtrl_Config_t *config, PumpCtrl_State_t state);
+static Status_t PumpCtrl_ReadFeedback(const PumpCtrl_Config_t *config, PumpCtrl_State_t *actual_state);
 
 // --- Public Function Implementations ---
 
-Status_t PumpCtrl_Init(void) {
-    // if (s_is_initialized) 
+Status_t PumpCtrl_Init(void)
+{
+    // if (s_is_initialized)
     // {
     //     return E_OK;
     // }
@@ -48,16 +49,16 @@ Status_t PumpCtrl_Init(void) {
     //             break;
     //         default:
     //             LOGE("PumpCtrl: Unknown pump type for ID %lu", config->id);
-    //             RTE_Service_SystemMonitor_ReportFault(FAULT_ID_PUMP_INIT_FAILED, SEVERITY_HIGH, config->id);
+    //             RTE_Service_SystemMonitor_ReportFault(FAULT_ID_PUMP_INIT_FAILED,  config->id);
     //             return E_NOK;
     //     }
 
     //     if (status != E_OK) {
     //         LOGE("PumpCtrl: Control interface init failed for ID %lu", config->id);
-    //         RTE_Service_SystemMonitor_ReportFault(FAULT_ID_PUMP_INIT_FAILED, SEVERITY_HIGH, config->id);
+    //         RTE_Service_SystemMonitor_ReportFault(FAULT_ID_PUMP_INIT_FAILED,  config->id);
     //         return E_NOK;
     //     }
-        
+
     //     // Initialize feedback interface (if configured)
     //     if (config->feedback_type != PumpCtrl_FEEDBACK_TYPE_NONE) {
     //         status = E_NOK;
@@ -75,7 +76,7 @@ Status_t PumpCtrl_Init(void) {
     //         }
     //         if (status != E_OK) {
     //             LOGW("PumpCtrl: Feedback interface init failed for ID %lu", config->id);
-    //             RTE_Service_SystemMonitor_ReportFault(FAULT_ID_PUMP_FEEDBACK_FAILURE, SEVERITY_MEDIUM, config->id);
+    //             RTE_Service_SystemMonitor_ReportFault(FAULT_ID_PUMP_FEEDBACK_FAILURE,  config->id);
     //         }
     //     }
     // }
@@ -85,35 +86,35 @@ Status_t PumpCtrl_Init(void) {
     return E_OK;
 }
 
-Status_t PumpCtrl_SetState(uint32_t actuatorId, PumpCtrl_State_t state) 
+Status_t PumpCtrl_SetState(uint32_t actuatorId, PumpCtrl_State_t state)
 {
-    // if (!s_is_initialized) 
+    // if (!s_is_initialized)
     // {
     //     LOGW("PumpCtrl: SetState called before initialization.");
     //     return E_NOK;
     // }
 
-    // if (actuatorId >= PumpCtrl_COUNT) 
+    // if (actuatorId >= PumpCtrl_COUNT)
     // {
     //     LOGE("PumpCtrl: Invalid actuatorId %lu", actuatorId);
     //     return E_NOK;
     // }
 
-    // if (state >= PumpCtrl_STATE_COUNT) 
+    // if (state >= PumpCtrl_STATE_COUNT)
     // {
     //     LOGE("PumpCtrl: Invalid state %u for actuatorId %lu", state, actuatorId);
     //     return E_NOK;
     // }
-    
+
     // s_commanded_states[actuatorId] = state;
 
     // LOGD("PumpCtrl: Actuator %lu commanded to state %s", actuatorId, (state == PumpCtrl_STATE_ON) ? "ON" : "OFF");
     return E_OK;
 }
 
-Status_t PumpCtrl_GetState(uint32_t actuatorId, PumpCtrl_State_t *state) 
+Status_t PumpCtrl_GetState(uint32_t actuatorId, PumpCtrl_State_t *state)
 {
-    // if (!s_is_initialized || state == NULL) 
+    // if (!s_is_initialized || state == NULL)
     // {
     //     LOGE("PumpCtrl: GetState called with NULL pointer or before initialization.");
     //     return E_NOK;
@@ -128,35 +129,35 @@ Status_t PumpCtrl_GetState(uint32_t actuatorId, PumpCtrl_State_t *state)
     return E_OK;
 }
 
-void PumpCtrl_MainFunction(void) 
+void PumpCtrl_MainFunction(void)
 {
-    // if (!s_is_initialized) 
+    // if (!s_is_initialized)
     // {
     //     return;
     // }
-    
+
     // for (uint32_t i = 0; i < PumpCtrl_COUNT; i++) {
     //     const PumpCtrl_Config_t* config = &pump_configs[i];
-        
+
     //     // 1. Apply commanded state to hardware
     //     if (PumpCtrl_ApplyControl(config, s_commanded_states[i]) != E_OK) {
-    //         RTE_Service_SystemMonitor_ReportFault(FAULT_ID_PUMP_CONTROL_FAILED, SEVERITY_HIGH, config->id);
+    //         RTE_Service_SystemMonitor_ReportFault(FAULT_ID_PUMP_CONTROL_FAILED,  config->id);
     //         LOGE("PumpCtrl: Control failed for actuator ID %lu", config->id);
     //         // On failure, set actual state to off
     //         s_actual_states[i] = PumpCtrl_STATE_OFF;
     //         continue; // Move to next pump
     //     }
-        
+
     //     // 2. Read feedback (if configured)
     //     PumpCtrl_State_t actual_state_feedback = PumpCtrl_STATE_OFF;
     //     if (config->feedback_type != PumpCtrl_FEEDBACK_TYPE_NONE) {
     //         if (PumpCtrl_ReadFeedback(config, &actual_state_feedback) != E_OK) {
-    //             RTE_Service_SystemMonitor_ReportFault(FAULT_ID_PUMP_FEEDBACK_FAILURE, SEVERITY_MEDIUM, config->id);
+    //             RTE_Service_SystemMonitor_ReportFault(FAULT_ID_PUMP_FEEDBACK_FAILURE,  config->id);
     //             LOGW("PumpCtrl: Feedback read failed for actuator ID %lu", config->id);
     //         } else {
     //             // 3. Compare commanded vs. actual
     //             if (s_commanded_states[i] != actual_state_feedback) {
-    //                 RTE_Service_SystemMonitor_ReportFault(FAULT_ID_PUMP_FEEDBACK_MISMATCH, SEVERITY_MEDIUM, config->id);
+    //                 RTE_Service_SystemMonitor_ReportFault(FAULT_ID_PUMP_FEEDBACK_MISMATCH,  config->id);
     //                 LOGW("PumpCtrl: Feedback mismatch for actuator ID %lu. Commanded: %s, Actual: %s",
     //                      config->id,
     //                      (s_commanded_states[i] == PumpCtrl_STATE_ON) ? "ON" : "OFF",
@@ -173,7 +174,8 @@ void PumpCtrl_MainFunction(void)
 
 // --- Private Helper Function Implementations ---
 
-static Status_t PumpCtrl_ApplyControl(const PumpCtrl_Config_t* config, PumpCtrl_State_t state) {
+static Status_t PumpCtrl_ApplyControl(const PumpCtrl_Config_t *config, PumpCtrl_State_t state)
+{
     // switch (config->type) {
     //     case PumpCtrl_TYPE_RELAY:
     //         return MCAL_GPIO_WritePin(config->control_details.relay_gpio_pin, (state == PumpCtrl_STATE_ON) ? GPIO_STATE_HIGH : GPIO_STATE_LOW);
@@ -183,7 +185,8 @@ static Status_t PumpCtrl_ApplyControl(const PumpCtrl_Config_t* config, PumpCtrl_
     return E_NOK;
 }
 
-static Status_t PumpCtrl_ReadFeedback(const PumpCtrl_Config_t* config, PumpCtrl_State_t* actual_state) {
+static Status_t PumpCtrl_ReadFeedback(const PumpCtrl_Config_t *config, PumpCtrl_State_t *actual_state)
+{
     // uint32_t raw_data = 0;
     // Status_t status = E_NOK;
     // float current_flow = 0.0f;

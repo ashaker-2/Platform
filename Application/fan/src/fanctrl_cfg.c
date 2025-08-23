@@ -1,34 +1,53 @@
-// app/src/fanctrl_cfg.c
+/* ============================================================================
+ * SOURCE FILE: Application/fanCtrl/src/fan_ctrl_cfg.c
+ * ============================================================================*/
+/**
+ * @file fan_ctrl_cfg.c
+ * @brief Implements the static array of Fan Control configuration settings.
+ *
+ * This file defines specific GPIO pins or CH423S expander pins used to control
+ * each fan and their initial states.
+ */
 
-#include "fanctrl_cfg.h"
+#include "fanctrl_cfg.h"   // Header for fan configuration types and extern declarations
+#include "hal_cfg.h"     // Global hardware definitions for CH423S/GPIO pins
+#include <stddef.h>         // For size_t
 
-
-
-// Fan configurations array definition
-const FAN_Config_t fan_configurations[] = {
-    // FAN_MOTOR_1 (PWM Controlled Fan)
+/**
+ * @brief Array containing all predefined fan configurations.
+ * Each element in this array maps a logical Fan_ID to its control type
+ * and the specific pin (GPIO or CH423S GP) for control.
+ */
+const fan_config_item_t s_fan_configurations[] = {
     {
-        .fan_type               = FAN_TYPE_PWM,
-        .control_gpio_id        = 0,     // Not used as primary control for this type
-        .has_aux_gpio_control   = 0, // No separate enable GPIO for this PWM fan
-        .on_off_gpio_active_state = 1,    // Not applicable for PWM type (can be ignored)
-        .pwm_channel_id         = 1,     // This should correspond to an ID defined in ecual_pwm_config.h
-        .min_speed_duty_percent = 20,    // Fan starts spinning reliably at 20% PWM duty
-        .max_speed_duty_percent = 90     // Max desired speed at 90% PWM duty (to reduce noise perhaps)
+        .fan_id = FAN_ID_1,
+        .control_type = FAN_CONTROL_TYPE_IO_EXPANDER,
+        .pinNum = HW_CH423S_GP_FAN_1, // Controlled by CH423S
+        .initial_state = FAN_STATE_OFF,
     },
-    // FAN_COOLING_FAN (ON/OFF Fan)
     {
-        .fan_type               = FAN_TYPE_ON_OFF,
-        .control_gpio_id        = 1,     // GPIO ID for the ON/OFF control
-        .has_aux_gpio_control   = 0, // No aux GPIO control for this type
-        .on_off_gpio_active_state = 1,    // HIGH state means fan is ON
-        .pwm_channel_id         = 0,     // Not applicable for ON/OFF type
-        .min_speed_duty_percent = 0,     // Not applicable for ON/OFF type
-        .max_speed_duty_percent = 0      // Not applicable for ON/OFF type
-    }
-    // Add more fan configurations here if needed
+        .fan_id = FAN_ID_2,
+        .control_type = FAN_CONTROL_TYPE_IO_EXPANDER,
+        .pinNum = HW_CH423S_GP_FAN_2, // Controlled by CH423S
+        .initial_state = FAN_STATE_OFF,
+    },
+    {
+        .fan_id = FAN_ID_3,
+        .control_type = FAN_CONTROL_TYPE_IO_EXPANDER,
+        .pinNum = HW_CH423S_GP_FAN_3,         // Controlled by direct ESP32 GPIO
+        .initial_state = FAN_STATE_OFF,
+    },
+    {
+        .fan_id = FAN_ID_4,
+        .control_type = FAN_CONTROL_TYPE_IO_EXPANDER,
+        .pinNum = HW_CH423S_GP_FAN_4,         // Controlled by direct ESP32 GPIO
+        .initial_state = FAN_STATE_OFF,
+    },
+    // Add more fan configurations here.
+    // Ensure HW_CH423S_GP_FAN_X and HW_GPIO_FAN_X are defined in HAL_Config.h
 };
 
-// Number of fan configurations
-const uint32_t FAN_NUM_CONFIGURATIONS = sizeof(fan_configurations) / sizeof(fan_configurations[0]);
-
+/**
+ * @brief Defines the number of elements in the `s_fan_configurations` array.
+ */
+const size_t s_num_fan_configurations = sizeof(s_fan_configurations) / sizeof(s_fan_configurations[0]);

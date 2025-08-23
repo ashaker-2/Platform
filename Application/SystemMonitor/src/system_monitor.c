@@ -68,14 +68,14 @@ Status_t SysMon_ReportFaultStatus(SystemMonitor_FaultId_t fault_id, SysMon_Fault
 
     if (fault_id == FAULT_ID_NONE || fault_id >= FAULT_ID_MAX)
     {
-        LOGE("SystemMonitor: Invalid fault ID: 0x%04X", fault_id);
+        LOGE("SystemMonitor"," Invalid fault ID: 0x%04X", fault_id);
         return E_ERROR;
     }
 
     /* Acquire mutex with timeout to prevent blocking */
     if (xSemaphoreTake(s_system_monitor_mutex, pdMS_TO_TICKS(10)) != pdTRUE)
     {
-        LOGE("SystemMonitor: Mutex timeout in ReportFault");
+        LOGE("SystemMonitor", "Mutex timeout in ReportFault");
         return E_ERROR;
     }
 
@@ -96,11 +96,11 @@ Status_t SysMon_ReportFaultStatus(SystemMonitor_FaultId_t fault_id, SysMon_Fault
     /* Log the fault */
     if (ret == E_OK)
     {
-        LOGE("FAULT REPORTED: ID=0x%04X", fault_id);
+        LOGE("SystemMonitor:","FAULT REPORTED: ID=0x%04X", fault_id);
     }
     else
     {
-        LOGE("SystemMonitor: Failed to set fault 0x%04X", fault_id);
+        LOGE("SystemMonitor:","Failed to set fault 0x%04X", fault_id);
     }
 
     /* Release mutex */
@@ -120,7 +120,7 @@ Status_t SysMon_ClearAllFaults(void)
 
     u8ClearAllFaultRequest = 1;
 
-    LOGI("SystemMonitor: Clear All fault Requested");
+    LOGI("SystemMonitor:"," Clear All fault Requested");
 
     return ret;
 }
@@ -193,7 +193,7 @@ Status_t SysMon_GetFaultStatus(SystemMonitor_FaultId_t FaultId, SysMon_FaultStat
 
     if (FaultId == FAULT_ID_NONE || FaultId >= FAULT_ID_MAX)
     {
-        LOGE("SystemMonitor: Invalid fault ID: 0x%04X", FaultId);
+        LOGE("SystemMonitor:"," Invalid fault ID: 0x%04X", FaultId);
         return E_ERROR;
     }
 
@@ -249,7 +249,7 @@ static void sysmon_monitor_system_health(void)
 
     if (cpu_overload_active)
     {
-        LOGW("SystemMonitor: CPU overload: %d%% > %d%%", s_current_cpu_load_percent, SYSMON_CPU_LOAD_THRESHOLD_PERCENT);
+        LOGW("SystemMonitor:"," CPU overload: %d%% > %d%%", s_current_cpu_load_percent, SYSMON_CPU_LOAD_THRESHOLD_PERCENT);
     }
     else
     {
@@ -257,7 +257,7 @@ static void sysmon_monitor_system_health(void)
 
     if (stack_risk_active)
     {
-        LOGW("SystemMonitor: CPU overload: %d%% > %d%%", s_current_cpu_load_percent, SYSMON_CPU_LOAD_THRESHOLD_PERCENT);
+        LOGW("SystemMonitor:"," CPU overload: %d%% > %d%%", s_current_cpu_load_percent, SYSMON_CPU_LOAD_THRESHOLD_PERCENT);
     }
     else
     {
@@ -289,7 +289,7 @@ static void sysmon_calculate_cpu_load(void)
     task_status_array = pvPortMalloc(initial_task_count * sizeof(TaskStatus_t));
     if (task_status_array == NULL)
     {
-        LOGE("SystemMonitor: Failed to allocate memory for task status array (CPU load calculation).");
+        LOGE("SystemMonitor:"," Failed to allocate memory for task status array (CPU load calculation).");
         return; // Exit if memory allocation fails.
     }
 
@@ -354,7 +354,7 @@ static void sysmon_calculate_stack_usage(void)
     task_status_array = pvPortMalloc(initial_task_count * sizeof(TaskStatus_t));
     if (task_status_array == NULL)
     {
-        LOGE("SystemMonitor: Failed to allocate memory for task status array (stack usage calculation).");
+        LOGE("SystemMonitor:"," Failed to allocate memory for task status array (stack usage calculation).");
         return;
     }
 

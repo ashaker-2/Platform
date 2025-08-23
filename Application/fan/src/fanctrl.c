@@ -1,91 +1,193 @@
+/* ============================================================================
+ * SOURCE FILE: Application/fanCtrl/src/fan_ctrl.c
+ * ============================================================================*/
 /**
- * @file FanCtrl.c
- * @brief Implementation for the Fan Control (FAN_CTL) component.
+ * @file fan_ctrl.c
+ * @brief Implements the Fan Control (FanCtrl) module.
  *
- * This file contains the logic for controlling the cooling fan
- * via the underlying HAL PWM interface. It handles speed setting
- * and reports errors to the System Monitor.
+ * This file provides the logic for initializing and controlling fans,
+ * by interfacing with the Hardware Abstraction Layer (HAL),
+ * supporting both CH423S expander and direct GPIO control.
  */
 
-#include "fanctrl.h"
-#include "fanctrl_cfg.h"
-#include "logger.h"
-#include "hal_pwm.h" // For controlling the PWM channel
+#include "fanctrl.h"       // Public API for FanCtrl
+#include "fanctrl_cfg.h"   // Configuration for fan instances
+#include "HAL_I2C.h"        // Dependency for controlling CH423S expander
+#include "HAL_GPIO.h"       // Dependency for controlling direct GPIO
+#include "esp_log.h"        // ESP-IDF logging
 
-// --- Internal State Variables ---
-static uint8_t s_fan_speed_percent = 0;
-static bool s_is_initialized = false;
+static const char *TAG = "FanCtrl"; // Logging tag for this module
 
-// --- Public Function Implementations ---
+// --- Internal Data ---
+// Array to store the current state of each fan. Initialized during FanCtrl_Init.
+static Fan_State_t s_current_fan_states[FAN_ID_COUNT];
 
-Status_t FanCtrl_Init(void) 
-{
-    // if (s_is_initialized) {
-    //     LOGW("FAN_CTL", "Already initialized.");
-    //     return E_OK;
-    // }
+// --- Public Functions ---
 
-    // Initialize the PWM channel for the fan
-    // Assuming HAL_PWM_Init configures the channel with default frequency/resolution
-    // if (HAL_PWM_Init(FanCtrl_CFG_PWM_CHANNEL) != E_OK) 
-    // {
-        // LOGE("FAN_CTL", "Failed to initialize fan PWM channel.");
-        // RTE_Service_SystemMonitor_ReportFault(FAULT_ID_FAN_DRIVER_FAIL, SEVERITY_CRITICAL, "PWM Init Fail");
-        // return E_NOK;
-    // }
+/**
+ * @brief Initializes the Fan Control (FanCtrl) module.
+ *
+ * This function iterates through the `s_fan_configurations` array,
+ * sets up the corresponding pins (either CH423S or direct GPIO)
+ * and sets the initial state for each fan based on its control type.
+ *
+ * @return E_OK on successful initialization of all configured fans,
+ * or an error code if any fan configuration or HAL call fails.
+ */
+Status_t FanCtrl_Init(void) {
+    ESP_LOGI(TAG, "Initializing Fan Control module...");
 
-    // Ensure fan is off initially
-    // if (FanCtrl_SetSpeed(0) != E_OK) {
-    //     LOGE("FAN_CTL", "Failed to set initial fan speed to 0.");
-    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_FAN_DRIVER_FAIL, SEVERITY_CRITICAL, "Initial Speed Fail");
-    //     return E_NOK;
-    // }
+    for (size_t i = 0; i < s_num_fan_configurations; i++) {
+        const fan_config_item_t *fan_cfg = &s_fan_configurations[i];
+        Status_t status = E_OK; // Initialize status to OK
 
-    // s_is_initialized = true;
-    // LOGI("FAN_CTL", "Fan Control module initialized.");
+        if (fan_cfg->fan_id >= FAN_ID_COUNT) {
+            ESP_LOGE(TAG, "Invalid Fan ID %d found in configuration.", fan_cfg->fan_id);
+            return E_INVALID_PARAM;
+        }
+
+        switch (fan_cfg->control_type) {
+            case FAN_CONTROL_TYPE_IO_EXPANDER:
+                // Set the initial state of the fan via the CH423S expander
+                status = HAL_CH423S_SetOutput(fan_cfg->pinNum, fan_cfg->initial_state);
+                if (status == E_OK) 
+                {
+                    ESP_LOGI(TAG, "Fan ID %d (CH423S pin %d) initialized to %s.",
+                             fan_cfg->fan_id, fan_cfg->pinNum,
+                             (fan_cfg->initial_state == FAN_STATE_ON) ? "ON" : "OFF");
+                } else 
+                {
+                    ESP_LOGE(TAG, "Failed to set initial state for Fan ID %d (CH423S pin %d). Status: %d",
+                             fan_cfg->fan_id, fan_cfg->pinNum, status);
+                }
+                break;
+
+            case FAN_CONTROL_TYPE_GPIO:
+                // Initialize the direct GPIO pin and set its initial state
+                status = HAL_GPIO_SetLevel(fan_cfg->pinNum, fan_cfg->initial_state);
+                if (status == E_OK) {
+                    ESP_LOGI(TAG, "Fan ID %d (GPIO pin %d) initialized to %s.",
+                             fan_cfg->fan_id, fan_cfg->pinNum,
+                             (fan_cfg->initial_state == FAN_STATE_ON) ? "ON" : "OFF");
+                } else {
+                    ESP_LOGE(TAG, "Failed to set initial state for Fan ID %d (GPIO pin %d). Status: %d",
+                             fan_cfg->fan_id, fan_cfg->pinNum, status);
+                }
+                break;
+
+            default:
+                ESP_LOGE(TAG, "Unknown control type %d for Fan ID %d.",
+                         fan_cfg->control_type, fan_cfg->fan_id);
+                return E_INVALID_PARAM; // Error for unknown control type
+        }
+
+        if (status != E_OK) {
+            return status; // Propagate the error from HAL
+        }
+
+        // Store the initial state internally
+        s_current_fan_states[fan_cfg->fan_id] = fan_cfg->initial_state;
+    }
+
+    ESP_LOGI(TAG, "Fan Control module initialized successfully with %zu fans.", s_num_fan_configurations);
     return E_OK;
 }
 
-Status_t FanCtrl_SetSpeed(uint8_t speed_percent) 
-{
-    // if (!s_is_initialized) {
-    //     LOGE("FAN_CTL", "Not initialized, cannot set fan speed.");
-    //     return E_NOT_INITIALIZED;
-    // }
+/**
+ * @brief Sets the state (ON or OFF) of a specific fan.
+ *
+ * This function looks up the fan's configuration and calls the appropriate
+ * HAL function (CH423S or direct GPIO) to control it.
+ *
+ * @param fan_id The unique identifier of the fan to control.
+ * @param state The desired state for the fan (FAN_STATE_ON or FAN_STATE_OFF).
+ * @return E_OK on success, E_INVALID_PARAM if `fan_id` is invalid, or
+ * an error code from the underlying HAL if pin control fails.
+ */
+Status_t FanCtrl_SetState(Fan_ID_t fan_id, Fan_State_t state) {
+    if (fan_id >= FAN_ID_COUNT) {
+        ESP_LOGE(TAG, "Attempted to set state for invalid Fan ID %d.", fan_id);
+        return E_INVALID_PARAM;
+    }
 
-    // if (speed_percent > 100) {
-    //     LOGW("FAN_CTL", "Invalid fan speed percentage: %d. Clamping to 100.", speed_percent);
-    //     speed_percent = 100;
-    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_INVALID_PARAMETER, SEVERITY_LOW, "Fan Speed Out of Range");
-    // }
+    // Find the configuration for the specified fan ID
+    const fan_config_item_t *fan_cfg = NULL;
+    for (size_t i = 0; i < s_num_fan_configurations; i++) {
+        if (s_fan_configurations[i].fan_id == fan_id) {
+            fan_cfg = &s_fan_configurations[i];
+            break;
+        }
+    }
 
-    // Convert percentage to PWM duty cycle.
-    // Assuming HAL_PWM_SetDutyCycle takes a percentage directly or scales it internally.
-    // If HAL_PWM expects raw duty cycle counts (e.g., 0-1023 for 10-bit PWM),
-    // this conversion would be: duty_cycle = (speed_percent * MAX_PWM_DUTY_CYCLE) / 100;
-    // if (HAL_PWM_SetDutyCycle(FAN_CONTROL_CFG_PWM_CHANNEL, speed_percent) != E_OK) {
-    //     LOGE("FAN_CTL", "Failed to set fan PWM duty cycle to %d%%.", speed_percent);
-    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_FAN_DRIVER_FAIL, SEVERITY_HIGH, "PWM SetDutyCycle Fail");
-    //     return E_NOK;
-    // }
+    if (fan_cfg == NULL) {
+        ESP_LOGE(TAG, "Fan ID %d not found in configuration.", fan_id);
+        return E_INVALID_PARAM;
+    }
 
-    // s_fan_speed_percent = speed_percent;
-    // LOGD("FAN_CTL", "Fan speed set to: %d%%", speed_percent);
+    Status_t status = E_OK; // Initialize status to OK
+
+    switch (fan_cfg->control_type) {
+        case FAN_CONTROL_TYPE_IO_EXPANDER:
+            // Call the HAL to set the output on the CH423S expander
+            status = HAL_CH423S_SetOutput(fan_cfg->pinNum, state);
+            if (status == E_OK) {
+                ESP_LOGI(TAG, "Fan ID %d (CH423S pin %d) set to %s.",
+                         fan_id, fan_cfg->pinNum,
+                         (state == FAN_STATE_ON) ? "ON" : "OFF");
+            } else {
+                ESP_LOGE(TAG, "Failed to set Fan ID %d (CH423S pin %d) to %s. Status: %d",
+                         fan_id, fan_cfg->pinNum,
+                         (state == FAN_STATE_ON) ? "ON" : "OFF", status);
+            }
+            break;
+
+        case FAN_CONTROL_TYPE_GPIO:
+            // Call the HAL to set the output on the direct GPIO pin
+            status = HAL_GPIO_SetLevel(fan_cfg->pinNum, state);
+            if (status == E_OK) {
+                ESP_LOGI(TAG, "Fan ID %d (GPIO pin %d) set to %s.",
+                         fan_id, fan_cfg->pinNum,
+                         (state == FAN_STATE_ON) ? "ON" : "OFF");
+            } else {
+                ESP_LOGE(TAG, "Failed to set Fan ID %d (GPIO pin %d) to %s. Status: %d",
+                         fan_id, fan_cfg->pinNum,
+                         (state == FAN_STATE_ON) ? "ON" : "OFF", status);
+            }
+            break;
+
+        default:
+            ESP_LOGE(TAG, "Unknown control type %d for Fan ID %d.",
+                     fan_cfg->control_type, fan_id);
+            return E_INVALID_PARAM; // Error for unknown control type
+    }
+
+    if (status != E_OK) {
+        return status;
+    }
+
+    // Update the internal state tracking
+    s_current_fan_states[fan_id] = state;
     return E_OK;
 }
 
-Status_t FanCtrl_GetSpeed(uint8_t *speed_percent_ptr) 
-{
-    // if (!s_is_initialized) {
-    //     LOGE("FAN_CTL", "Not initialized, cannot get fan speed.");
-    //     return E_NOT_INITIALIZED;
-    // }
-    // if (speed_percent_ptr == NULL) {
-    //     LOGE("FAN_CTL", "NULL pointer for speed_percent_ptr.");
-    //     RTE_Service_SystemMonitor_ReportFault(FAULT_ID_INVALID_PARAMETER, SEVERITY_LOW, "NULL ptr in GetSpeed");
-    //     return E_INVALID_PARAM;
-    // }
+/**
+ * @brief Gets the current state of a specific fan.
+ *
+ * This function retrieves the state from the internally tracked `s_current_fan_states` array.
+ *
+ * @param fan_id The unique identifier of the fan to query.
+ * @param state_out Pointer to a variable where the current state (FAN_STATE_ON/OFF)
+ * will be stored. Must not be NULL.
+ * @return E_OK on success, E_INVALID_PARAM if `fan_id` or `state_out` is invalid.
+ */
+Status_t FanCtrl_GetState(Fan_ID_t fan_id, Fan_State_t *state_out) {
+    if (fan_id >= FAN_ID_COUNT || state_out == NULL) {
+        ESP_LOGE(TAG, "Invalid Fan ID %d or NULL state_out pointer.", fan_id);
+        return E_INVALID_PARAM;
+    }
 
-    // *speed_percent_ptr = s_fan_speed_percent;
+    *state_out = s_current_fan_states[fan_id];
+    ESP_LOGD(TAG, "Fan ID %d current state is %s.", fan_id,
+             (*state_out == FAN_STATE_ON) ? "ON" : "OFF");
     return E_OK;
 }

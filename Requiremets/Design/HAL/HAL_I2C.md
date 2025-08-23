@@ -63,6 +63,7 @@ The HAL_I2C component will consist of the following files:
 ### **5.2. Public Interface (API)**
 
 // In HAL/inc/hal_i2c.h
+
 ```c
 #include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h>   // For uint8_t, uint16_t
@@ -135,6 +136,7 @@ APP_Status_t HAL_I2C_MasterWriteRead(HAL_I2C_Port_t port, uint8_t slave_address,
                                      const uint8_t *write_data, uint16_t write_len,  
                                      uint8_t *read_data, uint16_t read_len);
 ```
+
 ### **5.3. Internal Design**
 
 The HAL_I2C module will primarily act as a wrapper around the MCAL_I2C functions. It will perform input validation and error reporting before delegating the actual hardware access to the MCAL layer.
@@ -162,6 +164,7 @@ The HAL_I2C module will primarily act as a wrapper around the MCAL_I2C functions
    * Return E_OK or E_NOK.
 
 **Sequence Diagram (Example: HAL_I2C_MasterWrite):**
+
 ```mermaid
 sequenceDiagram  
     participant App as Application Layer (e.g., HAL_LCD)  
@@ -176,7 +179,7 @@ sequenceDiagram
     HAL_I2C->>MCAL_I2C: MCAL_I2C_MasterWrite(MCAL_I2C_PORT_0, LCD_ADDR, data, len)  
     alt MCAL_I2C_MasterWrite returns MCAL_ERROR  
         MCAL_I2C--xHAL_I2C: Return MCAL_ERROR  
-        HAL_I2C->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_I2C_WRITE_FAILURE, SEVERITY_MEDIUM, ...)  
+        HAL_I2C->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_I2C_WRITE_FAILURE,  ...)  
         HAL_I2C--xRTE: Return E_NOK  
         RTE--xApp: Return E_NOK  
     else MCAL_I2C_MasterWrite returns MCAL_OK  
@@ -185,6 +188,7 @@ sequenceDiagram
         RTE-->>App: Return E_OK  
     end
 ```
+
 ### **5.4. Dependencies**
 
 * Mcal/i2c/inc/mcal_i2c.h: For calling low-level I2C driver functions.  
@@ -203,6 +207,7 @@ sequenceDiagram
 ### **5.6. Configuration**
 
 The HAL/cfg/hal_i2c_cfg.h file will contain:
+
 ```c
 /* Macros or enums for mapping logical I2C bus names (e.g., I2C_BUS_DISPLAY, I2C_BUS_SENSORS) to physical HAL_I2C_Port_t values.  
 * Definitions for the HAL_I2C_Config_t structures for each I2C bus used in the system, specifying their speed and associated GPIO pins.
@@ -236,6 +241,7 @@ const HAL_I2C_Config_t hal_i2c_config_sensors = {
 
 #endif // HAL_I2C_CFG_H
 ```
+
 ### **5.7. Resource Usage**
 
 * **Flash**: Moderate, for I2C protocol handling, error checks, and configuration data.  

@@ -5,7 +5,7 @@
 #ifndef LOGGER_H
 #define LOGGER_H
 
-#include "common.h"
+#include "common.h" // Ensures Status_t is defined
 #include <stdint.h>
 #include <stdarg.h>
 
@@ -13,25 +13,31 @@
 // This allows you to use ESP-IDF's log levels and functionality.
 #include "esp_log.h"
 
-// Define the LOG_TAG for all messages originating from the application.
-// This allows for filtering logs specific to your application in ESP-IDF's monitor.
-#define APP_LOG_TAG "APP_MAIN"
+// Note: APP_LOG_TAG is typically defined here if you want a *default* tag for all
+// logs from this module, but the macros below now allow passing dynamic tags.
+// If you want all logs from these macros to *always* use APP_LOG_TAG, then
+// remove the 'tag' parameter from the macros and use APP_LOG_TAG instead.
+// For now, the 'tag' parameter passed to the macro will be used by ESP_LOGx.
+#define APP_LOG_TAG "APP_MAIN" // You can keep this as a fallback/default module tag if desired, though the macros now use the passed 'tag'.
 
 /**
  * @file logger.h
  * @brief Public interface for the Logger component.
  *
  * This header defines the public API for the Logger module, which provides a
- * standardized, thread-safe, and flexible logging mechanism.
+ * standardized, flexible logging mechanism.
  */
 
 // --- Log Level Definitions ---
+// These are internal log levels for potential custom log handlers or filtering
+// if you were to implement LOGGER_Log directly. For macros wrapping ESP_LOGx,
+// these are mostly for conceptual alignment.
 typedef enum {
     LOG_LEVEL_DEBUG,
-    // LOG_LEVEL_INFO,
+    LOG_LEVEL_INFO,     // Now explicitly included
     LOG_LEVEL_WARNING,
     LOG_LEVEL_ERROR,
-    LOG_LEVEL_FATAL,
+    LOG_LEVEL_FATAL,    // Corresponds to ESP_LOGE or special handling
     LOG_LEVEL_NONE,
     LOG_LEVEL_COUNT
 } Log_Level_t;
@@ -40,75 +46,81 @@ typedef enum {
 
 /**
  * @brief Initializes the Logger module.
- * This function must be called early in the system startup, before any tasks
- * attempt to log. It initializes the underlying output peripheral (e.g., UART).
+ * This function must be called early in the system startup.
  * @return E_OK on success, E_NOK on failure.
+ *
+ * NOTE: This function's implementation would typically be in logger.c.
+ * It might configure global ESP-IDF log levels, or initialize custom log outputs.
  */
 Status_t LOGGER_Init(void);
 
 /**
- * @brief Sets the global log level.
- * Any log messages with a severity lower than this level will be filtered out.
+ * @brief Sets the global log level for the custom logger.
+ *
+ * If you implement `LOGGER_Log` (currently commented out), this function
+ * would control its behavior. For ESP-IDF's built-in logging, you'd typically
+ * use `esp_log_level_set(tag, level)` or `LOG_LOCAL_LEVEL` in source files.
  * @param level The new global log level to set.
  */
 void LOGGER_SetLogLevel(Log_Level_t level);
 
-/**
- * @brief Main logging function.
- * This function handles log filtering, formatting, and output. It is not
- * intended to be called directly by application modules. Instead, use the
- * provided LOG macros.
- * @param level The severity level of the log message.
- * @param file The file where the log call originated (usually __FILE__).
- * @param line The line number where the log call originated (usually __LINE__).
- * @param format The format string for the log message.
- * @param ... Variable arguments to be formatted.
- */
-// void LOGGER_Log(Log_Level_t level, const char* file, int line, const char* format, ...);
-
-// --- Logging Macros ---
-// #define LOGD(module, format, ...) LOGGER_Log(LOG_LEVEL_DEBUG, module, __LINE__, format, ##__VA_ARGS__)
-// #define LOGI(module, format, ...) LOGGER_Log(LOG_LEVEL_INFO, module, __LINE__, format, ##__VA_ARGS__)
-// #define LOGW(module, format, ...) LOGGER_Log(LOG_LEVEL_WARNING, module, __LINE__, format, ##__VA_ARGS__)
-// #define LOGE(module, format, ...) LOGGER_Log(LOG_LEVEL_ERROR, module, __LINE__, format, ##__VA_ARGS__)
-// #define LOGF(module, format, ...) LOGGER_Log(LOG_LEVEL_FATAL, module, __LINE__, format, ##__VA_ARGS__)
-
-
+// The `LOGGER_Log` function is commented out, implying direct use of ESP_LOG macros.
+// If you uncomment and implement this, the macros below would call this function.
+/*
+void LOGGER_Log(Log_Level_t level, const char* file, int line, const char* format, ...);
+*/
 
 // --- Public Logging Macros ---
-// These macros wrap the ESP-IDF logging functions (ESP_LOGI, ESP_LOGW, etc.)
-// They automatically prepend the APP_LOG_TAG and provide file/line context.
+// These macros now correctly accept 'tag' as their first argument,
+// passing it directly to ESP_LOGx. They also automatically prepend
+// file/line context to the message.
 
 /**
  * @brief Log an INFO level message.
+ * @param tag The ESP-IDF log tag for this message (e.g., "MY_MODULE").
  * @param format Printf-like format string.
  * @param ... Variable arguments for the format string.
  */
-#define LOGI(format, ...) ESP_LOGI(APP_LOG_TAG, "[%s:%d] " format, __FILE__, __LINE__, ##__VA_ARGS__)
+#define LOGI(tag, format, ...) ESP_LOGI(tag, "[%s:%d] " format, __FILE__, __LINE__, ##__VA_ARGS__)
 
 /**
  * @brief Log a WARNING level message.
+ * @param tag The ESP-IDF log tag for this message.
  * @param format Printf-like format string.
  * @param ... Variable arguments for the format string.
  */
-#define LOGW(format, ...) ESP_LOGW(APP_LOG_TAG, "[%s:%d] " format, __FILE__, __LINE__, ##__VA_ARGS__)
+#define LOGW(tag, format, ...) ESP_LOGW(tag, "[%s:%d] " format, __FILE__, __LINE__, ##__VA_ARGS__)
 
 /**
  * @brief Log an ERROR level message.
+ * @param tag The ESP-IDF log tag for this message.
  * @param format Printf-like format string.
  * @param ... Variable arguments for the format string.
  */
-#define LOGE(format, ...) ESP_LOGE(APP_LOG_TAG, "[%s:%d] " format, __FILE__, __LINE__, ##__VA_ARGS__)
+#define LOGE(tag, format, ...) ESP_LOGE(tag, "[%s:%d] " format, __FILE__, __LINE__, ##__VA_ARGS__)
 
 /**
- * @brief Log a CRITICAL level message (often mapped to ERROR or higher priority).
+ * @brief Log a CRITICAL level message (mapped to ESP_LOGE with a "CRITICAL" prefix).
+ * @param tag The ESP-IDF log tag for this message.
  * @param format Printf-like format string.
  * @param ... Variable arguments for the format string.
  */
-#define LOGC(format, ...) ESP_LOGE(APP_LOG_TAG, "[CRITICAL][%s:%d] " format, __FILE__, __LINE__, ##__VA_ARGS__)
-// Note: ESP-IDF's standard log levels are ERROR, WARN, INFO, DEBUG, VERBOSE.
-// For CRITICAL, we are mapping it to ESP_LOGE with an additional "[CRITICAL]" tag.
-// If you need a distinct CRITICAL level, you'd configure ESP-IDF's log levels or
-// implement a custom log handler if possible.
+#define LOGC(tag, format, ...) ESP_LOGE(tag, "[CRITICAL][%s:%d] " format, __FILE__, __LINE__, ##__VA_ARGS__)
+
+/**
+ * @brief Log a DEBUG level message.
+ * @param tag The ESP-IDF log tag for this message.
+ * @param format Printf-like format string.
+ * @param ... Variable arguments for the format string.
+ */
+#define LOGD(tag, format, ...) ESP_LOGD(tag, "[%s:%d] " format, __FILE__, __LINE__, ##__VA_ARGS__)
+
+/**
+ * @brief Log a VERBOSE level message.
+ * @param tag The ESP-IDF log tag for this message.
+ * @param format Printf-like format string.
+ * @param ... Variable arguments for the format string.
+ */
+#define LOGV(tag, format, ...) ESP_LOGV(tag, "[%s:%d] " format, __FILE__, __LINE__, ##__VA_ARGS__)
 
 #endif /* LOGGER_H */

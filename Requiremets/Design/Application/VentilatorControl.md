@@ -70,6 +70,7 @@ The VentCtrl component will consist of the following files:
 ### **5.2. Public Interface (API)**
 
 // In Application/ventilator/inc/ventctrl.h
+
 ```c
 #include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h> // For uint32_t  
@@ -127,12 +128,14 @@ APP_Status_t VentCtrl_GetState(uint32_t actuatorId, VentCtrl_State_t *state, uin
  */  
 void VentCtrl_MainFunction(void);
 ```
+
 ### **5.3. Internal Design**
 
 The VentCtrl module will manage its own ventilator control cycle for multiple ventilators.
 
-1. **Internal State**: 
-```c 
+1. **Internal State**:
+
+```c
    // Array to store the latest commanded state for each ventilator  
    static VentCtrl_State_t s_commanded_states[VentCtrl_COUNT];  
    // Array to store the latest commanded speed for each ventilator (0-100%)  
@@ -143,7 +146,9 @@ The VentCtrl module will manage its own ventilator control cycle for multiple ve
    static uint8_t s_actual_speeds_percent[VentCtrl_COUNT];  
    static bool s_is_initialized = false; // Module initialization status
 ```
-   * All these variables will be initialized in VentCtrl_Init(). s_commanded_states and s_actual_states will be initialized to VentCtrl_STATE_OFF. s_commanded_speeds_percent and s_actual_speeds_percent will be initialized to 0.  
+
+* All these variables will be initialized in VentCtrl_Init(). s_commanded_states and s_actual_states will be initialized to VentCtrl_STATE_OFF. s_commanded_speeds_percent and s_actual_speeds_percent will be initialized to 0.  
+
 2. **Initialization (VentCtrl_Init)**:  
    * **Zeroing Variables**:  
      * Initialize all elements of s_commanded_states to VentCtrl_STATE_OFF.  
@@ -202,6 +207,7 @@ The VentCtrl module will manage its own ventilator control cycle for multiple ve
    * Return E_OK.
 
 **Sequence Diagram (Example: systemMgr commands ventilator state, VentCtrl applies it):**
+
 ```mermaid
 sequenceDiagram  
     participant SystemMgr as Application/systemMgr  
@@ -231,7 +237,7 @@ sequenceDiagram
         MCAL_GPIO-->>VentCtrl: Return E_OK  
     end  
     alt MCAL control fails  
-        VentCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_VentCtrl_CONTROL_FAILED, SEVERITY_HIGH, VENT_ID_MAIN_EXHAUST)  
+        VentCtrl->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_VentCtrl_CONTROL_FAILED,  VENT_ID_MAIN_EXHAUST)  
         SystemMonitor-->>VentCtrl: Return E_OK  
     end  
     Note over VentCtrl: (Optional: Read feedback, update s_actual_speeds_percent/s_actual_states)  
@@ -244,6 +250,7 @@ sequenceDiagram
     VentCtrl-->>RTE: Return E_OK (current_state=ON, current_speed=50)  
     RTE-->>SystemMgr: Return E_OK
 ```
+
 ### **5.4. Dependencies**
 
 * Application/common/inc/common.h: For APP_Status_t.  
@@ -280,6 +287,7 @@ The Application/ventilator/cfg/ventctrl_cfg.h file will contain:
   * VentCtrl_CONTROL_PERIOD_MS: The frequency at which VentCtrl_MainFunction() is called by RTE.
 
 // Example: Application/ventilator/cfg/ventctrl_cfg.h
+
 ```c
 #include "Mcal/gpio/inc/mcal_gpio.h" // Example for GPIO pin definitions  
 #include "Mcal/pwm/inc/mcal_pwm.h" // Example for PWM channel definitions  
@@ -367,6 +375,7 @@ const VentCtrl_Config_t vent_configs[VentCtrl_COUNT] = {
 // --- Periodic Control Settings for VentCtrl_MainFunction() ---  
 #define VentCtrl_CONTROL_PERIOD_MS             100 // VentCtrl_MainFunction called every 100 ms
 ```
+
 ### **5.7. Resource Usage**
 
 * **Flash**: Low to moderate, depending on the number of ventilator types and feedback mechanisms supported.  

@@ -62,6 +62,7 @@ The HAL_SPI component will consist of the following files:
 * HAL/cfg/hal_spi_cfg.h: Configuration header for static SPI bus definitions and initial settings.
 
 ### **5.2. Public Interface (API)**
+
 ```c
 // In HAL/inc/hal_spi.h
 
@@ -175,6 +176,7 @@ The HAL_SPI module will act as a wrapper around the MCAL_SPI functions. It will 
    * If MCAL_SPI_MasterTransmitReceive returns an error, report HAL_SPI_TRX_FAILURE to SystemMonitor.
 
 **Sequence Diagram (Example: HAL_SPI_MasterTransmit):**
+
 ```mermaid
 sequenceDiagram  
     participant App as Application Layer (e.g., Storage Module)  
@@ -192,7 +194,7 @@ sequenceDiagram
     HAL_SPI->>MCAL_SPI: MCAL_SPI_MasterTransmit(HAL_SPI_PORT_1, data, len, timeout)  
     alt MCAL_SPI_MasterTransmit returns MCAL_ERROR  
         MCAL_SPI--xHAL_SPI: Return MCAL_ERROR  
-        HAL_SPI->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_SPI_TX_FAILURE, SEVERITY_HIGH, ...)  
+        HAL_SPI->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(HAL_SPI_TX_FAILURE,  ...)  
         HAL_SPI->>HAL_GPIO: HAL_GPIO_SetState(FLASH_CS_PIN, HAL_GPIO_STATE_HIGH)  
         HAL_GPIO-->>HAL_SPI: Return E_OK  
         HAL_SPI--xRTE: Return E_NOK  
@@ -230,6 +232,7 @@ The HAL/cfg/hal_spi_cfg.h file will contain:
 * The hal_spi_initial_config array, which defines the initial configuration for all SPI peripherals used by the system.  
 * The size of the hal_spi_initial_config array.  
 * Macros for specific Chip Select (CS) GPIO pins used by devices connected to SPI (these pins would also be initialized by HAL_GPIO).
+
 ```c
 // Example: HAL/cfg/hal_spi_cfg.h  
 #define SPI_PORT_EXTERNAL_FLASH     HAL_SPI_PORT_1  

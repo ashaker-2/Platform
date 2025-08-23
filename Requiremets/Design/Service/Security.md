@@ -71,6 +71,7 @@ The SECURITY component will consist of the following files:
 * Service/security/cfg/security_cfg.h: Configuration header for algorithm selection, key storage locations, and buffer sizes.
 
 ### **5.2. Public Interface (API)**
+
 ```c
 // In Service/security/inc/security.h
 
@@ -182,6 +183,7 @@ APP_Status_t SECURITY_AuthenticateAndDecrypt(SECURITY_KeyId_t key_id,
  */  
 APP_Status_t SECURITY_GenerateRandom(uint8_t *buffer, uint32_t len);
 ```
+
 ### **5.3. Internal Design**
 
 The SECURITY module will wrap a chosen cryptographic library (e.g., mbedTLS, tinycrypt, or native ESP-IDF crypto APIs) and manage key material.
@@ -215,6 +217,7 @@ The SECURITY module will wrap a chosen cryptographic library (e.g., mbedTLS, tin
    * Report FAULT_ID_SECURITY_RNG_FAILURE on error.
 
 **Sequence Diagram (Example: OTA Image Verification):**
+
 ```mermaid
 sequenceDiagram  
     participant OTA as Service/OTA  
@@ -247,13 +250,14 @@ sequenceDiagram
     Security->>CryptoLib: crypto_lib_verify_signature(public_key, calculated_hash, signature)  
     alt CryptoLib returns Verification_Failed  
         CryptoLib--xSecurity: Return FAIL  
-        Security->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_SECURITY_VERIFICATION_FAILURE, SEVERITY_HIGH, ...)  
+        Security->>SystemMonitor: RTE_Service_SystemMonitor_ReportFault(FAULT_ID_SECURITY_VERIFICATION_FAILURE,  ...)  
         Security--xOTA: Return E_NOK  
     else CryptoLib returns Verification_Success  
         CryptoLib-->>Security: Return SUCCESS  
         Security-->>OTA: Return E_OK  
     end
 ```
+
 ### **5.4. Dependencies**
 
 * Application/common/inc/common.h: For APP_Status_t.  
@@ -282,6 +286,7 @@ The Service/security/cfg/security_cfg.h file will contain:
 * SECURITY_HASH_OUTPUT_LEN: Expected output length of the hash (e.g., 32 for SHA-256).  
 * SECURITY_MAX_KEY_SIZE_BYTES: Maximum size for a stored key.  
 * Hardcoded public keys or definitions for where to load them from NVM/Flash.
+
 ```c
 // Example: Service/security/cfg/security_cfg.h  
 #ifndef SECURITY_CFG_H  
@@ -309,6 +314,7 @@ The Service/security/cfg/security_cfg.h file will contain:
 
 #endif // SECURITY_CFG_H
 ```
+
 ### **5.7. Resource Usage**
 
 * **Flash**: Moderate to High, depending on the chosen cryptographic library and the number of algorithms included.  

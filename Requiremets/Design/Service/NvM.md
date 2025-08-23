@@ -64,6 +64,7 @@ The Nvm component will consist of the following files:
 ### **5.2. Public Interface (API)**
 
 // In Service/nvm/inc/nvm.h
+
 ```c
 #include "Application/common/inc/common.h" // For APP_Status_t  
 #include <stdint.h>   // For uint32_t, uint8_t  
@@ -111,6 +112,7 @@ APP_Status_t NVM_ReadParam(Nvm_ParamId_t param_id, void *data_buffer, uint16_t b
  */  
 APP_Status_t NVM_WriteParam(Nvm_ParamId_t param_id, const void *data_buffer, uint16_t data_len);
 ```
+
 ### **5.3. Internal Design**
 
 The Nvm module will manage memory allocation within the non-volatile storage, handle data serialization/deserialization, and implement data integrity checks. It will call MCAL_FLASH (and/or MCAL_EEPROM) directly.
@@ -160,6 +162,7 @@ The Nvm module will manage memory allocation within the non-volatile storage, ha
    * Return E_OK or E_NOK.
 
 **Sequence Diagram (Example: NVM_ReadParam):**
+
 ```mermaid
 sequenceDiagram  
     participant AppModule as Application Module (e.g., systemMgr)  
@@ -176,7 +179,7 @@ sequenceDiagram
     MCAL_FLASH-->>Nvm: Return E_OK (with raw data)  
     Nvm->>Nvm: Calculate checksum of read data  
     alt Checksum mismatch or buffer too small  
-        Nvm->>RTE: RTE_Service_SystemMonitor_ReportFault(NVM_DATA_CORRUPTED, SEVERITY_HIGH, NVM_PARAM_OP_TEMP_RANGE)  
+        Nvm->>RTE: RTE_Service_SystemMonitor_ReportFault(NVM_DATA_CORRUPTED,  NVM_PARAM_OP_TEMP_RANGE)  
         RTE--xNvm: Return E_NOK  
         Nvm--xRTE: Return E_NOK  
         RTE--xAppModule: Return E_NOK  
@@ -186,6 +189,7 @@ sequenceDiagram
         RTE-->>AppModule: Return E_OK  
     end
 ```
+
 ### **5.4. Dependencies**
 
 * Application/common/inc/common.h: For APP_Status_t and E_OK/E_NOK.  
@@ -214,6 +218,7 @@ The Service/nvm/cfg/nvm_cfg.h file will contain:
 * NVM_MAX_PARAM_SIZE: Maximum size for any single parameter.  
 * Default values for all Nvm_ParamId_t parameters. These defaults will be loaded if the stored data is invalid or missing.  
 * A lookup table or array mapping Nvm_ParamId_t to their expected sizes and default data.
+
 ```c
 // Example: Service/nvm/cfg/nvm_cfg.h  
 #ifndef NVM_CFG_H  
@@ -266,6 +271,7 @@ const Nvm_ParamMetadata_t NVM_PARAM_METADATA[NVM_PARAM_COUNT] = {
 
 #endif // NVM_CFG_H
 ```
+
 ### **5.7. Resource Usage**
 
 * **Flash**: Moderate, for the module's code and the dedicated NVM region.  

@@ -918,3 +918,9 @@ build/esp-idf/main/CMakeFiles/__idf_main.dir/__/HAL/src/hal_timer.c.obj
 build/esp-idf/main/CMakeFiles/__idf_main.dir/__/HAL/src/hal_uart_cfg.c.obj
 build/esp-idf/main/CMakeFiles/__idf_main.dir/__/HAL/src/hal_uart.c.obj
 build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Rte/src/Rte.c.obj
+build/esp-idf/dht/cmake_install.cmake
+build/esp-idf/dht/libdht.a
+build/esp-idf/dht/CMakeFiles/__idf_dht.dir/dht.c.obj
+build/esp-idf/esp_idf_lib_helpers/cmake_install.cmake
+build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/temphum/src/temphumctrl_cfg.c.obj
+build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/temphum/src/temphumctrl.c.obj

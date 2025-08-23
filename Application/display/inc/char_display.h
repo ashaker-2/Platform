@@ -1,89 +1,93 @@
-// app/inc/character_display.h
+/* ============================================================================
+ * SOURCE FILE: char_display.h
+ * ============================================================================*/
+/**
+ * @file char_display.h
+ * @brief Public API for the character display module.
+ *
+ * This header provides functions to initialize, control, and write data to
+ * a character LCD display connected in 4-bit mode.
+ */
 
-#ifndef CHARACTER_DISPLAY_H
-#define CHARACTER_DISPLAY_H
+#ifndef CHAR_DISPLAY_H
+#define CHAR_DISPLAY_H
 
-#include <stdint.h>
-#include <stdbool.h>
-#include "common.h"  // For E_OK/E_NOK
-#include "hal_i2c.h"   // For ECUAL_I2C_ID_t
+#include <stdint.h>     // For uint8_t
+#include <stdbool.h>    // For bool
+#include "esp_err.h"    // For esp_err_t
 
 /**
- * @brief User-friendly IDs for configured Character Display instances.
+ * @brief Initializes the character display module.
+ *
+ * This function configures the necessary GPIO pins and sends the
+ * initialization commands to the LCD to set it up for 4-bit mode,
+ * 2 lines, and clears the display.
+ *
+ * @return ESP_OK on success, or an error code if GPIO configuration fails.
  */
-typedef enum CHARACTER_DISPLAY_ID_t {
-    CHARACTER_DISPLAY_MAIN_STATUS = 0, ///< Main system status display (e.g., 16x2 LCD)
-    CHARACTER_DISPLAY_ALARM_PANEL,     ///< Alarm system display (e.g., 20x4 LCD)
-    CHARACTER_DISPLAY_TOTAL_UNITS      ///< Keep this last to get the count
-} CHARACTER_DISPLAY_ID_t;
+esp_err_t HAL_CharDisplay_Init(void);
 
 /**
- * @brief Structure to hold the configuration for a single Character Display unit.
+ * @brief Writes a single character to the current cursor position on the display.
+ *
+ * @param c The character to write.
+ * @return ESP_OK on success, or an error code.
  */
-typedef struct CHARACTER_DISPLAY_Config_t {
-    ECUAL_I2C_ID_t      i2c_id;      ///< The ECUAL I2C bus ID connected to the display.
-    uint8_t             i2c_address; ///< The I2C address of the PCF8574 expander (common: 0x27 or 0x3F).
-    uint8_t             num_columns; ///< Number of display columns (e.g., 16, 20).
-    uint8_t             num_rows;    ///< Number of display rows (e.g., 2, 4).
-    bool                has_backlight; ///< True if the display has a controllable backlight.
-    bool                backlight_active_high; ///< True if HIGH turns backlight ON, false if LOW.
-} CHARACTER_DISPLAY_Config_t;
+esp_err_t HAL_CharDisplay_WriteChar(char c);
 
 /**
- * @brief Initializes all Character Display units based on their configurations.
- * This function powers up the display, clears it, and turns on the backlight (if configured).
- * @return E_OK if all displays are initialized successfully, E_NOK otherwise.
+ * @brief Writes a null-terminated string to the display, starting from the current cursor position.
+ *
+ * @param str The string to write.
+ * @return ESP_OK on success, or an error code.
  */
-uint8_t CHARACTER_DISPLAY_Init(void);
-
-/**
- * @brief Clears the entire display of a specific unit and sets the cursor to home (0,0).
- * @param unit_id The CHARACTER_DISPLAY_ID_t of the display unit.
- * @return E_OK if successful, E_NOK otherwise.
- */
-uint8_t CHARACTER_DISPLAY_Clear(CHARACTER_DISPLAY_ID_t unit_id);
+esp_err_t HAL_CharDisplay_WriteString(const char *str);
 
 /**
  * @brief Sets the cursor position on the display.
- * The top-left corner is (0,0). Coordinates are 0-indexed.
- * @param unit_id The CHARACTER_DISPLAY_ID_t of the display unit.
- * @param col The column to set the cursor to.
- * @param row The row to set the cursor to.
- * @return E_OK if successful, E_NOK otherwise.
+ *
+ * @param col The column number (0-indexed, typically 0-15 or 0-19 depending on display size).
+ * @param row The row number (0-indexed, typically 0 for first line, 1 for second).
+ * @return ESP_OK on success, or an error code.
  */
-uint8_t CHARACTER_DISPLAY_SetCursor(CHARACTER_DISPLAY_ID_t unit_id, uint8_t col, uint8_t row);
+esp_err_t HAL_CharDisplay_SetCursor(uint8_t col, uint8_t row);
 
 /**
- * @brief Prints a null-terminated string to the display at the current cursor position.
- * Text wraps to the next line if it exceeds the current line.
- * @param unit_id The CHARACTER_DISPLAY_ID_t of the display unit.
- * @param str The string to print.
- * @return E_OK if successful, E_NOK otherwise.
+ * @brief Clears the entire display and sets the cursor to home position (0,0).
+ *
+ * @return ESP_OK on success, or an error code.
  */
-uint8_t CHARACTER_DISPLAY_PrintString(CHARACTER_DISPLAY_ID_t unit_id, const char *str);
+esp_err_t HAL_CharDisplay_ClearDisplay(void);
 
 /**
- * @brief Prints a single character to the display at the current cursor position.
- * @param unit_id The CHARACTER_DISPLAY_ID_t of the display unit.
- * @param c The character to print.
- * @return E_OK if successful, E_NOK otherwise.
+ * @brief Moves the cursor to the home position (0,0) without clearing the display.
+ *
+ * @return ESP_OK on success, or an error code.
  */
-uint8_t CHARACTER_DISPLAY_PrintChar(CHARACTER_DISPLAY_ID_t unit_id, char c);
+esp_err_t HAL_CharDisplay_Home(void);
 
 /**
- * @brief Turns the backlight of a specific display unit ON.
- * This function only has an effect if 'has_backlight' is true in the configuration.
- * @param unit_id The CHARACTER_DISPLAY_ID_t of the display unit.
- * @return E_OK if successful, E_NOK otherwise.
+ * @brief Controls the overall display visibility.
+ *
+ * @param enable True to turn the display on, false to turn it off.
+ * @return ESP_OK on success, or an error code.
  */
-uint8_t CHARACTER_DISPLAY_BacklightOn(CHARACTER_DISPLAY_ID_t unit_id);
+esp_err_t HAL_CharDisplay_EnableDisplay(bool enable);
 
 /**
- * @brief Turns the backlight of a specific display unit OFF.
- * This function only has an effect if 'has_backlight' is true in the configuration.
- * @param unit_id The CHARACTER_DISPLAY_ID_t of the display unit.
- * @return E_OK if successful, E_NOK otherwise.
+ * @brief Controls the visibility of the blinking block cursor.
+ *
+ * @param enable True to enable the blinking cursor, false to disable.
+ * @return ESP_OK on success, or an error code.
  */
-uint8_t CHARACTER_DISPLAY_BacklightOff(CHARACTER_DISPLAY_ID_t unit_id);
+esp_err_t HAL_CharDisplay_EnableBlink(bool enable);
 
-#endif /* CHARACTER_DISPLAY_H */
+/**
+ * @brief Controls the visibility of the underline cursor.
+ *
+ * @param enable True to enable the underline cursor, false to disable.
+ * @return ESP_OK on success, or an error code.
+ */
+esp_err_t HAL_CharDisplay_EnableCursor(bool enable);
+
+#endif /* CHAR_DISPLAY_H */
