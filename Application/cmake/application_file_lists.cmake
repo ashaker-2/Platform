@@ -19,8 +19,8 @@ file(TO_CMAKE_PATH "${APP_DIR}/heater"           HEAT_DIR)
 file(TO_CMAKE_PATH "${APP_DIR}/humadity"         HUM_DIR)
 file(TO_CMAKE_PATH "${APP_DIR}/display"          DISP_DIR)
 file(TO_CMAKE_PATH "${APP_DIR}/diagnostic"       DIAG_DIR)
-file(TO_CMAKE_PATH "${APP_DIR}/lightControl"     LigCtrl_DIR)
-file(TO_CMAKE_PATH "${APP_DIR}/lightIndication"  LigIdn_DIR)
+file(TO_CMAKE_PATH "${APP_DIR}/lightctrl"     LigCtrl_DIR)
+file(TO_CMAKE_PATH "${APP_DIR}/ledctrl"          LedCtrl_DIR)
 file(TO_CMAKE_PATH "${APP_DIR}/logger"           Log_DIR)
 file(TO_CMAKE_PATH "${APP_DIR}/OTA"              OTA_DIR)
 file(TO_CMAKE_PATH "${APP_DIR}/power"            PWR_DIR)
@@ -50,8 +50,8 @@ set(APPLICATION_SRCS
     # "${DIAG_DIR}/src/Diag.c"
     "${LigCtrl_DIR}/src/lightctrl.c"
     "${LigCtrl_DIR}/src/lightctrl_cfg.c"
-    "${LigIdn_DIR}/src/lightind.c"
-    "${LigIdn_DIR}/src/lightind_cfg.c"
+    "${LedCtrl_DIR}/src/ledctrl.c"
+    "${LedCtrl_DIR}/src/ledctrl_cfg.c"
     "${PWR_DIR}/src/Power.c"
     "${PWR_DIR}/src/Power_cfg.c"
     "${PUMP_DIR}/src/pumpctrl.c"
@@ -60,8 +60,8 @@ set(APPLICATION_SRCS
     "${SysMgr_DIR}/src/sys_mgr_cfg.c"
     "${SysMon_DIR}/src/system_monitor.c"
     "${SysMon_DIR}/src/system_monitor_cfg.c"
-    "${VEN_DIR}/src/ventctrl.c"
-    "${VEN_DIR}/src/ventctrl_cfg.c"
+    "${VEN_DIR}/src/venctrl.c"
+    "${VEN_DIR}/src/venctrl_cfg.c"
     # "${Log_DIR}/src/logger.c"
     # "${Log_DIR}/src/logger_cfg.c"
     # "${OTA_DIR}/src/ota.c"    
@@ -76,7 +76,7 @@ set(APPLICATION_PUBLIC_INC_DIRS
     "${DISP_DIR}/inc"
     "${DIAG_DIR}/inc"
     "${LigCtrl_DIR}/inc"
-    "${LigIdn_DIR}/inc"
+    "${LedCtrl_DIR}/inc"
     "${Log_DIR}/inc"
     "${OTA_DIR}/inc"
     "${PWR_DIR}/inc"

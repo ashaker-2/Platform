@@ -13,6 +13,49 @@
  * SystemMgr module, including default operational parameters and thresholds.
  */
 
+
+
+
+// /**
+//  * @brief Structure to map temperature sensors to their corresponding fan and heater actuators.
+//  */
+// typedef struct
+// {
+//     TempHum_Sensor_ID_t sensor_id;    ///< The temperature sensor ID
+//     Actuator_ID_t fan_actuator_id;    ///< Fan actuator ID for cooling (when temp is HIGH)
+//     Actuator_ID_t heater_actuator_id; ///< Heater actuator ID for heating (when temp is LOW)
+//     bool fan_enabled;                 ///< Enable/disable fan control for this sensor
+//     bool heater_enabled;              ///< Enable/disable heater control for this sensor
+// } temp_sensor_actuator_mapping_t;
+
+// /**
+//  * @brief Structure to map humidity sensors to their corresponding ventilator and pump actuators.
+//  */
+// typedef struct
+// {
+//     TempHum_Sensor_ID_t sensor_id;        ///< The humidity sensor ID (only DHT sensors)
+//     Actuator_ID_t ventilator_actuator_id; ///< Ventilator actuator ID for dehumidification (when humidity is HIGH)
+//     Actuator_ID_t pump_actuator_id;       ///< Pump actuator ID for humidification (when humidity is LOW)
+//     bool ventilator_enabled;              ///< Enable/disable ventilator control for this sensor
+//     bool pump_enabled;                    ///< Enable/disable pump control for this sensor
+// } hum_sensor_actuator_mapping_t;
+
+// // --- External Configuration Array Declarations ---
+
+// /**
+//  * @brief Array containing the mapping of temperature sensors to their actuators.
+//  * This maps each temperature sensor to its corresponding fan (for cooling) and heater (for heating).
+//  */
+// extern const temp_sensor_actuator_mapping_t s_temp_sensor_actuator_mappings[TEMPHUM_SENSOR_ID_COUNT];
+
+// /**
+//  * @brief Array containing the mapping of humidity sensors to their actuators.
+//  * This maps each humidity-capable sensor to its corresponding ventilator (for dehumidification) 
+//  * and pump (for humidification). NTC sensors are not included as they don't measure humidity.
+//  */
+// extern const hum_sensor_actuator_mapping_t s_hum_sensor_actuator_mappings[TEMPHUM_SENSOR_ID_COUNT - 2]; // -2 because NTC sensors don't have humidity
+
+
 // --- Internal Configuration Types (Persisted to storage) ---
 typedef struct {
     float operational_temp_min_c;

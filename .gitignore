@@ -924,3 +924,9 @@ build/esp-idf/dht/CMakeFiles/__idf_dht.dir/dht.c.obj
 build/esp-idf/esp_idf_lib_helpers/cmake_install.cmake
 build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/temphum/src/temphumctrl_cfg.c.obj
 build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/temphum/src/temphumctrl.c.obj
+build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/ledctrl/src/ledctrl_cfg.c.obj
+build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/ledctrl/src/ledctrl.c.obj
+build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/lightctrl/src/lightctrl_cfg.c.obj
+build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/lightctrl/src/lightctrl.c.obj
+build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/ventilator/src/venctrl_cfg.c.obj
+build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/ventilator/src/venctrl.c.obj

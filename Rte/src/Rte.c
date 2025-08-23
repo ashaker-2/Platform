@@ -14,15 +14,15 @@
 // Application Modules (for RTE_AppInitTask and RTE Services)
 #include "fanctrl.h"
 #include "temphumctrl.h"
-#include "ventctrl.h"
+#include "venctrl.h"
 #include "Heaterctrl.h"
 #include "pumpctrl.h"
 #include "lightctrl.h"
-#include "lightind.h"
+#include "ledctrl.h"
 #include "char_display.h"
 #include "sys_mgr.h"        // Central system manager
 #include "system_monitor.h" // CPU & stack monitor
-
+#include "hal_init.h"
 // NEW: Include the communication stack interface and middleware directly for init/task
 // #include "com.h" // Provides the processing functions
 
@@ -36,41 +36,25 @@ static const char *TAG = "RTE";
 
 uint8_t RTE_Init(void)
 {
-    LOGI(TAG, "RTE_Init called. Creating initial hardware initialization task.");
     if (xTaskCreate(RTE_HwInitTask, "HwInitTask", 256, NULL, configMAX_PRIORITIES - 1, NULL) != pdPASS)
     {
         LOGE(TAG, "Failed to create HwInitTask!");
         return E_NOK;
     }
+
     return E_OK;
 }
 
 void RTE_HwInitTask(void *pvParameters)
 {
     LOGI(TAG, "RTE_HwInitTask started: Initializing HAL modules...");
-    if (HAL_GPIO_Init() != E_OK)
+    if (HAL_Init() != E_OK)
     {
         LOGE(TAG, "GPIO HAL Init failed! Halting.");
         vTaskSuspend(NULL);
     }
-    if (HAL_ADC_Init() != E_OK)
-    {
-        LOGE(TAG, "ADC HAL Init failed! Halting.");
-        vTaskSuspend(NULL);
-    }
-    if (HAL_I2C_Init() != E_OK)
-    {
-        LOGE(TAG, "I2C HAL Init failed! Halting.");
-        vTaskSuspend(NULL);
-    }
-    if (HAL_Timer_Init() != E_OK)
-    {
-        LOGE(TAG, "Timer HAL Init failed! Halting.");
-        vTaskSuspend(NULL);
-    }
-    
 
-    LOGI(TAG, "HAL Initialization complete. Creating Application Initialization Task.");
+    LOGI(TAG, "HAL Initialization complete.");
     if (xTaskCreate(RTE_AppInitTask, "AppInitTask", 4096, NULL, configMAX_PRIORITIES - 2, NULL) != pdPASS)
     {
         LOGE(TAG, "Failed to create AppInitTask! Halting.");
@@ -93,7 +77,7 @@ void RTE_AppInitTask(void *pvParameters)
         LOGE(TAG, "Temperature and Humidity Sensor APP Init failed! Halting.");
         vTaskSuspend(NULL);
     }
-    if (VentCtrl_Init() != E_OK)
+    if (VenCtrl_Init() != E_OK)
     {
         LOGE(TAG, "Ventilator APP Init failed! Halting.");
         vTaskSuspend(NULL);
@@ -113,7 +97,7 @@ void RTE_AppInitTask(void *pvParameters)
         LOGE(TAG, "LightControl APP Init failed! Halting.");
         vTaskSuspend(NULL);
     }
-    if (LightInd_Init() != E_OK)
+    if (LedCtrl_Init() != E_OK)
     {
         LOGE(TAG, "LightIndication APP Init failed! Halting.");
         vTaskSuspend(NULL);
@@ -124,26 +108,24 @@ void RTE_AppInitTask(void *pvParameters)
         vTaskSuspend(NULL);
     }
 
-    // System Manager, Monitor, and Communication Initializations
-    if (SYS_MGR_Init() != E_OK)
-    {
-        LOGE(TAG, "System Manager Init failed! Halting.");
-        vTaskSuspend(NULL);
-    }
-    if (SystemMonitor_Init() != E_OK)
-    {
-        LOGE(TAG, "System Monitor Init failed! Halting.");
-        vTaskSuspend(NULL);
-    }
-
     // NEW: Call the ComM_Init (now defined in Rte.c)
     if (ComM_Init() != E_OK)
     {
         LOGE(TAG, "Communication Stack Init failed! Halting.");
         vTaskSuspend(NULL);
     }
-
-    // LOGI(TAG, "All Application modules initialized. Configuring System Manager parameters via RTE service calls...");
+    // System Manager, Monitor, and Communication Initializations
+    if (SystemMonitor_Init() != E_OK)
+    {
+        LOGE(TAG, "System Monitor Init failed! Halting.");
+        vTaskSuspend(NULL);
+    }
+    if (SYS_MGR_Init() != E_OK)
+    {
+        LOGE(TAG, "System Manager Init failed! Halting.");
+        vTaskSuspend(NULL);
+    }
+    LOGI(TAG, "All Application modules initialized. Configuring System Manager parameters via RTE service calls...");
 
     // Configure System Manager using RTE service calls
     // RTE_Service_SetOperationalTemperature(22.0f, 26.0f); // Desired 22-26 C
@@ -161,13 +143,13 @@ void RTE_AppInitTask(void *pvParameters)
     // RTE_Service_CHARACTER_DISPLAY_SetCursor(CHARACTER_DISPLAY_ALARM_PANEL, 0, 1);
     // RTE_Service_CHARACTER_DISPLAY_PrintString(CHARACTER_DISPLAY_ALARM_PANEL, "Monitoring...");
 
-    // LOGI(TAG, "Calling RTE_StartAllPermanentTasks to create all permanent FreeRTOS tasks...");
+    LOGI(TAG, "Calling RTE_StartAllPermanentTasks to create all permanent FreeRTOS tasks...");
     if (RTE_StartAllPermanentTasks() != E_OK)
     {
-        // LOGE(TAG, "Failed to start all permanent tasks via RTE! Halting.");
+        LOGE(TAG, "Failed to start all permanent tasks via RTE! Halting.");
         vTaskSuspend(NULL);
     }
-    // LOGI(TAG, "All permanent tasks created. RTE_AppInitTask deleting itself.");
+    LOGI(TAG, "All permanent tasks created. RTE_AppInitTask deleting itself.");
     vTaskDelete(NULL);
 }
 

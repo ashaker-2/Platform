@@ -17,7 +17,7 @@
 #include "hal_adc.h"
 #include "hal_timer.h"
 #include "hal_spi.h"
-
+#include "logger.h"
 static const char *TAG = "hal_init";
 
 /**
@@ -34,7 +34,7 @@ Status_t HAL_Init(void) {
     // Initialize GPIOs
     ret = HAL_GPIO_Init();
     if (ret != E_OK) {
-        ESP_LOGE(TAG, "GPIO initialization failed!");
+        LOGE(TAG, "GPIO initialization failed!");
         return ret;
     }
     ESP_LOGI(TAG, "GPIO initialized successfully.");
@@ -42,7 +42,7 @@ Status_t HAL_Init(void) {
     // Initialize I2C
     ret = HAL_I2C_Init();
     if (ret != E_OK) {
-        ESP_LOGE(TAG, "I2C initialization failed!");
+        LOGE(TAG, "I2C initialization failed!");
         return ret;
     }
     ESP_LOGI(TAG, "I2C initialized successfully.");
@@ -50,15 +50,15 @@ Status_t HAL_Init(void) {
     // Initialize ADC
     ret = HAL_ADC_Init();
     if (ret != E_OK) {
-        ESP_LOGE(TAG, "ADC initialization failed!");
+        LOGE(TAG, "ADC initialization failed!");
         return ret;
     }
     ESP_LOGI(TAG, "ADC initialized successfully.");
 
     // Initialize Timer
-    // ret = HAL_TIMER_Init();
+    ret = HAL_Timer_Init();
     if (ret != E_OK) {
-        ESP_LOGE(TAG, "Timer initialization failed!");
+        LOGE(TAG, "Timer initialization failed!");
         return ret;
     }
     ESP_LOGI(TAG, "Timer initialized successfully.");
@@ -66,7 +66,7 @@ Status_t HAL_Init(void) {
     // Initialize SPI
     // ret = HAL_SPI_Init();
     if (ret != E_OK) {
-        ESP_LOGE(TAG, "SPI initialization failed!");
+        LOGE(TAG, "SPI initialization failed!");
         return ret;
     }
     ESP_LOGI(TAG, "SPI initialized successfully.");

@@ -1,12 +1,3 @@
-#include "sys_mgr.h"
-#include "sys_mgr_cfg.h"
-#include "common.h"
-#include "logger.h"
-#include "system_monitor.h"
-// #include "Rte.h"
-// #include "freertos/FreeRTOS.h"
-// #include "freertos/semphr.h"
-#include <string.h>
 
 /**
  * @file sys_mgr.c
@@ -15,6 +6,17 @@
  * This file contains the core logic for the central control and state management,
  * as detailed in the SystemMgr Detailed Design Document.
  */
+
+#include "sys_mgr.h"
+#include "sys_mgr_cfg.h"
+#include "common.h"
+#include "logger.h"
+#include "system_monitor.h"
+#include "Rte.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include <string.h>
+
 
 // --- Internal State Variables ---
 typedef struct
@@ -30,7 +32,7 @@ typedef struct
 } SYS_MGR_State_t;
 
 static SYS_MGR_State_t sys_mgr_state;
-// static SemaphoreHandle_t sys_mgr_state_mutex;
+static SemaphoreHandle_t sys_mgr_state_mutex;
 static bool s_is_initialized = false;
 
 // --- Private Helper Function Prototypes ---
@@ -43,17 +45,17 @@ static void SYS_MGR_UpdateDisplayAndAlarm(void);
 
 Status_t SYS_MGR_Init(void)
 {
-    // if (s_is_initialized)
-    // {
-    //     return E_OK;
-    // }
+    if (s_is_initialized)
+    {
+        return E_OK;
+    }
 
-    // sys_mgr_state_mutex = xSemaphoreCreateMutex();
-    // if (sys_mgr_state_mutex == NULL)
-    // {
-    //     // LOGF("SystemMgr", "Failed to create state mutex.");
-    //     return E_NOK;
-    // }
+    sys_mgr_state_mutex = xSemaphoreCreateMutex();
+    if (sys_mgr_state_mutex == NULL)
+    {
+        LOGE("SystemMgr", "Failed to create state mutex.");
+        return E_NOK;
+    }
 
     // xSemaphoreTake(sys_mgr_state_mutex, portMAX_DELAY);
 
@@ -77,18 +79,17 @@ Status_t SYS_MGR_Init(void)
     //     SysMon_ReportFaultStatus(FAULT_ID_NVM_READ_FAILURE, 0);
     // }
 
-    // xSemaphoreGive(sys_mgr_state_mutex);
-    // s_is_initialized = true;
-    // LOGI("SystemMgr", "Module initialized successfully.");
+    s_is_initialized = true;
+    LOGI("SystemMgr", "Module initialized successfully.");
     return E_OK;
 }
 
 void SYS_MGR_MainFunction(void)
 {
-    // if (!s_is_initialized)
-    // {
-    //     return;
-    // }
+    if (!s_is_initialized)
+    {
+        return;
+    }
 
     // xSemaphoreTake(sys_mgr_state_mutex, portMAX_DELAY);
 

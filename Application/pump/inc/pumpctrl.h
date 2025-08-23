@@ -1,61 +1,52 @@
-#ifndef PUMPCTRL_H
-#define PUMPCTRL_H
-
-#include "common.h"
-#include <stdint.h>
-#include <stdbool.h>
-
+/* ============================================================================
+ * SOURCE FILE: Application/pumpCtrl/inc/pump_ctrl.h
+ * ============================================================================*/
 /**
- * @file pumpctrl.h
- * @brief Public interface for the PumpCtrl (Pump Control) component.
+ * @file pump_ctrl.h
+ * @brief Public API for the Pump Control (PumpCtrl) module.
  *
- * This header defines the public API for the PumpCtrl module, which provides a
- * high-level interface for controlling and monitoring water pumps within the system.
+ * This header provides functions to initialize the pump control system and
+ * manage the state (ON/OFF) of individual pumps.
  */
 
-// --- Pump State Definitions ---
-typedef enum {
-    PumpCtrl_STATE_OFF = 0,
-    PumpCtrl_STATE_ON,
-    PumpCtrl_STATE_COUNT
-} PumpCtrl_State_t;
+#ifndef PUMP_CTRL_H
+#define PUMP_CTRL_H
 
-// --- Public Functions ---
+#include "common.h"  // For Status_t
+#include "pumpctrl_cfg.h"   // For Pump_ID_t, Pump_State_t
 
 /**
- * @brief Initializes the PumpCtrl module and all configured pump control hardware.
- * All module-internal variables and pump states are initialized to a safe,
- * known state (e.g., OFF).
- * @return E_OK on success, E_NOK on failure.
+ * @brief Initializes the Pump Control (PumpCtrl) module.
+ *
+ * This function configures the necessary GPIO expander pins (via HAL_I2C)
+ * or direct GPIO pins (via HAL_GPIO) according to the settings in pump_ctrl_cfg.c
+ * and sets the initial state of all configured pumps.
+ *
+ * @return E_OK on success, or an error code if initialization fails.
  */
 Status_t PumpCtrl_Init(void);
 
 /**
- * @brief Commands a desired pump state (ON/OFF).
- * This function only updates the internal commanded state. The actual hardware control
- * is performed periodically by PumpCtrl_MainFunction.
- * @param actuatorId The unique ID of the pump to control.
- * @param state The desired state (PumpCtrl_STATE_ON or PumpCtrl_STATE_OFF).
- * @return E_OK on successful command update, E_NOK if the actuatorId is invalid
- * or the state is invalid.
+ * @brief Sets the state (ON or OFF) of a specific pump.
+ *
+ * @param pump_id The unique identifier of the pump to control.
+ * @param state The desired state for the pump (PUMP_STATE_ON or PUMP_STATE_OFF).
+ * @return E_OK on success, E_INVALID_PARAM if `pump_id` is invalid, or
+ * an error code from the underlying HAL if pin control fails.
  */
-Status_t PumpCtrl_SetState(uint32_t actuatorId, PumpCtrl_State_t state);
+Status_t PumpCtrl_SetState(Pump_ID_t pump_id, Pump_State_t state);
 
 /**
- * @brief Gets the last commanded state, or the actual measured state if feedback is implemented.
- * This is a non-blocking getter function.
- * @param actuatorId The unique ID of the pump to retrieve data from.
- * @param state Pointer to store the current ON/OFF state.
- * @return E_OK on successful retrieval, E_NOK if the actuatorId is invalid,
- * or the pointer is NULL.
+ * @brief Gets the current state of a specific pump.
+ *
+ * This function relies on the internally tracked state of the expander outputs
+ * or direct GPIO states.
+ *
+ * @param pump_id The unique identifier of the pump to query.
+ * @param state_out Pointer to a variable where the current state (PUMP_STATE_ON/OFF)
+ * will be stored.
+ * @return E_OK on success, E_INVALID_PARAM if `pump_id` or `state_out` is invalid.
  */
-Status_t PumpCtrl_GetState(uint32_t actuatorId, PumpCtrl_State_t *state);
+Status_t PumpCtrl_GetState(Pump_ID_t pump_id, Pump_State_t *state_out);
 
-// --- Internal Periodic Runnable Prototype (called by RTE) ---
-/**
- * @brief Performs the periodic pump control, applying the commanded state to hardware,
- * and optionally reading feedback. This function is intended to be called periodically by an RTE task.
- */
-void PumpCtrl_MainFunction(void);
-
-#endif // PUMPCTRL_H
+#endif /* PUMP_CTRL_H */

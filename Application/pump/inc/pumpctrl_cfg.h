@@ -1,87 +1,69 @@
-#ifndef PUMPCTRL_CFG_H
-#define PUMPCTRL_CFG_H
-
-#include "common.h"
-#include "system_monitor.h" // For fault IDs
-#include "hal_gpio.h"
-#include "hal_adc.h"
-#include <stdint.h>
-
+/* ============================================================================
+ * SOURCE FILE: Application/pumpCtrl/inc/pump_ctrl_cfg.h
+ * ============================================================================*/
 /**
- * @file pumpctrl_cfg.h
- * @brief Configuration header for the PumpCtrl component.
+ * @file pump_ctrl_cfg.h
+ * @brief Configuration definitions for the Pump Control (PumpCtrl) module.
  *
- * This file defines all the necessary data types, macros, and external declarations
- * for configuring the PumpCtrl module for a specific application.
+ * This file declares the structure for individual pump configurations,
+ * allowing control via either direct GPIO or an I/O expander.
  */
 
-// --- Fault ID Definitions (from SystemMonitor) ---
-#define FAULT_ID_PUMP_INIT_FAILED               FAULT_ID_PUMP_CONTROL_FAILURE
-#define FAULT_ID_PUMP_CONTROL_FAILED            FAULT_ID_PUMP_CONTROL_FAILURE
-#define FAULT_ID_PUMP_FEEDBACK_FAILURE          FAULT_ID_PUMP_CONTROL_FAILURE
-#define FAULT_ID_PUMP_FEEDBACK_MISMATCH         FAULT_ID_PUMP_CONTROL_FAILURE
+#ifndef PUMP_CTRL_CFG_H
+#define PUMP_CTRL_CFG_H
 
-// --- Pump Type Enums ---
+#include <stdint.h> // For uint8_t
+#include <stddef.h> // For size_t
+
+/**
+ * @brief Enumeration for unique Pump IDs.
+ * These IDs are used to reference specific pumps within the Pump Control module.
+ */
 typedef enum {
-    PumpCtrl_TYPE_RELAY,
-    // Add more types as needed (e.g., PWM for variable speed pumps)
-    PumpCtrl_TYPE_COUNT
-} PumpCtrl_Type_t;
+    PUMP_ID_1 = 0,   ///< First pump
+    PUMP_ID_COUNT    ///< Total number of pumps configured
+} Pump_ID_t;
 
-// --- Pump Feedback Type Enums ---
+/**
+ * @brief Enumeration for pump states.
+ */
 typedef enum {
-    PumpCtrl_FEEDBACK_TYPE_NONE,
-    PumpCtrl_FEEDBACK_TYPE_FLOW_SENSOR,    // Pulse or analog flow sensor
-    PumpCtrl_FEEDBACK_TYPE_CURRENT_SENSOR, // Analog current sensor feedback
-    PumpCtrl_FEEDBACK_TYPE_COUNT
-} PumpCtrl_FeedbackType_t;
+    PUMP_STATE_OFF = 0, ///< Pump is off
+    PUMP_STATE_ON,      ///< Pump is on
+    PUMP_STATE_INVALID  ///< Invalid pump state
+} Pump_State_t;
 
-// --- Pump Control Details Structure ---
+/**
+ * @brief Enumeration for the type of control mechanism for a pump.
+ */
+typedef enum {
+    PUMP_CONTROL_TYPE_IO_EXPANDER = 0, ///< Controlled via CH423S I/O expander
+    PUMP_CONTROL_TYPE_GPIO,            ///< Controlled via direct ESP32 GPIO pin
+    PUMP_CONTROL_TYPE_COUNT            ///< Total number of control types
+} Pump_Control_Type_t;
+
+/**
+ * @brief Structure to hold the configuration for a single pump.
+ *
+ * This includes the control type and the specific pin number.
+ * The interpretation of `pinNum` depends on `control_type`.
+ */
 typedef struct {
-    uint8_t relay_gpio_pin;
-} PumpCtrl_ControlDetails_t;
+    Pump_ID_t pump_id;                   ///< Unique identifier for the pump
+    Pump_Control_Type_t control_type;   ///< How this pump is controlled
+    uint8_t pinNum;                    ///< The pin number (either CH423S GP pin or direct GPIO pin)
+    Pump_State_t initial_state;         ///< Initial state of the pump (ON/OFF)
+} pump_config_item_t;
 
-// --- Pump Feedback Details Union (Optional) ---
-typedef union {
-    struct {
-        uint8_t gpio_pin; // For pulse-based flow sensors
-        float pulses_per_liter; // Conversion factor
-        float flow_threshold_on; // Min flow to consider pump "ON"
-    } flow_sensor_pulse;
-    struct {
-        uint8_t adc_channel; // For analog flow/current sensors
-        float analog_to_flow_slope;
-        float analog_to_flow_offset;
-        float flow_threshold_on; // Min flow to consider pump "ON"
-    } flow_sensor_analog;
-    struct {
-        uint8_t adc_channel;
-        float current_threshold_on;  // Minimum current to consider pump "ON"
-        float current_threshold_off; // Maximum current to consider pump "OFF"
-    } current_sensor;
-} PumpCtrl_FeedbackDetails_t;
+/**
+ * @brief External declaration of the array containing all predefined pump configurations.
+ * This array is defined in pump_ctrl_cfg.c and accessed by pump_ctrl.c for initialization.
+ */
+extern const pump_config_item_t s_pump_configurations[];
 
-// --- Pump Configuration Structure ---
-typedef struct {
-    uint32_t id; // Unique ID for this pump instance
-    PumpCtrl_Type_t type;
-    PumpCtrl_ControlDetails_t control_details;
-    PumpCtrl_FeedbackType_t feedback_type;
-    PumpCtrl_FeedbackDetails_t feedback_details; // Optional, only if feedback_type != NONE
-} PumpCtrl_Config_t;
+/**
+ * @brief External declaration of the number of elements in the pump configurations array.
+ */
+extern const size_t s_num_pump_configurations;
 
-// --- Pump IDs ---
-typedef enum {
-    PUMP_ID_HUMIDITY = 0,
-    PUMP_ID_DRAIN,
-    // Add more pump IDs as needed
-    PumpCtrl_COUNT // Total number of configured pumps
-} PumpCtrl_Id_t;
-
-// --- External Declaration of Pump Configurations Array ---
-extern const PumpCtrl_Config_t pump_configs[PumpCtrl_COUNT];
-
-// --- Periodic Control Settings for PumpCtrl_MainFunction() ---
-#define PumpCtrl_CONTROL_PERIOD_MS             100 // PumpCtrl_MainFunction called every 100 ms
-
-#endif // PUMPCTRL_CFG_H
+#endif /* PUMP_CTRL_CFG_H */

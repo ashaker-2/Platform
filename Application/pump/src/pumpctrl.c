@@ -1,223 +1,193 @@
-#include "pumpctrl.h"
-#include "pumpctrl_cfg.h"
-#include "logger.h"
-#include "system_monitor.h"
-// #include "Rte.h"
-// #include "hal_gpio.h"
-// #include "hal_adc.h"
-#include <string.h>
-
+/* ============================================================================
+ * SOURCE FILE: Application/pumpCtrl/src/pump_ctrl.c
+ * ============================================================================*/
 /**
- * @file pumpctrl.c
- * @brief Implementation for the PumpCtrl (Pump Control) component.
+ * @file pump_ctrl.c
+ * @brief Implements the Pump Control (PumpCtrl) module.
  *
- * This file contains the core logic for controlling water pumps based on the
- * configuration provided in pumpctrl_cfg.c/.h.
+ * This file provides the logic for initializing and controlling pumps,
+ * by interfacing with the Hardware Abstraction Layer (HAL),
+ * supporting both CH423S expander and direct GPIO control.
  */
 
-// --- Internal State Variables ---
-static PumpCtrl_State_t s_commanded_states[PumpCtrl_COUNT];
-static PumpCtrl_State_t s_actual_states[PumpCtrl_COUNT];
-static bool s_is_initialized = false;
+#include "pumpctrl.h"       // Public API for PumpCtrl
+#include "pumpctrl_cfg.h"   // Configuration for pump instances
+#include "HAL_I2C.h"        // Dependency for controlling CH423S expander
+#include "HAL_GPIO.h"       // Dependency for controlling direct GPIO
+#include "esp_log.h"        // ESP-IDF logging
 
-// --- Private Helper Function Prototypes ---
-static Status_t PumpCtrl_ApplyControl(const PumpCtrl_Config_t *config, PumpCtrl_State_t state);
-static Status_t PumpCtrl_ReadFeedback(const PumpCtrl_Config_t *config, PumpCtrl_State_t *actual_state);
+static const char *TAG = "PumpCtrl"; // Logging tag for this module
 
-// --- Public Function Implementations ---
+// --- Internal Data ---
+// Array to store the current state of each pump. Initialized during PumpCtrl_Init.
+static Pump_State_t s_current_pump_states[PUMP_ID_COUNT];
 
-Status_t PumpCtrl_Init(void)
-{
-    // if (s_is_initialized)
-    // {
-    //     return E_OK;
-    // }
+// --- Public Functions ---
 
-    // // Initialize internal state variables to a known safe state
-    // memset(s_commanded_states, PumpCtrl_STATE_OFF, sizeof(s_commanded_states));
-    // memset(s_actual_states, PumpCtrl_STATE_OFF, sizeof(s_actual_states));
+/**
+ * @brief Initializes the Pump Control (PumpCtrl) module.
+ *
+ * This function iterates through the `s_pump_configurations` array,
+ * sets up the corresponding pins (either CH423S or direct GPIO)
+ * and sets the initial state for each pump based on its control type.
+ *
+ * @return E_OK on successful initialization of all configured pumps,
+ * or an error code if any pump configuration or HAL call fails.
+ */
+Status_t PumpCtrl_Init(void) {
+    ESP_LOGI(TAG, "Initializing Pump Control module...");
 
-    // // Initialize hardware for each configured pump
-    // for (uint32_t i = 0; i < PumpCtrl_COUNT; i++) {
-    //     const PumpCtrl_Config_t* config = &pump_configs[i];
-    //     Status_t status = E_NOK;
+    for (size_t i = 0; i < s_num_pump_configurations; i++) {
+        const pump_config_item_t *pump_cfg = &s_pump_configurations[i];
+        Status_t status = E_OK; // Initialize status to OK
 
-    //     // Initialize control interface
-    //     switch (config->type) {
-    //         case PumpCtrl_TYPE_RELAY:
-    //             status = MCAL_GPIO_Init(config->control_details.relay_gpio_pin, GPIO_MODE_OUTPUT);
-    //             break;
-    //         default:
-    //             LOGE("PumpCtrl: Unknown pump type for ID %lu", config->id);
-    //             RTE_Service_SystemMonitor_ReportFault(FAULT_ID_PUMP_INIT_FAILED,  config->id);
-    //             return E_NOK;
-    //     }
+        if (pump_cfg->pump_id >= PUMP_ID_COUNT) {
+            ESP_LOGE(TAG, "Invalid Pump ID %d found in configuration.", pump_cfg->pump_id);
+            return E_INVALID_PARAM;
+        }
 
-    //     if (status != E_OK) {
-    //         LOGE("PumpCtrl: Control interface init failed for ID %lu", config->id);
-    //         RTE_Service_SystemMonitor_ReportFault(FAULT_ID_PUMP_INIT_FAILED,  config->id);
-    //         return E_NOK;
-    //     }
+        switch (pump_cfg->control_type) {
+            case PUMP_CONTROL_TYPE_IO_EXPANDER:
+                // Set the initial state of the pump via the CH423S expander
+                status = HAL_CH423S_SetOutput(pump_cfg->pinNum, pump_cfg->initial_state);
+                if (status == E_OK) 
+                {
+                    ESP_LOGI(TAG, "Pump ID %d (CH423S pin %d) initialized to %s.",
+                             pump_cfg->pump_id, pump_cfg->pinNum,
+                             (pump_cfg->initial_state == PUMP_STATE_ON) ? "ON" : "OFF");
+                } else 
+                {
+                    ESP_LOGE(TAG, "Failed to set initial state for Pump ID %d (CH423S pin %d). Status: %d",
+                             pump_cfg->pump_id, pump_cfg->pinNum, status);
+                }
+                break;
 
-    //     // Initialize feedback interface (if configured)
-    //     if (config->feedback_type != PumpCtrl_FEEDBACK_TYPE_NONE) {
-    //         status = E_NOK;
-    //         switch (config->feedback_type) {
-    //             case PumpCtrl_FEEDBACK_TYPE_FLOW_SENSOR:
-    //                 // Assuming pulse-based flow sensor for this example
-    //                 status = MCAL_GPIO_Init(config->feedback_details.flow_sensor_pulse.gpio_pin, GPIO_MODE_INPUT_IT_RISING);
-    //                 break;
-    //             case PumpCtrl_FEEDBACK_TYPE_CURRENT_SENSOR:
-    //                 status = MCAL_ADC_Init(config->feedback_details.current_sensor.adc_channel);
-    //                 break;
-    //             default:
-    //                 LOGW("PumpCtrl: Unknown feedback type for ID %lu", config->id);
-    //                 break; // Non-fatal, continue initialization
-    //         }
-    //         if (status != E_OK) {
-    //             LOGW("PumpCtrl: Feedback interface init failed for ID %lu", config->id);
-    //             RTE_Service_SystemMonitor_ReportFault(FAULT_ID_PUMP_FEEDBACK_FAILURE,  config->id);
-    //         }
-    //     }
-    // }
+            case PUMP_CONTROL_TYPE_GPIO:
+                // Initialize the direct GPIO pin and set its initial state
+                status = HAL_GPIO_SetLevel(pump_cfg->pinNum, pump_cfg->initial_state);
+                if (status == E_OK) {
+                    ESP_LOGI(TAG, "Pump ID %d (GPIO pin %d) initialized to %s.",
+                             pump_cfg->pump_id, pump_cfg->pinNum,
+                             (pump_cfg->initial_state == PUMP_STATE_ON) ? "ON" : "OFF");
+                } else {
+                    ESP_LOGE(TAG, "Failed to set initial state for Pump ID %d (GPIO pin %d). Status: %d",
+                             pump_cfg->pump_id, pump_cfg->pinNum, status);
+                }
+                break;
 
-    // s_is_initialized = true;
-    // LOGI("PumpCtrl: Module initialized successfully.");
+            default:
+                ESP_LOGE(TAG, "Unknown control type %d for Pump ID %d.",
+                         pump_cfg->control_type, pump_cfg->pump_id);
+                return E_INVALID_PARAM; // Error for unknown control type
+        }
+
+        if (status != E_OK) {
+            return status; // Propagate the error from HAL
+        }
+
+        // Store the initial state internally
+        s_current_pump_states[pump_cfg->pump_id] = pump_cfg->initial_state;
+    }
+
+    ESP_LOGI(TAG, "Pump Control module initialized successfully with %zu pumps.", s_num_pump_configurations);
     return E_OK;
 }
 
-Status_t PumpCtrl_SetState(uint32_t actuatorId, PumpCtrl_State_t state)
-{
-    // if (!s_is_initialized)
-    // {
-    //     LOGW("PumpCtrl: SetState called before initialization.");
-    //     return E_NOK;
-    // }
+/**
+ * @brief Sets the state (ON or OFF) of a specific pump.
+ *
+ * This function looks up the pump's configuration and calls the appropriate
+ * HAL function (CH423S or direct GPIO) to control it.
+ *
+ * @param pump_id The unique identifier of the pump to control.
+ * @param state The desired state for the pump (PUMP_STATE_ON or PUMP_STATE_OFF).
+ * @return E_OK on success, E_INVALID_PARAM if `pump_id` is invalid, or
+ * an error code from the underlying HAL if pin control fails.
+ */
+Status_t PumpCtrl_SetState(Pump_ID_t pump_id, Pump_State_t state) {
+    if (pump_id >= PUMP_ID_COUNT) {
+        ESP_LOGE(TAG, "Attempted to set state for invalid Pump ID %d.", pump_id);
+        return E_INVALID_PARAM;
+    }
 
-    // if (actuatorId >= PumpCtrl_COUNT)
-    // {
-    //     LOGE("PumpCtrl: Invalid actuatorId %lu", actuatorId);
-    //     return E_NOK;
-    // }
+    // Find the configuration for the specified pump ID
+    const pump_config_item_t *pump_cfg = NULL;
+    for (size_t i = 0; i < s_num_pump_configurations; i++) {
+        if (s_pump_configurations[i].pump_id == pump_id) {
+            pump_cfg = &s_pump_configurations[i];
+            break;
+        }
+    }
 
-    // if (state >= PumpCtrl_STATE_COUNT)
-    // {
-    //     LOGE("PumpCtrl: Invalid state %u for actuatorId %lu", state, actuatorId);
-    //     return E_NOK;
-    // }
+    if (pump_cfg == NULL) {
+        ESP_LOGE(TAG, "Pump ID %d not found in configuration.", pump_id);
+        return E_INVALID_PARAM;
+    }
 
-    // s_commanded_states[actuatorId] = state;
+    Status_t status = E_OK; // Initialize status to OK
 
-    // LOGD("PumpCtrl: Actuator %lu commanded to state %s", actuatorId, (state == PumpCtrl_STATE_ON) ? "ON" : "OFF");
+    switch (pump_cfg->control_type) {
+        case PUMP_CONTROL_TYPE_IO_EXPANDER:
+            // Call the HAL to set the output on the CH423S expander
+            status = HAL_CH423S_SetOutput(pump_cfg->pinNum, state);
+            if (status == E_OK) {
+                ESP_LOGI(TAG, "Pump ID %d (CH423S pin %d) set to %s.",
+                         pump_id, pump_cfg->pinNum,
+                         (state == PUMP_STATE_ON) ? "ON" : "OFF");
+            } else {
+                ESP_LOGE(TAG, "Failed to set Pump ID %d (CH423S pin %d) to %s. Status: %d",
+                         pump_id, pump_cfg->pinNum,
+                         (state == PUMP_STATE_ON) ? "ON" : "OFF", status);
+            }
+            break;
+
+        case PUMP_CONTROL_TYPE_GPIO:
+            // Call the HAL to set the output on the direct GPIO pin
+            status = HAL_GPIO_SetLevel(pump_cfg->pinNum, state);
+            if (status == E_OK) {
+                ESP_LOGI(TAG, "Pump ID %d (GPIO pin %d) set to %s.",
+                         pump_id, pump_cfg->pinNum,
+                         (state == PUMP_STATE_ON) ? "ON" : "OFF");
+            } else {
+                ESP_LOGE(TAG, "Failed to set Pump ID %d (GPIO pin %d) to %s. Status: %d",
+                         pump_id, pump_cfg->pinNum,
+                         (state == PUMP_STATE_ON) ? "ON" : "OFF", status);
+            }
+            break;
+
+        default:
+            ESP_LOGE(TAG, "Unknown control type %d for Pump ID %d.",
+                     pump_cfg->control_type, pump_id);
+            return E_INVALID_PARAM; // Error for unknown control type
+    }
+
+    if (status != E_OK) {
+        return status;
+    }
+
+    // Update the internal state tracking
+    s_current_pump_states[pump_id] = state;
     return E_OK;
 }
 
-Status_t PumpCtrl_GetState(uint32_t actuatorId, PumpCtrl_State_t *state)
-{
-    // if (!s_is_initialized || state == NULL)
-    // {
-    //     LOGE("PumpCtrl: GetState called with NULL pointer or before initialization.");
-    //     return E_NOK;
-    // }
-    // if (actuatorId >= PumpCtrl_COUNT) {
-    //     LOGE("PumpCtrl: Invalid actuatorId %lu", actuatorId);
-    //     return E_NOK;
-    // }
+/**
+ * @brief Gets the current state of a specific pump.
+ *
+ * This function retrieves the state from the internally tracked `s_current_pump_states` array.
+ *
+ * @param pump_id The unique identifier of the pump to query.
+ * @param state_out Pointer to a variable where the current state (PUMP_STATE_ON/OFF)
+ * will be stored. Must not be NULL.
+ * @return E_OK on success, E_INVALID_PARAM if `pump_id` or `state_out` is invalid.
+ */
+Status_t PumpCtrl_GetState(Pump_ID_t pump_id, Pump_State_t *state_out) {
+    if (pump_id >= PUMP_ID_COUNT || state_out == NULL) {
+        ESP_LOGE(TAG, "Invalid Pump ID %d or NULL state_out pointer.", pump_id);
+        return E_INVALID_PARAM;
+    }
 
-    // *state = s_actual_states[actuatorId];
-
+    *state_out = s_current_pump_states[pump_id];
+    ESP_LOGD(TAG, "Pump ID %d current state is %s.", pump_id,
+             (*state_out == PUMP_STATE_ON) ? "ON" : "OFF");
     return E_OK;
-}
-
-void PumpCtrl_MainFunction(void)
-{
-    // if (!s_is_initialized)
-    // {
-    //     return;
-    // }
-
-    // for (uint32_t i = 0; i < PumpCtrl_COUNT; i++) {
-    //     const PumpCtrl_Config_t* config = &pump_configs[i];
-
-    //     // 1. Apply commanded state to hardware
-    //     if (PumpCtrl_ApplyControl(config, s_commanded_states[i]) != E_OK) {
-    //         RTE_Service_SystemMonitor_ReportFault(FAULT_ID_PUMP_CONTROL_FAILED,  config->id);
-    //         LOGE("PumpCtrl: Control failed for actuator ID %lu", config->id);
-    //         // On failure, set actual state to off
-    //         s_actual_states[i] = PumpCtrl_STATE_OFF;
-    //         continue; // Move to next pump
-    //     }
-
-    //     // 2. Read feedback (if configured)
-    //     PumpCtrl_State_t actual_state_feedback = PumpCtrl_STATE_OFF;
-    //     if (config->feedback_type != PumpCtrl_FEEDBACK_TYPE_NONE) {
-    //         if (PumpCtrl_ReadFeedback(config, &actual_state_feedback) != E_OK) {
-    //             RTE_Service_SystemMonitor_ReportFault(FAULT_ID_PUMP_FEEDBACK_FAILURE,  config->id);
-    //             LOGW("PumpCtrl: Feedback read failed for actuator ID %lu", config->id);
-    //         } else {
-    //             // 3. Compare commanded vs. actual
-    //             if (s_commanded_states[i] != actual_state_feedback) {
-    //                 RTE_Service_SystemMonitor_ReportFault(FAULT_ID_PUMP_FEEDBACK_MISMATCH,  config->id);
-    //                 LOGW("PumpCtrl: Feedback mismatch for actuator ID %lu. Commanded: %s, Actual: %s",
-    //                      config->id,
-    //                      (s_commanded_states[i] == PumpCtrl_STATE_ON) ? "ON" : "OFF",
-    //                      (actual_state_feedback == PumpCtrl_STATE_ON) ? "ON" : "OFF");
-    //             }
-    //             s_actual_states[i] = actual_state_feedback;
-    //         }
-    //     } else {
-    //          // If no feedback, assume commanded state is the actual state
-    //          s_actual_states[i] = s_commanded_states[i];
-    //     }
-    // }
-}
-
-// --- Private Helper Function Implementations ---
-
-static Status_t PumpCtrl_ApplyControl(const PumpCtrl_Config_t *config, PumpCtrl_State_t state)
-{
-    // switch (config->type) {
-    //     case PumpCtrl_TYPE_RELAY:
-    //         return MCAL_GPIO_WritePin(config->control_details.relay_gpio_pin, (state == PumpCtrl_STATE_ON) ? GPIO_STATE_HIGH : GPIO_STATE_LOW);
-    //     default:
-    //         return E_NOK;
-    // }
-    return E_NOK;
-}
-
-static Status_t PumpCtrl_ReadFeedback(const PumpCtrl_Config_t *config, PumpCtrl_State_t *actual_state)
-{
-    // uint32_t raw_data = 0;
-    // Status_t status = E_NOK;
-    // float current_flow = 0.0f;
-    // float current_current = 0.0f;
-
-    // switch (config->feedback_type) {
-    //     case PumpCtrl_FEEDBACK_TYPE_FLOW_SENSOR:
-    //         // This is a simplified placeholder for reading a pulse-based flow sensor.
-    //         // A real implementation would involve a pulse-counting ISR.
-    //         status = E_OK;
-    //         // Simplified logic: If commanded on, assume it's on.
-    //         if (s_commanded_states[config->id] == PumpCtrl_STATE_ON) {
-    //             *actual_state = PumpCtrl_STATE_ON;
-    //         } else {
-    //             *actual_state = PumpCtrl_STATE_OFF;
-    //         }
-    //         break;
-    //     case PumpCtrl_FEEDBACK_TYPE_CURRENT_SENSOR:
-    //         status = MCAL_ADC_Read(config->feedback_details.current_sensor.adc_channel, &raw_data);
-    //         if (status == E_OK) {
-    //             // Simplified conversion from raw ADC to current
-    //             current_current = (float)raw_data * 0.01f; // Example conversion factor
-    //             if (current_current >= config->feedback_details.current_sensor.current_threshold_on) {
-    //                 *actual_state = PumpCtrl_STATE_ON;
-    //             } else {
-    //                 *actual_state = PumpCtrl_STATE_OFF;
-    //             }
-    //         }
-    //         break;
-    //     default:
-    //         return E_NOK;
-    // }
-    return E_NOK;
 }
