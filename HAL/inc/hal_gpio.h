@@ -26,7 +26,7 @@ Status_t HAL_GPIO_Init(void);
  * @param level The desired output level (0 for low, 1 for high).
  * @return E_OK on success, or an error code.
  */
-Status_t HAL_GPIO_SetLevel(gpio_num_t gpio_num, uint32_t level);
+Status_t HAL_GPIO_SetLevel(gpio_num_t gpio_num, uint8_t level);
 
 /**
  * @brief Reads the input level of a configured GPIO pin.
@@ -34,7 +34,7 @@ Status_t HAL_GPIO_SetLevel(gpio_num_t gpio_num, uint32_t level);
  * @param level_out Pointer to store the read level (0 for low, 1 for high).
  * @return E_OK on success, or an error code.
  */
-Status_t HAL_GPIO_GetLevel(gpio_num_t gpio_num, uint32_t *level_out);
+Status_t HAL_GPIO_GetLevel(gpio_num_t gpio_num, uint8_t *level_out);
 
 /**
  * @brief Configures the direction of a specific GPIO pin at runtime.

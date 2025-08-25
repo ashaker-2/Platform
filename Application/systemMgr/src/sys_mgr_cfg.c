@@ -1,118 +1,35 @@
-
-/**
- * @file sys_mgr_cfg.c
- * @brief Configuration data definitions for the SystemMgr component.
- *
- * This file is for defining any non-volatile or complex configuration data
- * structures. As per the DDD, SystemMgr's configuration is primarily
- * handled via preprocessor macros in the header file, so this file
- * is provided as a placeholder.
- */
 #include "sys_mgr_cfg.h"
-#include "temphumctrl_cfg.h"
-#include "fanctrl_cfg.h"
-// // --- Temperature Sensor to Actuator Mapping Configuration ---
-// const temp_sensor_actuator_mapping_t s_temp_sensor_actuator_mappings[TEMPHUM_SENSOR_ID_COUNT] = {
-//     // NTC_1 - High-temperature industrial application
-//     {
-//         .sensor_id = TEMPHUM_SENSOR_ID_NTC_1,
-//         .fan_actuator_id = ACTUATOR_ID_FAN_1,
-//         .heater_actuator_id = ACTUATOR_ID_HEATER_1,
-//         .fan_enabled = true,        // Enable cooling for high-temp applications
-//         .heater_enabled = true,     // Enable heating for low-temp protection
-//     },
-//     // NTC_2 - Medium-temperature application
-//     {
-//         .sensor_id = TEMPHUM_SENSOR_ID_NTC_2,
-//         .fan_actuator_id = ACTUATOR_ID_FAN_2,
-//         .heater_actuator_id = ACTUATOR_ID_HEATER_2,
-//         .fan_enabled = true,
-//         .heater_enabled = true,
-//     },
-//     // DHT_1 - Office/Room environment
-//     {
-//         .sensor_id = TEMPHUM_SENSOR_ID_DHT_1,
-//         .fan_actuator_id = ACTUATOR_ID_FAN_3,
-//         .heater_actuator_id = ACTUATOR_ID_HEATER_3,
-//         .fan_enabled = true,        // Enable for comfort control
-//         .heater_enabled = true,     // Enable for comfort control
-//     },
-//     // DHT_2 - Storage environment
-//     {
-     
-//         .sensor_id = TEMPHUM_SENSOR_ID_DHT_2,
-//         .fan_actuator_id = ACTUATOR_ID_FAN_4,
-//         .heater_actuator_id = ACTUATOR_ID_HEATER_4,
-//         .fan_enabled = true,        // Critical for storage preservation
-//         .heater_enabled = true,     // Prevent storage from getting too cold
-//     },
-//     // DHT_3 - Greenhouse/Growing environment
-//     {
-//         .sensor_id = TEMPHUM_SENSOR_ID_DHT_3,
-//         .fan_actuator_id = ACTUATOR_ID_FAN_5,
-//         .heater_actuator_id = ACTUATOR_ID_HEATER_5,
-//         .fan_enabled = true,        // Essential for plant growth control
-//         .heater_enabled = true,     // Protect plants from cold
-//     },
-//     // DHT_4 - Server room environment
-//     {
-//         .sensor_id = TEMPHUM_SENSOR_ID_DHT_4,
-//         .fan_actuator_id = ACTUATOR_ID_FAN_6,
-//         .heater_actuator_id = ACTUATOR_ID_HEATER_6,
-//         .fan_enabled = true,        // Critical for server cooling
-//         .heater_enabled = false,    // Servers usually don't need heating
-//     },
-// };
 
-// // --- Humidity Sensor to Actuator Mapping Configuration ---
-// // Note: Only DHT sensors are included as NTC thermistors don't measure humidity
-// const hum_sensor_actuator_mapping_t s_hum_sensor_actuator_mappings[TEMPHUM_SENSOR_ID_COUNT] = {
-//     // DHT_1 - Office/Room environment
-//     {
-//         .sensor_id = TEMPHUM_SENSOR_ID_DHT_1,
-//         .ventilator_actuator_id = ACTUATOR_ID_VENTILATOR_1,
-//         .pump_actuator_id = ACTUATOR_ID_PUMP_1,
-//         .ventilator_enabled = true, // Enable dehumidification for mold prevention
-//         .pump_enabled = true,       // Enable humidification for comfort
-//     },
-//     // DHT_2 - Storage environment
-//     {
-//         .sensor_id = TEMPHUM_SENSOR_ID_DHT_2,
-//         .ventilator_actuator_id = ACTUATOR_ID_VENTILATOR_2,
-//         .pump_actuator_id = ACTUATOR_ID_PUMP_2,
-//         .ventilator_enabled = true, // Critical for storage preservation
-//         .pump_enabled = true,       // Maintain optimal storage humidity
-//     },
-//     // DHT_3 - Greenhouse/Growing environment
-//     {
-//         .sensor_id = TEMPHUM_SENSOR_ID_DHT_3,
-//         .ventilator_actuator_id = ACTUATOR_ID_VENTILATOR_3,
-//         .pump_actuator_id = ACTUATOR_ID_PUMP_3,
-//         .ventilator_enabled = true, // Essential for plant health
-//         .pump_enabled = true,       // Critical for plant growth
-//     },
-//     // DHT_4 - Server room environment
-//     {
-//         .sensor_id = TEMPHUM_SENSOR_ID_DHT_4,
-//         .ventilator_actuator_id = ACTUATOR_ID_VENTILATOR_4,
-//         .pump_actuator_id = ACTUATOR_ID_PUMP_4,
-//         .ventilator_enabled = true, // Prevent condensation on electronics
-//         .pump_enabled = true,       // Prevent static electricity buildup
-//     },
-//     // DHT_4 - Server room environment
-//     {
-//         .sensor_id = TEMPHUM_SENSOR_ID_DHT_4,
-//         .ventilator_actuator_id = ACTUATOR_ID_VENTILATOR_4,
-//         .pump_actuator_id = ACTUATOR_ID_PUMP_4,
-//         .ventilator_enabled = true, // Prevent condensation on electronics
-//         .pump_enabled = true,       // Prevent static electricity buildup
-//     },
-//     // DHT_4 - Server room environment
-//     {
-//         .sensor_id = TEMPHUM_SENSOR_ID_DHT_4,
-//         .ventilator_actuator_id = ACTUATOR_ID_VENTILATOR_4,
-//         .pump_actuator_id = ACTUATOR_ID_PUMP_4,
-//         .ventilator_enabled = true, // Prevent condensation on electronics
-//         .pump_enabled = true,       // Prevent static electricity buildup
-//     },
-// };
+/* Default initial user config (persisted copy is read on boot if present) */
+SysMgr_UserConfig_t g_default_user_config = {
+    .global_temp_min = SYS_MGR_DEFAULT_TEMP_MIN_C,
+    .global_temp_max = SYS_MGR_DEFAULT_TEMP_MAX_C,
+    .global_hum_min  = SYS_MGR_DEFAULT_HUM_MIN_P,
+    .global_hum_max  = SYS_MGR_DEFAULT_HUM_MAX_P,
+    .mode = SYS_MGR_MODE_AUTOMATIC,
+    .sets_enabled = false,
+    /* per_sensor defaults: all not configured */
+    .per_sensor = { [0 ... (TEMPHUM_SENSOR_ID_COUNT-1)] = { .temp_configured = false, .hum_configured = false } },
+    /* cycles default: disabled */
+    .fans_cycle = { .on_time_sec = 0, .off_time_sec = 0, .enabled = false },
+    .heaters_cycle = { .on_time_sec = 0, .off_time_sec = 0, .enabled = false },
+    .pumps_cycle = { .on_time_sec = 0, .off_time_sec = 0, .enabled = false },
+    .vents_cycle = { .on_time_sec = 0, .off_time_sec = 0, .enabled = false },
+    .light_schedule = { .on_hour = 21, .on_min = 0, .off_hour = 6, .off_min = 0, .enabled = false },
+    .fan_manual_in_hybrid = false,
+    .heater_manual_in_hybrid = false,
+    .pump_manual_in_hybrid = false,
+    .vent_manual_in_hybrid = false,
+    .light_manual_in_hybrid = false
+};
+
+/* Validate function default (weak) - platform may override or implement stronger checks */
+Status_t SysMgr_ValidateUserConfig(const SysMgr_UserConfig_t *cfg)
+{
+    if (!cfg) return E_NOK;
+    if (cfg->global_temp_min < 0.0f || cfg->global_temp_max > 99.0f || cfg->global_temp_min > cfg->global_temp_max) return E_NOK;
+    if (cfg->global_hum_min < 0.0f || cfg->global_hum_max > 99.0f || cfg->global_hum_min > cfg->global_hum_max) return E_NOK;
+    return E_OK;
+}
+
+/* Storage hooks left unimplemented here; platform should provide implementations. */
