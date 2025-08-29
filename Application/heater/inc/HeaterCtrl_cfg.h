@@ -20,9 +20,12 @@
  * These IDs are used to reference specific heaters within the Heater Control module.
  */
 typedef enum {
-    HEATER_ID_1 = 0,   ///< First heater
+    HEATER_ID_0 = 0,   ///< First heater
+    HEATER_ID_1 ,   ///< First heater
     HEATER_ID_COUNT    ///< Total number of heaters configured
 } Heater_ID_t;
+
+#define HEATER_ID_ALL (HEATER_ID_COUNT)
 
 /**
  * @brief Enumeration for heater states.

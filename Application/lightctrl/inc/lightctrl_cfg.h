@@ -20,9 +20,13 @@
  * These IDs are used to reference specific lights within the Light Control module.
  */
 typedef enum {
-    LIGHT_ID_1 = 0,   ///< First light
+    LIGHT_ID_0 = 0,   ///< First light
+    LIGHT_ID_1,   ///< First light
     LIGHT_ID_COUNT    ///< Total number of lights configured
 } Light_ID_t;
+
+#define Light_ID_ALL (LIGHT_ID_COUNT)
+
 
 /**
  * @brief Enumeration for light states.

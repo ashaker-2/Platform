@@ -33,6 +33,30 @@
 #define KEYPAD_COL_GPIOS {KEYPAD_COL1_GPIO, KEYPAD_COL2_GPIO, KEYPAD_COL3_GPIO, KEYPAD_COL4_GPIO}
 
 
+typedef enum
+{
+    Keypad_Event_ID_0 = 0, ///< 
+    Keypad_Event_ID_1,     ///< 
+    Keypad_Event_ID_2,     ///< 
+    Keypad_Event_ID_3,     ///< 
+    Keypad_Event_ID_4,     ///< 
+    Keypad_Event_ID_5,     ///< 
+    Keypad_Event_ID_6,     ///< 
+    Keypad_Event_ID_7,     ///< 
+    Keypad_Event_ID_8,     ///< 
+    Keypad_Event_ID_9,     ///< 
+    Keypad_Event_ID_10,     ///< 
+    Keypad_Event_ID_11,     ///< 
+    Keypad_Event_ID_12,     ///< 
+    Keypad_Event_ID_13,     ///< 
+    Keypad_Event_ID_14,     ///< 
+    Keypad_Event_ID_15,     ///< 
+    Keypad_Event_MAX,      ///< Total number of configured Events sensors
+    Keypad_Event_NONE
+} keypad_Event_ID_t;
+
+
+
 // --- Debounce and Hold Times ---
 #define KEYPAD_SCAN_PERIOD_MS (50) /**< Period at which KeypadMgr_MainFunction is called */
 #define KEYPAD_DEBOUNCE_TICKS (2)  /**< Number of scan periods for debounce (e.g., 2 * 50ms = 100ms) */
@@ -45,7 +69,7 @@
 typedef struct
 {
     Keypad_Button_ID_t button_id;   /**< The physical button ID */
-    SysMgr_Event_t sys_mgr_event;   /**< The corresponding System Manager event */
+    keypad_Event_ID_t event_id;   /**< The corresponding System Manager event */
     bool is_mode_select_button;     /**< True if this button directly changes SysMgr mode */
 } Keypad_SysMgr_Event_Mapping_t;
 

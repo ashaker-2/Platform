@@ -104,7 +104,8 @@ Status_t HeaterCtrl_Init(void) {
  * @return E_OK on success, E_INVALID_PARAM if `heater_id` is invalid, or
  * an error code from the underlying HAL if pin control fails.
  */
-Status_t HeaterCtrl_SetState(Heater_ID_t heater_id, Heater_State_t state) {
+Status_t HeaterCtrl_SetState(Heater_ID_t heater_id, Heater_State_t state) 
+{
     if (heater_id >= HEATER_ID_COUNT) {
         ESP_LOGE(TAG, "Attempted to set state for invalid Heater ID %d.", heater_id);
         return E_INVALID_PARAM;

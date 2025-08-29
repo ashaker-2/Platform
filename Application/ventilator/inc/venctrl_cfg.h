@@ -20,12 +20,15 @@
  * These IDs are used to reference specific Vens within the Ven Control module.
  */
 typedef enum {
-    VEN_ID_1 = 0,   ///< First Ven
+    VEN_ID_0 = 0,   ///< First Ven
+    VEN_ID_1,   ///< First Ven
     VEN_ID_2,       ///< Second Ven
     VEN_ID_3,       ///< Third Ven
     VEN_ID_4,       ///< Fourth Ven
     VEN_ID_COUNT    ///< Total number of Vens configured
 } Ven_ID_t;
+
+#define VEN_ID_ALL (VEN_ID_COUNT)
 
 /**
  * @brief Enumeration for Ven states.

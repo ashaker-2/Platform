@@ -48,6 +48,8 @@ typedef enum
     TEMPHUM_SENSOR_ID_COUNT      ///< Total number of configured temperature/humidity sensors
 } TempHum_Sensor_ID_t;
 
+#define TEMPHUM_ID_ALL (TEMPHUM_SENSOR_ID_COUNT)
+
 /**
  * @brief Enumeration for the status level of a temperature or humidity reading against its thresholds.
  * This is used to indicate whether a value is below low threshold, normal, or above high threshold.

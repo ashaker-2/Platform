@@ -930,3 +930,7 @@ build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/lightctrl/src/lightc
 build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/lightctrl/src/lightctrl.c.obj
 build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/ventilator/src/venctrl_cfg.c.obj
 build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/ventilator/src/venctrl.c.obj
+build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/kepad/src/keypad_mgr.c.obj
+build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/kepad/src/keypad_mgr_cfg.c.obj
+build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/systemMgr/src/sys_mgr_core.c.obj
+build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/systemMgr/src/ui_manager.c.obj

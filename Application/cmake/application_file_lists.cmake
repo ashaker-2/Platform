@@ -29,6 +29,7 @@ file(TO_CMAKE_PATH "${APP_DIR}/systemMgr"        SysMgr_DIR)
 file(TO_CMAKE_PATH "${APP_DIR}/SystemMonitor"    SysMon_DIR)
 file(TO_CMAKE_PATH "${APP_DIR}/SystemStartup"    SysStart_DIR)
 file(TO_CMAKE_PATH "${APP_DIR}/ventilator"       VEN_DIR)
+file(TO_CMAKE_PATH "${APP_DIR}/kepad"            Keypad_DIR)
 file(TO_CMAKE_PATH "${APP_DIR}/common"           COMMON_DIR)
 
 
@@ -38,6 +39,8 @@ file(TO_CMAKE_PATH "${APP_DIR}/common"           COMMON_DIR)
 set(APPLICATION_SRCS
 
     "${SysStart_DIR}/src/startup.c"
+    "${Keypad_DIR}/src/keypad_mgr.c"
+    "${Keypad_DIR}/src/keypad_mgr_cfg.c"
     "${TEMPHUM_DIR}/src/temphumctrl.c"
     "${TEMPHUM_DIR}/src/temphumctrl_cfg.c"
     "${FAN_DIR}/src/fanctrl.c"
@@ -56,8 +59,10 @@ set(APPLICATION_SRCS
     "${PWR_DIR}/src/Power_cfg.c"
     "${PUMP_DIR}/src/pumpctrl.c"
     "${PUMP_DIR}/src/pumpctrl_cfg.c"
-    "${SysMgr_DIR}/src/sys_mgr.c"
     "${SysMgr_DIR}/src/sys_mgr_cfg.c"
+    "${SysMgr_DIR}/src/sys_mgr_core.c"
+    "${SysMgr_DIR}/src/sys_mgr.c"
+    "${SysMgr_DIR}/src/ui_manager.c"
     "${SysMon_DIR}/src/system_monitor.c"
     "${SysMon_DIR}/src/system_monitor_cfg.c"
     "${VEN_DIR}/src/venctrl.c"
@@ -70,6 +75,7 @@ set(APPLICATION_SRCS
 # Define public include directories for the component
 set(APPLICATION_PUBLIC_INC_DIRS
     
+    "${Keypad_DIR}/inc"
     "${TEMPHUM_DIR}/inc"
     "${FAN_DIR}/inc"
     "${HEAT_DIR}/inc"

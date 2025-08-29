@@ -20,13 +20,15 @@
  * These IDs are used to reference specific fans within the Fan Control module.
  */
 typedef enum {
-    FAN_ID_ALL = 0,   ///< First fan
+    FAN_ID_0,       ///< Second fan
     FAN_ID_1,       ///< Second fan
     FAN_ID_2,       ///< Third fan
     FAN_ID_3,       ///< Fourth fan
     FAN_ID_4,       ///< Fourth fan
     FAN_ID_COUNT    ///< Total number of fans configured
 } Fan_ID_t;
+
+#define FAN_ID_ALL (FAN_ID_COUNT)
 
 /**
  * @brief Enumeration for fan states.

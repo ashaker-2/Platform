@@ -20,13 +20,16 @@
  * These IDs are used to reference specific leds within the Led Control module.
  */
 typedef enum {
-    LED_ID_1 = 0,   ///< First led
+    LED_ID_0 = 0,   ///< First led
+    LED_ID_1,   ///< First led
     LED_ID_2,       ///< Second led
     LED_ID_3,       ///< Third led
     LED_ID_4,       ///< Fourth led
     LED_ID_5,       ///< Fourth led
     LED_ID_COUNT    ///< Total number of leds configured
 } Led_ID_t;
+
+#define LED_ID_ALL (LED_ID_COUNT)
 
 /**
  * @brief Enumeration for led states.

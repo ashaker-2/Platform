@@ -20,9 +20,13 @@
  * These IDs are used to reference specific pumps within the Pump Control module.
  */
 typedef enum {
-    PUMP_ID_1 = 0,   ///< First pump
+    PUMP_ID_0 = 0,   ///< First pump
+    PUMP_ID_1 ,   ///< First pump
     PUMP_ID_COUNT    ///< Total number of pumps configured
 } Pump_ID_t;
+
+
+#define PUMP_ID_ALL (PUMP_ID_COUNT)
 
 /**
  * @brief Enumeration for pump states.
