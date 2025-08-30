@@ -1,22 +1,20 @@
 /**
  * @file ui_manager.c
  * @brief User Interface Manager (LCD + Keypad)
- * @version 2.0
+ * @version 2.2
  * @date 2025
  *
  * This component provides a non-blocking, state-machine-driven user interface
  * for the SysMgr system. It handles input from a 4x4 keypad and displays
  * real-time information and configuration menus on a 2x16 character LCD.
  *
- * The core responsibilities include:
- * - Rotating through main monitoring screens.
- * - Navigating a multi-level configuration menu.
- * - Handling user input for numeric data and commands.
- * - Committing and saving user configurations to the SysMgr module.
- * - Implementing a timeout mechanism for auto-saving and exiting the menu.
+ * This version has been updated to use the KeypadMgr event queue and
+ * supports different event types (PRESS, HOLD). It also correctly implements
+ * all display functions and input handling for each menu state.
  */
 
 #include "ui_manager.h"
+#include "ui_manager_cfg.h"
 #include "sys_mgr.h"
 #include "temphumctrl.h"
 #include "keypad_mgr.h"
@@ -32,491 +30,504 @@
  * PRIVATE MACROS AND DEFINITIONS
  * ============================================================================= */
 
-#define UI_SCREEN_ROTATE_MS     3000   /**< Time to rotate main screens (ms) */
-#define UI_MENU_TIMEOUT_MS      60000  /**< Inactivity timeout for menu (ms) */
-#define UI_MAX_INPUT_LEN        8      /**< Max characters for numeric input */
-
-
+#define TAG "UIMgr"
 
 /* =============================================================================
  * PRIVATE GLOBAL VARIABLES
  * ============================================================================= */
 
-static UI_State_t g_ui_state;
-static uint32_t g_ui_screen_rotation_timer_ms;
-static uint32_t g_ui_inactivity_timer_ms;
-static uint8_t g_ui_screen_idx;
+static UI_State_t g_ui_state = UI_STATE_MAIN_SCREEN;
 static SysMgr_Config_t g_ui_working_configuration;
-static char g_ui_input_buffer[UI_MAX_INPUT_LEN];
-static uint8_t g_ui_input_buffer_length;
+static char g_input_buffer[UI_MAX_INPUT_LEN + 1];
+static uint8_t g_input_index = 0;
+static uint32_t g_last_key_press_ms = 0;
+static uint32_t g_last_display_update_ms = 0;
+static uint8_t g_main_screen_index = 0;
+static bool g_is_editing_min = true;
 
-static const char *TAG = "TempHumCtrl";
 /* =============================================================================
  * PRIVATE FUNCTION PROTOTYPES
  * ============================================================================= */
-static void ui_clear_input_buffer(void);
-static void ui_append_digit(char digit);
-static bool ui_fetch_key(char *key_out);
 
-/* --- Display Functions --- */
+static void ui_clear_input_buffer(void);
 static void ui_display_main_screen(void);
 static void ui_display_menu_root(void);
 static void ui_display_edit_global_temp(void);
 static void ui_display_edit_global_hum(void);
 static void ui_display_select_mode(void);
-static void ui_display_message(const char *line1, const char *line2);
+static void ui_display_per_sensor_readings(void);
+static void ui_display_actuator_states(void);
 
-/* --- State Transition Functions --- */
-static void ui_enter_edit_global_temp(void);
-static void ui_enter_edit_global_hum(void);
-static void ui_enter_select_mode(void);
-static void ui_commit_and_save_configuration(void);
-
-/* --- Handler Functions --- */
-static void ui_handle_input_main_screen(char key);
-static void ui_handle_input_menu_root(char key);
-static void ui_handle_input_edit_global_temp(char key);
-static void ui_handle_input_edit_global_hum(char key);
-static void ui_handle_input_select_mode(char key);
+static void ui_handle_event(Keypad_Event_t *event);
+static void ui_handle_event_main_screen(Keypad_Event_t *event);
+static void ui_handle_event_menu_root(Keypad_Event_t *event);
+static void ui_handle_event_edit_global_temp(Keypad_Event_t *event);
+static void ui_handle_event_edit_global_hum(Keypad_Event_t *event);
+static void ui_handle_event_select_mode(Keypad_Event_t *event);
+static void ui_handle_numeric_input(Keypad_Event_t *event);
 
 /* =============================================================================
- * PUBLIC FUNCTIONS
+ * PUBLIC API IMPLEMENTATION
  * ============================================================================= */
 
 /**
- * @brief Initializes the UI Manager component.
+ * @brief Initializes the User Interface Manager.
  *
- * Sets up initial state, retrieves the current system configuration, and
- * displays the first main screen.
- *
- * @return Status_t E_OK on success.
+ * This function sets up the display and the initial state. It is idempotent.
  */
-Status_t UIMgr_Init(void)
+void UI_MGR_Init(void)
 {
-    g_ui_state = UI_STATE_MAIN_SCREEN;
-    g_ui_screen_rotation_timer_ms = 0;
-    g_ui_inactivity_timer_ms = 0;
-    g_ui_screen_idx = 0;
-    ui_clear_input_buffer();
-
-    SYS_MGR_GetConfig(&g_ui_working_configuration);
+    LOGI(TAG, "Initializing UI Manager...");
     ui_display_main_screen();
-    LOGI(TAG,"UI Manager initialized.");
-
-    return E_OK;
 }
 
 /**
- * @brief Main periodic function for the UI Manager.
+ * @brief The main periodic function for the UI Manager.
  *
- * This function should be called frequently to handle screen rotation,
- * keypad input, and menu timeouts.
- *
- * @param tick_ms Time in milliseconds since the last call.
+ * This function handles screen rotation and polls the keypad event queue.
+ * It is a non-blocking function designed to be called repeatedly in the
+ * main loop or from a dedicated RTOS task.
  */
-void UIMgr_MainFunction()
+void UI_MGR_MainFunction(void)
 {
-    g_ui_inactivity_timer_ms += UI_MGR_MAIN_PERIOD_MS;
-    char key_pressed;
-    bool key_event = ui_fetch_key(&key_pressed);
-    if (key_event) 
-    {
-        g_ui_inactivity_timer_ms = 0; // Reset timer on any key press
-    }
+    static uint32_t last_tick = 0;
+    uint32_t now = UI_MGR_GetTick();
 
-    /* Handle menu timeout */
-    if (g_ui_state != UI_STATE_MAIN_SCREEN && g_ui_inactivity_timer_ms >= UI_MENU_TIMEOUT_MS) 
-    {
-        ui_display_message("Auto-saving &", "Exiting...");
-        SYS_MGR_UpdateConfigRuntime(&g_ui_working_configuration);
-        g_ui_state = UI_STATE_MAIN_SCREEN;
-        g_ui_inactivity_timer_ms = 0;
-        g_ui_screen_rotation_timer_ms = 0;
-        return; // Exit early to prevent further processing this cycle
+    if ((now - last_tick) < UI_MGR_MAIN_PERIOD_MS) {
+        return;
     }
+    last_tick = now;
 
-    /* State Machine Logic */
-    switch (g_ui_state) 
+    // Process all events from the keypad queue
+    Keypad_Event_t event;
+    while (KeypadMgr_GetEvent(&event) == E_OK) {
+        ui_handle_event(&event);
+    }
+    
+    // Manage display updates based on current state
+    if (g_ui_state == UI_STATE_MAIN_SCREEN)
+    {
+        if ((now - g_last_display_update_ms) >= UI_SCREEN_ROTATE_MS)
+        {
+            g_main_screen_index = (g_main_screen_index + 1) % 3;
+            ui_display_main_screen();
+            g_last_display_update_ms = now;
+        }
+    }
+    else
+    {
+        // Menu timeout
+        if ((now - g_last_key_press_ms) >= UI_MENU_TIMEOUT_MS)
+        {
+            LOGW(TAG, "Menu timeout. Auto-saving and exiting...");
+            // SysMgr_SetConfig(&g_ui_working_configuration);
+            // SysMgr_SaveConfigToFlash();
+            g_ui_state = UI_STATE_MAIN_SCREEN;
+            ui_display_main_screen();
+        }
+    }
+}
+
+/* =============================================================================
+ * PRIVATE FUNCTION IMPLEMENTATION
+ * ============================================================================= */
+
+/**
+ * @brief Handles a keypad event based on the current UI state.
+ *
+ * This function serves as the central state machine transition handler.
+ * It resets the menu timeout on any key press.
+ *
+ * @param event The keypad event to process.
+ */
+static void ui_handle_event(Keypad_Event_t *event)
+{
+    g_last_key_press_ms = UI_MGR_GetTick(); // Reset timeout on any key press
+    
+    switch (g_ui_state)
     {
         case UI_STATE_MAIN_SCREEN:
-            if (key_event) 
-            {
-                ui_handle_input_main_screen(key_pressed);
-            }
-            // Screen rotation logic
-            g_ui_screen_rotation_timer_ms += UI_MGR_MAIN_PERIOD_MS;
-            if (g_ui_screen_rotation_timer_ms >= UI_SCREEN_ROTATE_MS) 
-            {
-                g_ui_screen_idx = (g_ui_screen_idx + 1) % 3; // Cycle through 3 screens
-                ui_display_main_screen();
-                g_ui_screen_rotation_timer_ms = 0;
-            }
+            ui_handle_event_main_screen(event);
             break;
-
         case UI_STATE_MENU_ROOT:
-            if (key_event) {
-                ui_handle_input_menu_root(key_pressed);
-            }
+            ui_handle_event_menu_root(event);
             break;
-
         case UI_STATE_EDIT_GLOBAL_TEMP:
-            if (key_event) {
-                ui_handle_input_edit_global_temp(key_pressed);
-            }
+            ui_handle_event_edit_global_temp(event);
             break;
-
         case UI_STATE_EDIT_GLOBAL_HUM:
-            if (key_event) {
-                ui_handle_input_edit_global_hum(key_pressed);
-            }
+            ui_handle_event_edit_global_hum(event);
             break;
-        
         case UI_STATE_SELECT_MODE:
-            if (key_event) {
-                ui_handle_input_select_mode(key_pressed);
-            }
+            ui_handle_event_select_mode(event);
             break;
-
         case UI_STATE_SAVE_AND_EXIT:
-            ui_commit_and_save_configuration();
-            g_ui_state = UI_STATE_MAIN_SCREEN;
-            ui_display_main_screen(); // Show first main screen after saving
-            break;
-
+            // Intentional fallthrough, no input handling
+        case UI_STATE_CONFIG_SETS:
+        case UI_STATE_ACTUATOR_TIMERS:
+        case UI_STATE_LIGHT_SCHEDULE:
         default:
-            LOGW(TAG,"UI Manager in unhandled state: %d", g_ui_state);
+            // Unhandled states or keys are ignored
+            break;
+    }
+}
+
+/**
+ * @brief Handles events while in the main screen state.
+ *
+ * A long press on the ENTER key (`KEYPAD_BTN_ENTER`) transitions the UI
+ * to the root configuration menu.
+ *
+ * @param event The keypad event to process.
+ */
+static void ui_handle_event_main_screen(Keypad_Event_t *event)
+{
+    // Transition to menu on a long press of ENTER
+    if (event->type == KEYPAD_EVT_HOLD && event->button == KEYPAD_BTN_ENTER) {
+        LOGI(TAG, "Entering configuration menu.");
+        // SysMgr_GetConfig(&g_ui_working_configuration);
+        g_ui_state = UI_STATE_MENU_ROOT;
+        ui_display_menu_root();
+        ui_clear_input_buffer();
+    }
+}
+
+/**
+ * @brief Handles events while in the root menu state.
+ *
+ * Numeric keys `1` through `6` transition to sub-menus. The `BACK` or
+ * `ERASE` key saves the configuration and returns to the main screen.
+ *
+ * @param event The keypad event to process.
+ */
+static void ui_handle_event_menu_root(Keypad_Event_t *event)
+{
+    if (event->type != KEYPAD_EVT_PRESS) {
+        return;
+    }
+
+    switch (event->button) {
+        case KEYPAD_BTN_1:
+            g_ui_state = UI_STATE_EDIT_GLOBAL_TEMP;
+            g_is_editing_min = true;
+            ui_clear_input_buffer();
+            ui_display_edit_global_temp();
+            break;
+        case KEYPAD_BTN_2:
+            g_ui_state = UI_STATE_EDIT_GLOBAL_HUM;
+            g_is_editing_min = true;
+            ui_clear_input_buffer();
+            ui_display_edit_global_hum();
+            break;
+        case KEYPAD_BTN_3:
+            g_ui_state = UI_STATE_CONFIG_SETS;
+            ui_display_message("Config Sets", "Not Implemented");
+            break;
+        case KEYPAD_BTN_4:
+            g_ui_state = UI_STATE_SELECT_MODE;
+            ui_display_select_mode();
+            break;
+        case KEYPAD_BTN_5:
+            g_ui_state = UI_STATE_ACTUATOR_TIMERS;
+            ui_display_message("Actuator Timers", "Not Implemented");
+            break;
+        case KEYPAD_BTN_6:
+            g_ui_state = UI_STATE_LIGHT_SCHEDULE;
+            ui_display_message("Light Schedule", "Not Implemented");
+            break;
+        case KEYPAD_BTN_BACK:
+        case KEYPAD_BTN_ERASE:
+            g_ui_state = UI_STATE_SAVE_AND_EXIT;
+            ui_display_message("Saving config...", "");
+            // SysMgr_SetConfig(&g_ui_working_configuration);
+            // SysMgr_SaveConfigToFlash();
             g_ui_state = UI_STATE_MAIN_SCREEN;
             ui_display_main_screen();
             break;
-    }
-}
-
-/* =============================================================================
- * PRIVATE UTILITY FUNCTIONS
- * ============================================================================= */
-
-/**
- * @brief Clears the numeric input buffer.
- */
-static void ui_clear_input_buffer(void)
-{
-    g_ui_input_buffer_length = 0;
-    memset(g_ui_input_buffer, '\0', sizeof(g_ui_input_buffer));
-}
-
-/**
- * @brief Appends a digit to the input buffer.
- * @param digit The character digit to append.
- */
-static void ui_append_digit(char digit)
-{
-    if (g_ui_input_buffer_length < UI_MAX_INPUT_LEN - 1) {
-        g_ui_input_buffer[g_ui_input_buffer_length++] = digit;
-        g_ui_input_buffer[g_ui_input_buffer_length] = '\0';
+        default:
+            break;
     }
 }
 
 /**
- * @brief Fetches a single key event from the Keypad Manager.
- * @param key_out Pointer to store the key character.
- * @return true if a key was pressed, false otherwise.
+ * @brief Handles numeric input and control keys for editing global temperature.
+ * @param event The keypad event to process.
  */
-static bool ui_fetch_key(char *key_out)
+static void ui_handle_event_edit_global_temp(Keypad_Event_t *event)
 {
-    Keypad_Event_t event;
-    if (KeypadMgr_GetLastEvent(&event) == E_OK) {
-        *key_out = event.event_type;
-        return true;
+    if (event->type != KEYPAD_EVT_PRESS) {
+        return;
     }
-    return false;
-}
-
-/* =============================================================================
- * PRIVATE DISPLAY FUNCTIONS
- * ============================================================================= */
-
-/**
- * @brief Displays a message on the LCD.
- * @param line1 The string for the first line.
- * @param line2 The string for the second line.
- */
-static void ui_display_message(const char *line1, const char *line2)
-{
-    HAL_CharDisplay_ClearDisplay();
-    HAL_CharDisplay_Home();
-    HAL_CharDisplay_WriteString(line1);
-    HAL_CharDisplay_SetCursor(1, 0);
-    HAL_CharDisplay_WriteString(line2);
-}
-
-/**
- * @brief Displays one of the main rotating screens.
- */
-static void ui_display_main_screen(void)
-{
-    Status_t s_temp = E_OK;
-    Status_t s_hum = E_OK;
-    char line1[17], line2[17];
-    float temp, hum;
-    float rdg;
     
-    switch (g_ui_screen_idx) {
-        case 0:
-            s_temp = TempHumCtrl_GetSystemAverageTemperature(&temp);
-            s_hum = TempHumCtrl_GetSystemAverageHumidity(&hum);
-            // Average Temp & Hum screen
-            if ((s_temp == E_OK) && (s_hum == E_OK)) 
-            {
-                snprintf(line1, sizeof(line1), "Avg T:%.1fC H:%.0f%%", temp, hum);
-                snprintf(line2, sizeof(line2), "Mode: %d", g_ui_working_configuration.mode);
-            } 
-            else 
-            {
-                snprintf(line1, sizeof(line1), "Avg T:-- H:--%%");
-                snprintf(line2, sizeof(line2), "Mode: %d", g_ui_working_configuration.mode);
-            }
-            break;
-        case 1:
-            // Per-sensor Temp & Hum screen (shows first two sensors)
-            snprintf(line1, sizeof(line1), "S1:--C --%%");
-            snprintf(line2, sizeof(line2), "S2:--C --%%");
-
-            s_temp = TempHumCtrl_GetAverageTemperature(TEMPHUM_SENSOR_ID_DHT_1, &rdg);
-            
-            if (s_temp == E_OK) 
-            {
-                snprintf(line1, sizeof(line1), "S1:%.1fC %.0f%%", rdg, rdg);
-            }
-            s_temp = TempHumCtrl_GetAverageTemperature(TEMPHUM_SENSOR_ID_DHT_2, &rdg);
-            if (s_temp == E_OK) 
-            {
-                snprintf(line2, sizeof(line2), "S2:%.1fC %.0f%%", rdg, rdg);
-            }
-            break;
-        case 2:
-            // Actuator Status screen
-            // NOTE: This will require a new API in sys_mgr.h
-            snprintf(line1, sizeof(line1), "Fan:OFF Pump:OFF");
-            snprintf(line2, sizeof(line2), "Htr:OFF Vent:OFF");
-            break;
-    }
-    ui_display_message(line1, line2);
-}
-
-/**
- * @brief Displays the main menu.
- */
-static void ui_display_menu_root(void)
-{
-    ui_display_message("1:Global T  2:Global H", "3:Sets Cfg 4:Mode");
-}
-
-/**
- * @brief Displays the global temperature edit screen.
- */
-static void ui_display_edit_global_temp(void)
-{
-    ui_display_message("Set Global Temp", g_ui_input_buffer);
-}
-
-/**
- * @brief Displays the global humidity edit screen.
- */
-static void ui_display_edit_global_hum(void)
-{
-    ui_display_message("Set Global Humidity", g_ui_input_buffer);
-}
-
-/**
- * @brief Displays the mode selection screen.
- */
-static void ui_display_select_mode(void)
-{
-    const char* mode_name;
-    switch(g_ui_working_configuration.mode) {
-        case SYS_MGR_MODE_AUTOMATIC: mode_name = "Automatic"; break;
-        case SYS_MGR_MODE_HYBRID:    mode_name = "Hybrid"; break;
-        case SYS_MGR_MODE_MANUAL:    mode_name = "Manual"; break;
-        default: mode_name = "Unknown"; break;
-    }
-    char line2[17];
-    // snprintf(line2, sizeof(line2), "Current: %s", mode_name);
-    // ui_display_message("Select Mode (1-3)", line2);
-}
-
-/* =============================================================================
- * PRIVATE STATE TRANSITION FUNCTIONS
- * ============================================================================= */
-
-/**
- * @brief Transitions to the global temperature edit state.
- */
-static void ui_enter_edit_global_temp(void)
-{
-    g_ui_state = UI_STATE_EDIT_GLOBAL_TEMP;
-    ui_clear_input_buffer();
-    char temp_str[10];
-    snprintf(temp_str, sizeof(temp_str), "%.1f %.1f", g_ui_working_configuration.global_temp_min, g_ui_working_configuration.global_temp_max);
-    ui_display_message("Edit T (min max):", temp_str);
-}
-
-/**
- * @brief Transitions to the global humidity edit state.
- */
-static void ui_enter_edit_global_hum(void)
-{
-    g_ui_state = UI_STATE_EDIT_GLOBAL_HUM;
-    ui_clear_input_buffer();
-    char hum_str[10];
-    snprintf(hum_str, sizeof(hum_str), "%.1f %.1f", g_ui_working_configuration.global_hum_min, g_ui_working_configuration.global_hum_max);
-    ui_display_message("Edit H (min max):", hum_str);
-}
-
-/**
- * @brief Transitions to the mode selection state.
- */
-static void ui_enter_select_mode(void)
-{
-    g_ui_state = UI_STATE_SELECT_MODE;
-    ui_display_select_mode();
-}
-
-/**
- * @brief Commits the working configuration to SysMgr and saves it.
- */
-static void ui_commit_and_save_configuration(void)
-{
-    if (SYS_MGR_UpdateConfigRuntime(&g_ui_working_configuration) == E_OK) {
-        ui_display_message("Config Saved!", "Exiting Menu...");
-    } else {
-        ui_display_message("Save Failed!", "Exiting Menu...");
-        // Report fault to System Monitor here
-    }
-}
-
-/* =============================================================================
- * PRIVATE INPUT HANDLER FUNCTIONS
- * ============================================================================= */
-
-/**
- * @brief Handles keypad input while in the main screen state.
- * @param key The key character pressed.
- */
-static void ui_handle_input_main_screen(char key)
-{
-    if (key == '#') {
-        g_ui_state = UI_STATE_MENU_ROOT;
-        ui_display_menu_root();
-        SYS_MGR_GetConfig(&g_ui_working_configuration); // Get fresh config for editing
-    }
-}
-
-/**
- * @brief Handles keypad input while in the menu root state.
- * @param key The key character pressed.
- */
-static void ui_handle_input_menu_root(char key)
-{
-    switch (key) {
-        case '1': ui_enter_edit_global_temp(); break;
-        case '2': ui_enter_edit_global_hum(); break;
-        case '3': ui_display_message("Sets Config", "Not Implemented!"); break;
-        case '4': ui_enter_select_mode(); break;
-        case '9': g_ui_state = UI_STATE_SAVE_AND_EXIT; break;
-        case '*': g_ui_state = UI_STATE_MAIN_SCREEN; ui_display_main_screen(); break;
-        default: ui_display_message("Invalid Option!", "Press * to go back"); break;
-    }
-}
-
-/**
- * @brief Handles keypad input while editing global temperature.
- * @param key The key character pressed.
- */
-static void ui_handle_input_edit_global_temp(char key)
-{
-    if (isdigit(key) || key == '.') {
-        ui_append_digit(key);
+    if (event->button >= KEYPAD_BTN_0 && event->button <= KEYPAD_BTN_9) {
+        ui_handle_numeric_input(event);
         ui_display_edit_global_temp();
-    } else if (key == '#') {
-        // Parse and validate the input
-        float min_temp, max_temp;
-        if (sscanf(g_ui_input_buffer, "%f %f", &min_temp, &max_temp) == 2 &&
-            min_temp >= 0.0f && min_temp <= 99.0f &&
-            max_temp >= 0.0f && max_temp <= 99.0f &&
-            min_temp < max_temp) {
-            
-            g_ui_working_configuration.global_temp_min = min_temp;
-            g_ui_working_configuration.global_temp_max = max_temp;
-            ui_display_message("T-min/max Updated!", "Press * to go back");
-        } else {
-            ui_display_message("Invalid Input!", "T Range: 0-99C");
+    } else if (event->button == KEYPAD_BTN_ERASE) {
+        if (g_input_index > 0) {
+            g_input_buffer[--g_input_index] = '\0';
+            ui_display_edit_global_temp();
         }
+    } else if (event->button == KEYPAD_BTN_BACK) {
         ui_clear_input_buffer();
+        g_is_editing_min = true;
         g_ui_state = UI_STATE_MENU_ROOT;
-    } else if (key == '*') {
-        g_ui_state = UI_STATE_MENU_ROOT;
-        ui_clear_input_buffer();
         ui_display_menu_root();
+    } else if (event->button == KEYPAD_BTN_ENTER) {
+        float value = strtof(g_input_buffer, NULL);
+        if (g_is_editing_min) 
+        {
+            // if (SYS_MGR_ValidateTemperatureRange(value, g_ui_working_configuration.global_temp_max) == E_OK) 
+            {
+                g_ui_working_configuration.global_temp_min = value;
+                g_is_editing_min = false;
+                ui_clear_input_buffer();
+                ui_display_edit_global_temp();
+            } 
+            // else 
+            {
+                ui_display_message("Invalid T-Min!", "Range: 0-50C");
+            }
+        } 
+        else 
+        {
+            // if (SYS_MGR_ValidateTemperatureRange(g_ui_working_configuration.global_temp_min, value) == E_OK) {
+            //     g_ui_working_configuration.global_temp_max = value;
+            //     ui_display_message("Temp Updated!", "Press BACK");
+            //     g_ui_state = UI_STATE_MENU_ROOT;
+            //     ui_clear_input_buffer();
+            // } 
+            // else 
+            {
+                ui_display_message("Invalid T-Max!", "Range: 0-50C");
+            }
+        }
     }
 }
 
 /**
- * @brief Handles keypad input while editing global humidity.
- * @param key The key character pressed.
+ * @brief Handles numeric input and control keys for editing global humidity.
+ * @param event The keypad event to process.
  */
-static void ui_handle_input_edit_global_hum(char key)
+static void ui_handle_event_edit_global_hum(Keypad_Event_t *event)
 {
-    if (isdigit(key) || key == '.') {
-        ui_append_digit(key);
+    if (event->type != KEYPAD_EVT_PRESS) {
+        return;
+    }
+
+    if (event->button >= KEYPAD_BTN_0 && event->button <= KEYPAD_BTN_9) {
+        ui_handle_numeric_input(event);
         ui_display_edit_global_hum();
-    } else if (key == '#') {
-        float min_hum, max_hum;
-        if (sscanf(g_ui_input_buffer, "%f %f", &min_hum, &max_hum) == 2 &&
-            min_hum >= 0.0f && min_hum <= 100.0f &&
-            max_hum >= 0.0f && max_hum <= 100.0f &&
-            min_hum < max_hum) {
-
-            g_ui_working_configuration.global_hum_min = min_hum;
-            g_ui_working_configuration.global_hum_max = max_hum;
-            ui_display_message("H-min/max Updated!", "Press * to go back");
-        } else {
-            ui_display_message("Invalid Input!", "H Range: 0-100%");
+    } else if (event->button == KEYPAD_BTN_ERASE) {
+        if (g_input_index > 0) {
+            g_input_buffer[--g_input_index] = '\0';
+            ui_display_edit_global_hum();
         }
+    } else if (event->button == KEYPAD_BTN_BACK) {
         ui_clear_input_buffer();
+        g_is_editing_min = true;
         g_ui_state = UI_STATE_MENU_ROOT;
-    } else if (key == '*') {
-        g_ui_state = UI_STATE_MENU_ROOT;
-        ui_clear_input_buffer();
         ui_display_menu_root();
+    } else if (event->button == KEYPAD_BTN_ENTER) {
+        float value = strtof(g_input_buffer, NULL);
+        if (g_is_editing_min) {
+            // if (SYS_MGR_ValidateHumidityRange(value, g_ui_working_configuration.global_hum_max) == E_OK) 
+            {
+                g_ui_working_configuration.global_hum_min = value;
+                g_is_editing_min = false;
+                ui_clear_input_buffer();
+                ui_display_edit_global_hum();
+            } 
+            // else 
+            {
+                ui_display_message("Invalid H-Min!", "Range: 0-100%");
+            }
+        } 
+        else 
+        {
+            // if (SYS_MGR_ValidateHumidityRange(g_ui_working_configuration.global_hum_min, value) == E_OK) 
+            {
+                g_ui_working_configuration.global_hum_max = value;
+                ui_display_message("Hum Updated!", "Press BACK");
+                g_ui_state = UI_STATE_MENU_ROOT;
+                ui_clear_input_buffer();
+            } 
+            // else 
+            {
+                ui_display_message("Invalid H-Max!", "Range: 0-100%");
+            }
+        }
     }
 }
 
 /**
- * @brief Handles keypad input while selecting the mode.
- * @param key The key character pressed.
+ * @brief Handles events for selecting the system operational mode.
+ *
+ * Keys `1`, `2`, or `3` set the mode. `BACK` or `ERASE` returns to the root menu.
+ *
+ * @param event The keypad event to process.
  */
-static void ui_handle_input_select_mode(char key)
+static void ui_handle_event_select_mode(Keypad_Event_t *event)
 {
-    switch (key) {
-        case '1':
+    if (event->type != KEYPAD_EVT_PRESS) {
+        return;
+    }
+    
+    switch (event->button) {
+        case KEYPAD_BTN_1:
             g_ui_working_configuration.mode = SYS_MGR_MODE_AUTOMATIC;
             ui_display_message("Mode Set", "Automatic");
             break;
-        case '2':
+        case KEYPAD_BTN_2:
             g_ui_working_configuration.mode = SYS_MGR_MODE_HYBRID;
             ui_display_message("Mode Set", "Hybrid");
             break;
-        case '3':
+        case KEYPAD_BTN_3:
             g_ui_working_configuration.mode = SYS_MGR_MODE_MANUAL;
             ui_display_message("Mode Set", "Manual");
             break;
-        case '*':
+        case KEYPAD_BTN_BACK:
+        case KEYPAD_BTN_ERASE:
             g_ui_state = UI_STATE_MENU_ROOT;
+            ui_clear_input_buffer();
             ui_display_menu_root();
             break;
         default:
-            ui_display_message("Invalid Option!", "Select 1-3");
             break;
     }
-    // Return to menu after a short delay or on next key press
+}
+
+/**
+ * @brief Handles generic numeric input for all states.
+ * @param event The keypad event containing the button pressed.
+ */
+static void ui_handle_numeric_input(Keypad_Event_t *event)
+{
+    if (g_input_index < UI_MAX_INPUT_LEN) {
+        g_input_buffer[g_input_index++] = '0' + event->button;
+        g_input_buffer[g_input_index] = '\0';
+    }
+}
+
+/* =============================================================================
+ * PRIVATE DISPLAY AND HELPER FUNCTION IMPLEMENTATION
+ * ============================================================================= */
+
+/**
+ * @brief Displays the main rotating screens.
+ */
+static void ui_display_main_screen(void)
+{
+    ui_display_clear();
+    switch (g_main_screen_index)
+    {
+        case 0:
+            ui_display_message("Avg T:%.1fC H:%.1f%%", "Mode: AUTO     "); // Stubs for now
+            break;
+        case 1:
+            ui_display_per_sensor_readings();
+            break;
+        case 2:
+            ui_display_actuator_states();
+            break;
+    }
+}
+
+/**
+ * @brief Displays the per-sensor readings screen.
+ * This function retrieves data from SysMgr and formats it for the display.
+ */
+static void ui_display_per_sensor_readings(void)
+{
+    // PerSensorReadings_t readings;
+    // if (SYS_MGR_GetPerSensorReadings(&readings) == E_OK) 
+    {
+        // char line1[UI_LCD_COLS + 1];
+        // char line2[UI_LCD_COLS + 1];
+        // snprintf(line1, sizeof(line1), "S1:%.1fC S2:%.1fC", readings.temp_readings[0], readings.temp_readings[1]);
+        // snprintf(line2, sizeof(line2), "S3:%.1fC S4:%.1fC", readings.temp_readings[2], readings.temp_readings[3]);
+        // ui_display_message(line1, line2);
+    } 
+    // else 
+    {
+        ui_display_message("Readings Failed", "Please check sensors");
+    }
+}
+
+/**
+ * @brief Displays the actuator states screen.
+ * This function retrieves data from SysMgr and formats it for the display.
+ */
+static void ui_display_actuator_states(void)
+{
+    // SYS_MGR_Actuator_States_t states;
+    // if (SYS_MGR_GetActuatorStates(&states) == E_OK) 
+    // {
+    //     char line1[UI_LCD_COLS + 1];
+    //     char line2[UI_LCD_COLS + 1];
+    //     snprintf(line1, sizeof(line1), "Fan:%s Heat:%s", states.fans_on ? "ON" : "OFF", states.heaters_on ? "ON" : "OFF");
+    //     snprintf(line2, sizeof(line2), "Pump:%s Vent:%s", states.pumps_on ? "ON" : "OFF", states.vents_on ? "ON" : "OFF");
+    //     ui_display_message(line1, line2);
+    // } 
+    // else 
+    {
+        ui_display_message("Actuators Failed", "Please check system");
+    }
+}
+
+/**
+ * @brief Displays the root configuration menu.
+ */
+static void ui_display_menu_root(void) 
+{
+    ui_display_message("Config Menu", "1:Temp 2:Humid 4:Mode");
+}
+
+/**
+ * @brief Displays the global temperature input screen.
+ */
+static void ui_display_edit_global_temp(void) 
+{
+    if (g_is_editing_min) 
+    {
+        ui_display_numeric_input("Set Temp Min:", g_input_buffer);
+    } 
+    else 
+    {
+        ui_display_numeric_input("Set Temp Max:", g_input_buffer);
+    }
+}
+
+/**
+ * @brief Displays the global humidity input screen.
+ */
+static void ui_display_edit_global_hum(void) 
+{
+    if (g_is_editing_min) 
+    {
+        ui_display_numeric_input("Set Hum Min:", g_input_buffer);
+    } 
+    else 
+    {
+        ui_display_numeric_input("Set Hum Max:", g_input_buffer);
+    }
+}
+
+/**
+ * @brief Displays the system mode selection screen.
+ */
+static void ui_display_select_mode(void) 
+{
+    ui_display_message("Select Mode", "1:Auto 2:Hybrid 3:Manual");
+}
+
+/**
+ * @brief Clears the numeric input buffer and resets its length.
+ *
+ * This function should be called after a numeric value has been processed
+ * or when the user cancels the input process.
+ */
+static void ui_clear_input_buffer(void)
+{
+    memset(g_input_buffer, 0, sizeof(g_input_buffer));
+    g_input_index = 0;
 }

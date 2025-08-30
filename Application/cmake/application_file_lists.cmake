@@ -63,6 +63,7 @@ set(APPLICATION_SRCS
     "${SysMgr_DIR}/src/sys_mgr_core.c"
     "${SysMgr_DIR}/src/sys_mgr.c"
     "${SysMgr_DIR}/src/ui_manager.c"
+    "${SysMgr_DIR}/src/ui_manager_cfg.c"
     "${SysMon_DIR}/src/system_monitor.c"
     "${SysMon_DIR}/src/system_monitor_cfg.c"
     "${VEN_DIR}/src/venctrl.c"

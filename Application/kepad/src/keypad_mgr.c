@@ -1,302 +1,248 @@
 /**
  * @file keypad_mgr.c
- * @brief Implementation file for the Keypad Manager (KeypadMgr) module.
+ * @brief Generic Keypad Manager implementation (matrix scan, debounce, hold, queue)
+ *
+ * - Hardware abstraction: expects HAL_GPIO_SetLevel / HAL_GPIO_GetLevel.
+ * - Error handling: reports faults to SysMon on HAL failures, continues scanning.
+ * - Event policy: emits PRESS (debounced) and single-shot HOLD (after threshold).
+ * - Queue policy on full: oldest event dropped to accept newest; SysMon fault reported.
+ *
+ * NOTE: Replace HAL_GPIO_* and SYSMON_ReportFaultStatus with your platform APIs.
  */
 
 #include "keypad_mgr.h"
-#include "keypad_mgr_cfg.h" // For KEYPAD_NUM_ROWS, KEYPAD_NUM_COLUMNS, etc., and GPIOs
-#include "logger.h"         // Assuming a logger utility for debug/info/error messages
+#include "keypad_mgr_cfg.h"
+#include "keypad_mgr_cfg.h" /* for g_keypad_row_gpios, g_keypad_col_gpios, g_keypad_rowcol_map */
+#include "logger.h"
 #include "hal_gpio.h"
-#include <string.h> // For memset
+#include "system_monitor.h"
 
-// --- Private Defines ---
+#include <string.h>
+
 #define TAG "KEYPAD_MGR"
 
-// --- Private Data Structures ---
-/**
- * @brief Internal state for each physical button.
- */
-typedef struct
-{
-    bool current_physical_state;         /**< Raw, un-debounced state (true if pressed) */
-    bool debounced_state;                /**< Debounced state (true if pressed) */
-    uint16_t debounce_counter;           /**< Counter for debounce logic */
-    uint16_t hold_counter;               /**< Counter for hold event detection */
-    Keypad_Event_Type_t last_event_type; /**< Last event generated for this button */
-} Keypad_Button_State_t;
+/* Critical section macros (FreeRTOS aware) */
+#if defined(FREERTOS_CONFIG_H) || defined(FREERTOS)
+  #include "freertos/FreeRTOS.h"
+  #include "freertos/task.h"
+  #define KEY_ENTER_CRIT() taskENTER_CRITICAL()
+  #define KEY_EXIT_CRIT()  taskEXIT_CRITICAL()
+#else
+  #define KEY_ENTER_CRIT() do{}while(0)
+  #define KEY_EXIT_CRIT()  do{}while(0)
+#endif
 
-// --- Private Global Variables ---
-static Keypad_Button_State_t g_button_states[KEYPAD_BUTTON_MAX];
-static bool g_keypad_mgr_initialized = false;
-static Keypad_Event_t g_last_keypad_event = {.button_id = KEYPAD_BUTTON_MAX, .event_type = KEYPAD_EVENT_NONE};
+/* SysMon fault constants (adapt to your SysMon) */
+#ifndef SYSMON_FAULT_KEYPAD_IO
+#define SYSMON_FAULT_KEYPAD_IO  (0x3100)
+#endif
 
-// Array of row GPIOs for iteration (defined in keypad_mgr_cfg.h)
-static const uint8_t g_keypad_row_gpios[KEYPAD_NUM_ROWS] = KEYPAD_ROW_GPIOS;
-// Array of column GPIOs for iteration (defined in keypad_mgr_cfg.h)
-static const uint8_t g_keypad_col_gpios[KEYPAD_NUM_COLUMNS] = KEYPAD_COL_GPIOS;
+/* Button internal state */
+typedef struct {
+    bool debounced;         /* stable pressed state */
+    uint16_t db_cnt;        /* debounce counter */
+    uint16_t hold_cnt;      /* hold counter while debounced pressed */
+    bool hold_reported;     /* ensure single-shot hold */
+} KeyBtnState_t;
 
-// --- Private Function Prototypes ---
-static Keypad_Button_ID_t prv_get_button_id(uint8_t row_idx, uint8_t col_idx);
-static void prv_process_button_state(Keypad_Button_ID_t button_id, bool raw_state);
-/**
- * @brief Sets the state of a specific keypad row GPIO.
- * @param row_gpio The GPIO pin number for the row.
- * @param state True for active (e.g., LOW to sink current), false for inactive (e.g., HIGH/Hi-Z).
- * @return Status_t E_OK on success.
- */
-static Status_t Keypad_SetRow(uint8_t row_gpio, bool state);
+static KeyBtnState_t s_btns[KEYPAD_BTN_MAX];
+static bool s_initialized = false;
 
-/**
- * @brief Reads the state of all keypad column GPIOs.
- * @param column_states_out Pointer to an array to store column states (true if active).
- * @return Status_t E_OK on success.
- */
-static Status_t Keypad_ReadColumns(bool column_states_out[KEYPAD_NUM_COLUMNS]);
+/* queue */
+typedef struct {
+    Keypad_Event_t buf[KEYPAD_EVENT_QUEUE_DEPTH];
+    uint8_t head; /* next write index */
+    uint8_t tail; /* next read index */
+    uint8_t count;
+} EvQueue_t;
 
-// --- Public Function Implementations ---
+static EvQueue_t s_queue;
+static Keypad_EventHandler_t s_handler = NULL;
+
+/* GPIO arrays from cfg.c (declared there) */
+extern const uint8_t g_keypad_row_gpios[KEYPAD_NUM_ROWS];
+extern const uint8_t g_keypad_col_gpios[KEYPAD_NUM_COLUMNS];
+extern const Keypad_Button_ID_t g_keypad_rowcol_map[KEYPAD_NUM_ROWS][KEYPAD_NUM_COLUMNS];
+
+/* Helpers */
+static void enqueue_event(const Keypad_Event_t *ev);
+static bool queue_is_full(void) { return (s_queue.count >= KEYPAD_EVENT_QUEUE_DEPTH); }
+static bool queue_is_empty(void) { return (s_queue.count == 0); }
+static Keypad_Button_ID_t map_rowcol_to_button(uint8_t r, uint8_t c);
+static void process_button(Keypad_Button_ID_t id, bool raw_active);
+
+/* Public API */
 
 Status_t KeypadMgr_Init(void)
 {
-    if (g_keypad_mgr_initialized)
-    {
-        LOGW(TAG, "Keypad Manager already initialized.");
-        return E_ALREADY_INITIALIZED;
-    }
+    if (s_initialized) return E_OK;
 
-    LOGI(TAG, "Initializing Keypad Manager...");
-
-    // Initialize all button states
-    memset(g_button_states, 0, sizeof(g_button_states));
-    for (int i = 0; i < KEYPAD_BUTTON_MAX; i++)
-    {
-        g_button_states[i].last_event_type = KEYPAD_EVENT_NONE;
-    }
-
-    g_keypad_mgr_initialized = true;
-    LOGI(TAG, "Keypad Manager initialized successfully. %d Rows, %d Columns.", KEYPAD_NUM_ROWS, KEYPAD_NUM_COLUMNS);
+    memset(s_btns, 0, sizeof(s_btns));
+    s_queue.head = s_queue.tail = s_queue.count = 0;
+    s_handler = NULL;
+    s_initialized = true;
+    LOGI(TAG, "KeypadMgr initialized (scan %d ms, debounce %d ticks, hold %d ticks, q=%d)",
+         KEYPAD_SCAN_PERIOD_MS, KEYPAD_DEBOUNCE_TICKS, KEYPAD_HOLD_TICKS, KEYPAD_EVENT_QUEUE_DEPTH);
     return E_OK;
 }
 
 void KeypadMgr_MainFunction(void)
 {
-    if (!g_keypad_mgr_initialized)
-    {
-        LOGW(TAG, "MainFunction called before initialization.");
-        return;
-    }
+    if (!s_initialized) return;
 
-    bool column_states[KEYPAD_NUM_COLUMNS];
+    bool col_active[KEYPAD_NUM_COLUMNS];
 
-    // Iterate through each row
-    for (uint8_t row_idx = 0; row_idx < KEYPAD_NUM_ROWS; row_idx++)
-    {
-        // Set current row GPIO to active (e.g., LOW)
-        Keypad_SetRow(g_keypad_row_gpios[row_idx], true);
+    for (uint8_t r = 0; r < KEYPAD_NUM_ROWS; r++) {
+        /* activate row (assume active = LOW) */
+        if (HAL_GPIO_SetLevel(g_keypad_row_gpios[r], 0) != E_OK) {
+            LOGE(TAG, "HAL_GPIO_SetLevel activate row %u failed", r);
+            // SYSMON_ReportFaultStatus(SYSMON_FAULT_KEYPAD_IO, 1);
+            /* continue scanning next rows */
+        }
 
-        // Read column states
-        Status_t status = Keypad_ReadColumns(column_states);
-        if (status != E_OK)
-        {
-            LOGE(TAG, "Failed to read columns for row GPIO%d. Status: %d", g_keypad_row_gpios[row_idx], status);
-            // Consider fault reporting via SysMon here
-            // SYSMGR_REPORT_FAULT_STATUS(SYSMON_FAULT_KEYPAD_READ_ERROR, SYSMON_FAULT_STATUS_ACTIVE);
-            Keypad_SetRow(g_keypad_row_gpios[row_idx], false); // Deactivate row before continuing
+        /* read columns */
+        bool row_read_ok = true;
+        for (uint8_t c = 0; c < KEYPAD_NUM_COLUMNS; c++) {
+            uint8_t level = 1;
+            if (HAL_GPIO_GetLevel(g_keypad_col_gpios[c], &level) != E_OK) {
+                LOGE(TAG, "HAL_GPIO_GetLevel col %u failed", c);
+                // SYSMON_ReportFaultStatus(SYSMON_FAULT_KEYPAD_IO, 1);
+                row_read_ok = false;
+                break;
+            }
+            col_active[c] = (level == 0); /* active when pulled low by key */
+        }
+
+        if (!row_read_ok) {
+            /* deactivate row and continue */
+            HAL_GPIO_SetLevel(g_keypad_row_gpios[r], 1);
             continue;
         }
 
-        // Process each column for the current row
-        for (uint8_t col_idx = 0; col_idx < KEYPAD_NUM_COLUMNS; col_idx++)
-        {
-            Keypad_Button_ID_t button_id = prv_get_button_id(row_idx, col_idx);
-            if (button_id < KEYPAD_BUTTON_MAX)
-            { // Check if it's a valid mapped button
-                prv_process_button_state(button_id, column_states[col_idx]);
-            }
+        /* process each column */
+        for (uint8_t c = 0; c < KEYPAD_NUM_COLUMNS; c++) {
+            Keypad_Button_ID_t bid = map_rowcol_to_button(r, c);
+            if (bid < KEYPAD_BTN_MAX) {
+                process_button(bid, col_active[c]);
+            } /* else unmapped -> ignore */
         }
 
-        // Deactivate current row GPIO (e.g., set HIGH/Hi-Z)
-        Keypad_SetRow(g_keypad_row_gpios[row_idx], false);
+        /* deactivate row */
+        HAL_GPIO_SetLevel(g_keypad_row_gpios[r], 1);
     }
 }
 
-Status_t KeypadMgr_GetLastEvent(Keypad_Event_t *event_out)
+Status_t KeypadMgr_GetEvent(Keypad_Event_t *out_event)
 {
-    if (!g_keypad_mgr_initialized)
-        return E_NOT_INITIALIZED;
-    if (event_out == NULL)
-        return E_NULL_POINTER;
+    if (!s_initialized) return E_NOT_INITIALIZED;
+    if (!out_event) return E_NULL_POINTER;
 
-    if (g_last_keypad_event.event_type == KEYPAD_EVENT_NONE)
-    {
-        return E_DATA_STALE; // No new event
+    KEY_ENTER_CRIT();
+    if (queue_is_empty()) {
+        KEY_EXIT_CRIT();
+        return E_DATA_STALE;
     }
-
-    *event_out = g_last_keypad_event;
-    g_last_keypad_event.event_type = KEYPAD_EVENT_NONE; // Clear event after reading
+    *out_event = s_queue.buf[s_queue.tail];
+    s_queue.tail = (s_queue.tail + 1) % KEYPAD_EVENT_QUEUE_DEPTH;
+    s_queue.count--;
+    KEY_EXIT_CRIT();
     return E_OK;
 }
 
-// --- Private Function Implementations ---
-
-/**
- * @brief Maps a physical row and column index to a logical Keypad_Button_ID_t.
- * This function defines your specific keypad's wiring layout and its logical button mapping.
- *
- * | Keypad physical layout assumption:
- * |          | Col0 (GPIO36)  | Col1 (GPIO37)  | Col2 (GPIO38)  | Col3 (GPIO39)  |
- * | :------- | :------------- | :------------- | :------------- | :------------- |
- * | R0 (GP4) | BUTTON_0       | BUTTON_1       | BUTTON_2       | BUTTON_3       |
- * | R1 (GP12)| MODE_AUTO      | MODE_HYBRID    | MODE_MANUAL    | UP             |
- * | R2 (GP13)| DOWN           | ENTER          | (Unmapped)     | (Unmapped)     |
- * | R3 (GP0) | (Unmapped)     | (Unmapped)     | (Unmapped)     | (Unmapped)     |
- *
- * @param row_idx The row index (0 to KEYPAD_NUM_ROWS-1).
- * @param col_idx The column index (0 to KEYPAD_NUM_COLUMNS-1).
- * @return The corresponding Keypad_Button_ID_t, or KEYPAD_BUTTON_MAX if no mapping.
- */
-static Keypad_Button_ID_t prv_get_button_id(uint8_t row_idx, uint8_t col_idx)
+void KeypadMgr_RegisterEventHandler(Keypad_EventHandler_t handler)
 {
-    // Mapping logic based on the assumed physical layout and Keypad_Button_ID_t enum
-    if (row_idx == 0)
-    {
-        if (col_idx == 0)
-            return KEYPAD_BUTTON_0;
-        if (col_idx == 1)
-            return KEYPAD_BUTTON_1;
-        if (col_idx == 2)
-            return KEYPAD_BUTTON_2;
-        if (col_idx == 3)
-            return KEYPAD_BUTTON_3;
-    }
-    else if (row_idx == 1)
-    {
-        if (col_idx == 0)
-            return KEYPAD_BUTTON_MODE_AUTO;
-        if (col_idx == 1)
-            return KEYPAD_BUTTON_MODE_HYBRID;
-        if (col_idx == 2)
-            return KEYPAD_BUTTON_MODE_MANUAL;
-        if (col_idx == 3)
-            return KEYPAD_BUTTON_UP;
-    }
-    else if (row_idx == 2)
-    {
-        if (col_idx == 0)
-            return KEYPAD_BUTTON_DOWN;
-        if (col_idx == 1)
-            return KEYPAD_BUTTON_ENTER;
-    }
-    // For any unmapped row/col combination
-    return KEYPAD_BUTTON_MAX;
+    s_handler = handler;
 }
 
-/**
- * @brief Processes the raw state of a single button, handling debouncing and events.
- * @param button_id The ID of the button to process.
- * @param raw_state The raw physical state of the button (true if pressed).
- */
-static void prv_process_button_state(Keypad_Button_ID_t button_id, bool raw_state)
+uint8_t KeypadMgr_GetQueuedCount(void)
 {
-    Keypad_Button_State_t *btn_state = &g_button_states[button_id];
+    KEY_ENTER_CRIT();
+    uint8_t n = s_queue.count;
+    KEY_EXIT_CRIT();
+    return n;
+}
 
-    btn_state->current_physical_state = raw_state;
+/* ===== Internal helpers ===== */
 
-    // Debounce logic
-    if (raw_state != btn_state->debounced_state)
-    {
-        btn_state->debounce_counter++;
-        if (btn_state->debounce_counter >= KEYPAD_DEBOUNCE_TICKS)
-        {
-            btn_state->debounced_state = raw_state;
-            btn_state->debounce_counter = 0;
-            btn_state->hold_counter = 0; // Reset hold counter on state change
+static void enqueue_event(const Keypad_Event_t *ev)
+{
+    if (!ev) return;
 
-            // State change detected (Press or Release)
-            if (btn_state->debounced_state)
-            {
-                LOGD(TAG, "Button %d: PRESS event", button_id);
-                g_last_keypad_event = (Keypad_Event_t){.button_id = button_id, .event_type = KEYPAD_EVENT_PRESS};
+    KEY_ENTER_CRIT();
+    if (queue_is_full()) {
+        /* Policy: drop oldest event to accept incoming newest.
+         * This preserves the latest user actions at the cost of older ones.
+         * Raise SysMon fault to flag capacity issues.
+         */
+        LOGW(TAG, "Event queue full: dropping oldest event to enqueue new one");
+        // SYSMON_ReportFaultStatus(SYSMON_FAULT_KEYPAD_IO, 1);
 
-                // Check mapping and send to SysMgr if it's a mode select button
-                for (uint8_t i = 0; i < g_keypad_sys_mgr_event_map_size; i++)
-                {
-                    if (g_keypad_sys_mgr_event_map[i].button_id == button_id &&
-                        g_keypad_sys_mgr_event_map[i].is_mode_select_button &&
-                        g_keypad_sys_mgr_event_map[i].event_id != Keypad_Event_NONE)
-                    {
-                        // SysMgr_HandleUserEvent(g_keypad_sys_mgr_event_map[i].event_id);
-                        LOGI(TAG, "Button %d (Mode Select) triggered SysMgr Event: %d", button_id, g_keypad_sys_mgr_event_map[i].event_id);
-                        break;
-                    }
+        /* advance tail (drop oldest) */
+        s_queue.tail = (s_queue.tail + 1) % KEYPAD_EVENT_QUEUE_DEPTH;
+        s_queue.count--;
+    }
+
+    s_queue.buf[s_queue.head] = *ev;
+    s_queue.head = (s_queue.head + 1) % KEYPAD_EVENT_QUEUE_DEPTH;
+    s_queue.count++;
+    KEY_EXIT_CRIT();
+
+    /* immediate dispatch to handler (if registered) */
+    if (s_handler) {
+        s_handler(ev);
+    }
+}
+
+static Keypad_Button_ID_t map_rowcol_to_button(uint8_t r, uint8_t c)
+{
+    if (r < KEYPAD_NUM_ROWS && c < KEYPAD_NUM_COLUMNS) {
+        return g_keypad_rowcol_map[r][c];
+    }
+    return KEYPAD_BTN_MAX;
+}
+
+static void process_button(Keypad_Button_ID_t id, bool raw_active)
+{
+    KeyBtnState_t *s = &s_btns[id];
+
+    if (s->debounced != raw_active) {
+        /* potential transition -> debounce counting */
+        s->db_cnt++;
+        if (s->db_cnt >= KEYPAD_DEBOUNCE_TICKS) {
+            s->debounced = raw_active;
+            s->db_cnt = 0;
+            if (s->debounced) {
+                /* stable press -> emit PRESS */
+                Keypad_Event_t ev = { .button = id, .type = KEYPAD_EVT_PRESS };
+                enqueue_event(&ev);
+                s->hold_cnt = 0;
+                s->hold_reported = false;
+                LOGD(TAG, "Btn %d PRESS", id);
+            } else {
+                /* stable release -> reset hold tracking (no release event emitted) */
+                s->hold_cnt = 0;
+                s->hold_reported = false;
+                LOGD(TAG, "Btn %d RELEASE (ignored)", id);
+            }
+        }
+    } else {
+        /* stable state */
+        s->db_cnt = 0;
+        if (s->debounced) {
+            /* pressed -> check hold */
+            if (!s->hold_reported) {
+                s->hold_cnt++;
+                if (s->hold_cnt >= KEYPAD_HOLD_TICKS) {
+                    Keypad_Event_t ev = { .button = id, .type = KEYPAD_EVT_HOLD };
+                    enqueue_event(&ev);
+                    s->hold_reported = true;
+                    LOGD(TAG, "Btn %d HOLD", id);
                 }
             }
-            else // Released
-            {
-                LOGD(TAG, "Button %d: RELEASE event", button_id);
-                g_last_keypad_event = (Keypad_Event_t){.button_id = button_id, .event_type = KEYPAD_EVENT_RELEASE};
-            }
-            btn_state->last_event_type = g_last_keypad_event.event_type;
+        } else {
+            /* stable released -> nothing to do */
+            s->hold_cnt = 0;
+            s->hold_reported = false;
         }
     }
-    else
-    {
-        // No state change, reset debounce counter
-        btn_state->debounce_counter = 0;
-
-        // If button is currently debounced-pressed, check for hold event
-        if (btn_state->debounced_state)
-        {
-            btn_state->hold_counter++;
-            if (btn_state->hold_counter >= KEYPAD_HOLD_TICKS &&
-                btn_state->last_event_type != KEYPAD_EVENT_HOLD)
-            {
-                LOGD(TAG, "Button %d: HOLD event", button_id);
-                g_last_keypad_event = (Keypad_Event_t){.button_id = button_id, .event_type = KEYPAD_EVENT_HOLD};
-                btn_state->last_event_type = KEYPAD_EVENT_HOLD;
-                // A hold event might also trigger a SysMgr event, depending on requirements.
-                // For mode selection, a 'press' is usually sufficient.
-            }
-        }
-        else
-        {
-            // Button is debounced-released, reset hold counter
-            btn_state->hold_counter = 0;
-        }
-    }
-}
-
-/**
- * @brief Sets the state of a specific keypad row GPIO.
- * @param row_gpio The GPIO pin number for the row.
- * @param state True for active (e.g., LOW to sink current), false for inactive (e.g., HIGH).
- * @return Status_t E_OK on success.
- */
-static Status_t Keypad_SetRow(uint8_t row_gpio, bool state)
-{
-    // --- REPLACE with your MCU's GPIO write function ---
-    HAL_GPIO_SetLevel(row_gpio, state ? 0 : 1);
-    LOGD("HAL_KEYPAD", "Set Row GPIO%d to %s (Physical Level: %s)", row_gpio, state ? "ACTIVE" : "INACTIVE", state ? "LOW" : "HIGH");
-    return E_OK;
-}
-
-/**
- * @brief Reads the state of all keypad column GPIOs.
- * @param column_states_out Pointer to an array to store column states (true if active).
- * @return Status_t E_OK on success.
- */
-static Status_t Keypad_ReadColumns(bool column_states_out[KEYPAD_NUM_COLUMNS])
-{
-    if (column_states_out == NULL)
-        return E_NULL_POINTER;
-    uint8_t u8PinState = 0;
-    for (uint8_t i = 0; i < KEYPAD_NUM_COLUMNS; i++)
-    {
-        uint8_t gpio_pin = g_keypad_col_gpios[i];
-        // --- REPLACE with your MCU's GPIO read function ---
-        // A column is "active" if it's pulled LOW by a pressed button.
-        HAL_GPIO_GetLevel(gpio_pin, &u8PinState);
-        column_states_out[i] = (u8PinState == 0);
-        LOGD("HAL_KEYPAD", "Read Col GPIO%d: %s", gpio_pin, column_states_out[i] ? "ACTIVE (LOW)" : "INACTIVE (HIGH)");
-    }
-    return E_OK;
 }

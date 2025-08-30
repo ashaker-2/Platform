@@ -35,7 +35,6 @@
 
 static float g_ema_temperature_data[TEMPHUM_SENSOR_ID_COUNT];
 static float g_ema_humidity_data[TEMPHUM_SENSOR_ID_COUNT];
-static bool g_ema_valid[TEMPHUM_SENSOR_ID_COUNT];
 static float g_average_temperature;
 static float g_average_humidity;
 static bool g_average_valid;

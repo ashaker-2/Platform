@@ -934,3 +934,4 @@ build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/kepad/src/keypad_mgr
 build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/kepad/src/keypad_mgr_cfg.c.obj
 build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/systemMgr/src/sys_mgr_core.c.obj
 build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/systemMgr/src/ui_manager.c.obj
+build/esp-idf/main/CMakeFiles/__idf_main.dir/__/Application/systemMgr/src/ui_manager_cfg.c.obj

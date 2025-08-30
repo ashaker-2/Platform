@@ -81,3 +81,19 @@ To integrate the `KeypadMgr` into your embedded project:
 4.  **Call `KeypadMgr_MainFunction`:** Ensure this function is called periodically in your RTOS task or main loop with the correct timing (`KEYPAD_SCAN_PERIOD_MS`).
 
 By following these steps, your `KeypadMgr` will reliably capture and translate user input, forming a robust foundation for your system's user interface.
+
+
+
+# Keypad 4x4 Button Behavior
+
+## Button Mapping (16 Keys)
+
+| Button      | Short Press (Click)                 | Long Press / Hold                  |
+|-------------|-------------------------------------|------------------------------------|
+| **0–9**     | Enter digit                         | —                                  |
+| **Erase**   | Delete last digit                   | Back / Cancel                      |
+| **Enter**   | Validate / Save input               | Open Menu                          |
+| **Left**    | Move cursor left                    | Navigate previous menu/screen      |
+| **Right**   | Move cursor right                   | Navigate next menu/screen          |
+| **Up**      | Move cursor up (next field)         | Fast navigation in config screens  |
+| **Down**    | Move cursor down (next field)       | Fast navigation in config screens  |

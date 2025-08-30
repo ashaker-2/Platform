@@ -1,31 +1,31 @@
 /**
  * @file keypad_mgr_cfg.c
- * @brief Configuration data definitions for the Keypad Manager (KeypadMgr) module.
+ * @brief Board-specific keypad mapping helpers.
  *
- * This file defines the array for mapping physical buttons to System Manager events.
+ * This file exposes arrays of row/column GPIOs and (optionally) a mapping
+ * table for row/col -> Keypad_Button_ID_t. Keeping it here makes layout
+ * changes possible without touching core keypad logic.
+ *
+ * NOTE: KeypadMgr remains generic and only emits Keypad_Event_t.
+ * The mapping below is an EXAMPLE layout; change to reflect your wiring.
  */
 
-#include "keypad_mgr_cfg.h" // Include the configuration header
+#include "keypad_mgr_cfg.h"
 
-// --- Button to System Manager Event Mapping Definition ---
-// This array maps each physical button (by its Keypad_Button_ID_t)
-// to a corresponding System Manager event.
-// Buttons marked 'is_mode_select_button = true' will directly trigger mode changes in SysMgr.
-const Keypad_SysMgr_Event_Mapping_t g_keypad_sys_mgr_event_map[] = {
-    // Example mappings: Adjust these based on your specific keypad layout and desired behavior
-    [KEYPAD_BUTTON_0] = {.button_id = KEYPAD_BUTTON_0, .event_id = KEYPAD_EVENT_NONE, .is_mode_select_button = false}, // Example: No direct SysMgr event
-    [KEYPAD_BUTTON_1] = {.button_id = KEYPAD_BUTTON_1, .event_id = KEYPAD_EVENT_NONE, .is_mode_select_button = false},
-    [KEYPAD_BUTTON_2] = {.button_id = KEYPAD_BUTTON_2, .event_id = KEYPAD_EVENT_NONE, .is_mode_select_button = false},
-    [KEYPAD_BUTTON_3] = {.button_id = KEYPAD_BUTTON_3, .event_id = KEYPAD_EVENT_NONE, .is_mode_select_button = false},
+/* Expose arrays used by keypad_mgr.c (initialized from macros) */
+const uint8_t g_keypad_row_gpios[KEYPAD_NUM_ROWS] = KEYPAD_ROW_GPIOS;
+const uint8_t g_keypad_col_gpios[KEYPAD_NUM_COLUMNS] = KEYPAD_COL_GPIOS;
 
-    [KEYPAD_BUTTON_MODE_AUTO] = {.button_id = KEYPAD_BUTTON_MODE_AUTO, .event_id = KEYPAD_EVENT_NONE, .is_mode_select_button = true},
-    [KEYPAD_BUTTON_MODE_HYBRID] = {.button_id = KEYPAD_BUTTON_MODE_HYBRID, .event_id = KEYPAD_EVENT_NONE, .is_mode_select_button = true},
-    [KEYPAD_BUTTON_MODE_MANUAL] = {.button_id = KEYPAD_BUTTON_MODE_MANUAL, .event_id = KEYPAD_EVENT_NONE, .is_mode_select_button = true},
-
-    [KEYPAD_BUTTON_UP] = {.button_id = KEYPAD_BUTTON_UP, .event_id = KEYPAD_EVENT_NONE, .is_mode_select_button = false},      // Might map to generic menu UP
-    [KEYPAD_BUTTON_DOWN] = {.button_id = KEYPAD_BUTTON_DOWN, .event_id = KEYPAD_EVENT_NONE, .is_mode_select_button = false},  // Might map to generic menu DOWN
-    [KEYPAD_BUTTON_ENTER] = {.button_id = KEYPAD_BUTTON_ENTER, .event_id = KEYPAD_EVENT_NONE, .is_mode_select_button = false} // Might map to generic menu ENTER
+/* Optional: row/col -> button map (flattened) - example layout:
+ *
+ * R0: C0->0  C1->1  C2->2   C3->3
+ * R1: C0->4  C1->5  C2->6   C3->7
+ * R2: C0->8  C1->9  C2->ERASE C3->ENTER
+ * R3: C0->UP C1->DOWN C2->LEFT C3->RIGHT
+ */
+const Keypad_Button_ID_t g_keypad_rowcol_map[KEYPAD_NUM_ROWS][KEYPAD_NUM_COLUMNS] = {
+    { KEYPAD_BTN_0, KEYPAD_BTN_1, KEYPAD_BTN_2, KEYPAD_BTN_3 },
+    { KEYPAD_BTN_4, KEYPAD_BTN_5, KEYPAD_BTN_6, KEYPAD_BTN_7 },
+    { KEYPAD_BTN_8, KEYPAD_BTN_9, KEYPAD_BTN_ERASE, KEYPAD_BTN_ENTER },
+    { KEYPAD_BTN_UP, KEYPAD_BTN_DOWN, KEYPAD_BTN_LEFT, KEYPAD_BTN_RIGHT }
 };
-
-// Define the size of the mapping array
-const uint8_t g_keypad_sys_mgr_event_map_size = sizeof(g_keypad_sys_mgr_event_map) / sizeof(g_keypad_sys_mgr_event_map[0]);
