@@ -1,9 +1,10 @@
 /**
  * @file keypad_mgr.h
- * @brief Keypad Manager (generic) public API
+ * @brief Enhanced Keypad Manager (generic) public API
  *
- * - 4x4 keypad (16 keys): reports Keypad_Button_ID_t and event type (PRESS/HOLD)
+ * - 4x4 keypad (16 keys): reports Keypad_Button_ID_t and event type (PRESS/HOLD/RELEASE)
  * - Debounce + HOLD detection (configurable via keypad_mgr_cfg.h)
+ * - Three events per button: PRESS (on press), HOLD (after threshold), RELEASE (on release)
  * - Events buffered in a ring queue (depth = KEYPAD_EVENT_QUEUE_DEPTH)
  * - Consumer may poll via KeypadMgr_GetEvent() or register callback via KeypadMgr_RegisterEventHandler()
  *
@@ -44,12 +45,25 @@ typedef enum {
     KEYPAD_BTN_MAX
 } Keypad_Button_ID_t;
 
-/* Event types produced by KeypadMgr */
+/* Enhanced event types - now supports PRESS, HOLD, and RELEASE */
 typedef enum {
     KEYPAD_EVT_NONE = 0,
-    KEYPAD_EVT_PRESS,   /* Debounced press */
-    KEYPAD_EVT_HOLD     /* Single-shot hold event (no repeat) */
+    KEYPAD_EVT_PRESS,   /* Debounced press (button just pressed) */
+    KEYPAD_EVT_HOLD,    /* Hold event (after threshold while pressed) */
+    KEYPAD_EVT_RELEASE  /* Debounced release (button just released) */
 } Keypad_Event_Type_t;
+
+/* Event enable mask flags - for configuring which events to generate per button */
+/* These are defined in keypad_mgr_cfg.h - this is just for reference */
+/*
+typedef enum {
+    KEYPAD_EVT_ENABLE_NONE    = 0x00,
+    KEYPAD_EVT_ENABLE_PRESS   = 0x01,
+    KEYPAD_EVT_ENABLE_HOLD    = 0x02,
+    KEYPAD_EVT_ENABLE_RELEASE = 0x04,
+    KEYPAD_EVT_ENABLE_ALL     = 0x07
+} Keypad_Event_Enable_t;
+*/
 
 /* Event structure */
 typedef struct {

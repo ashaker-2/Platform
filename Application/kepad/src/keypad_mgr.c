@@ -1,10 +1,10 @@
 /**
  * @file keypad_mgr.c
- * @brief Generic Keypad Manager implementation (matrix scan, debounce, hold, queue)
+ * @brief Enhanced Generic Keypad Manager implementation (matrix scan, debounce, hold, release, queue)
  *
  * - Hardware abstraction: expects HAL_GPIO_SetLevel / HAL_GPIO_GetLevel.
  * - Error handling: reports faults to SysMon on HAL failures, continues scanning.
- * - Event policy: emits PRESS (debounced) and single-shot HOLD (after threshold).
+ * - Enhanced event policy: emits PRESS (debounced), HOLD (after threshold), and RELEASE (debounced).
  * - Queue policy on full: oldest event dropped to accept newest; SysMon fault reported.
  *
  * NOTE: Replace HAL_GPIO_* and SYSMON_ReportFaultStatus with your platform APIs.
@@ -37,9 +37,10 @@
 #define SYSMON_FAULT_KEYPAD_IO  (0x3100)
 #endif
 
-/* Button internal state */
+/* Enhanced button internal state */
 typedef struct {
     bool debounced;         /* stable pressed state */
+    bool prev_debounced;    /* previous stable state (for release detection) */
     uint16_t db_cnt;        /* debounce counter */
     uint16_t hold_cnt;      /* hold counter while debounced pressed */
     bool hold_reported;     /* ensure single-shot hold */
@@ -59,10 +60,11 @@ typedef struct {
 static EvQueue_t s_queue;
 static Keypad_EventHandler_t s_handler = NULL;
 
-/* GPIO arrays from cfg.c (declared there) */
+/* GPIO arrays and configuration from cfg.c (declared there) */
 extern const uint8_t g_keypad_row_gpios[KEYPAD_NUM_ROWS];
 extern const uint8_t g_keypad_col_gpios[KEYPAD_NUM_COLUMNS];
 extern const Keypad_Button_ID_t g_keypad_rowcol_map[KEYPAD_NUM_ROWS][KEYPAD_NUM_COLUMNS];
+extern const uint8_t g_keypad_event_config[KEYPAD_BTN_MAX];
 
 /* Helpers */
 static void enqueue_event(const Keypad_Event_t *ev);
@@ -70,6 +72,7 @@ static bool queue_is_full(void) { return (s_queue.count >= KEYPAD_EVENT_QUEUE_DE
 static bool queue_is_empty(void) { return (s_queue.count == 0); }
 static Keypad_Button_ID_t map_rowcol_to_button(uint8_t r, uint8_t c);
 static void process_button(Keypad_Button_ID_t id, bool raw_active);
+static bool is_event_enabled(Keypad_Button_ID_t id, Keypad_Event_Type_t evt_type);
 
 /* Public API */
 
@@ -201,6 +204,24 @@ static Keypad_Button_ID_t map_rowcol_to_button(uint8_t r, uint8_t c)
     return KEYPAD_BTN_MAX;
 }
 
+static bool is_event_enabled(Keypad_Button_ID_t id, Keypad_Event_Type_t evt_type)
+{
+    if (id >= KEYPAD_BTN_MAX) return false;
+    
+    uint8_t enable_mask = g_keypad_event_config[id];
+    
+    switch (evt_type) {
+        case KEYPAD_EVT_PRESS:
+            return (enable_mask & KEYPAD_EVT_ENABLE_PRESS) != 0;
+        case KEYPAD_EVT_HOLD:
+            return (enable_mask & KEYPAD_EVT_ENABLE_HOLD) != 0;
+        case KEYPAD_EVT_RELEASE:
+            return (enable_mask & KEYPAD_EVT_ENABLE_RELEASE) != 0;
+        default:
+            return false;
+    }
+}
+
 static void process_button(Keypad_Button_ID_t id, bool raw_active)
 {
     KeyBtnState_t *s = &s_btns[id];
@@ -209,28 +230,39 @@ static void process_button(Keypad_Button_ID_t id, bool raw_active)
         /* potential transition -> debounce counting */
         s->db_cnt++;
         if (s->db_cnt >= KEYPAD_DEBOUNCE_TICKS) {
+            /* debounce completed - state transition confirmed */
+            s->prev_debounced = s->debounced;  /* save previous state */
             s->debounced = raw_active;
             s->db_cnt = 0;
+            
             if (s->debounced) {
-                /* stable press -> emit PRESS */
-                Keypad_Event_t ev = { .button = id, .type = KEYPAD_EVT_PRESS };
-                enqueue_event(&ev);
+                /* stable press -> emit PRESS (if enabled for this button) */
+                if (is_event_enabled(id, KEYPAD_EVT_PRESS)) {
+                    Keypad_Event_t ev = { .button = id, .type = KEYPAD_EVT_PRESS };
+                    enqueue_event(&ev);
+                    LOGD(TAG, "Btn %d PRESS", id);
+                }
                 s->hold_cnt = 0;
                 s->hold_reported = false;
-                LOGD(TAG, "Btn %d PRESS", id);
             } else {
-                /* stable release -> reset hold tracking (no release event emitted) */
+                /* stable release -> emit RELEASE (if enabled and was previously pressed) */
+                if (s->prev_debounced && is_event_enabled(id, KEYPAD_EVT_RELEASE)) {
+                    Keypad_Event_t ev = { .button = id, .type = KEYPAD_EVT_RELEASE };
+                    enqueue_event(&ev);
+                    LOGD(TAG, "Btn %d RELEASE", id);
+                }
+                /* reset hold tracking */
                 s->hold_cnt = 0;
                 s->hold_reported = false;
-                LOGD(TAG, "Btn %d RELEASE (ignored)", id);
             }
         }
     } else {
-        /* stable state */
+        /* stable state - reset debounce counter */
         s->db_cnt = 0;
+        
         if (s->debounced) {
-            /* pressed -> check hold */
-            if (!s->hold_reported) {
+            /* pressed and stable -> check for hold (if enabled) */
+            if (!s->hold_reported && is_event_enabled(id, KEYPAD_EVT_HOLD)) {
                 s->hold_cnt++;
                 if (s->hold_cnt >= KEYPAD_HOLD_TICKS) {
                     Keypad_Event_t ev = { .button = id, .type = KEYPAD_EVT_HOLD };
@@ -239,8 +271,9 @@ static void process_button(Keypad_Button_ID_t id, bool raw_active)
                     LOGD(TAG, "Btn %d HOLD", id);
                 }
             }
+            /* continue incrementing hold_cnt even after hold reported (for future use) */
         } else {
-            /* stable released -> nothing to do */
+            /* stable released -> maintain reset state */
             s->hold_cnt = 0;
             s->hold_reported = false;
         }
