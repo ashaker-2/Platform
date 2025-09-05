@@ -24,8 +24,11 @@ typedef enum
     FAULT_ID_HUM_SENSOR_DISCONNECTED = 0x0006,
     
     /* System Health Faults */
-    FAULT_ID_CPU_OVERLOAD = 0x0007,
-    FAULT_ID_STACK_OVERFLOW_RISK = 0x0008,
+    FAULT_ID_OVERALL_CPU_LOAD = 0x0030,
+    FAULT_ID_CORE_0_CPU_LOAD = 0x00031,
+    FAULT_ID_CORE_1_CPU_LOAD = 0x00032,
+    FAULT_ID_STACK_OVERFLOW = 0x00034,
+    FAULT_ID_STACK_UNDERFLOW = 0x00035,
     
     /* Component Feedback Faults */
     FAULT_ID_FAN_FEEDBACK_ERROR = 0x0009,
@@ -72,9 +75,30 @@ typedef struct {
 // This value is used for calculating the logging frequency.
 #define SYSMON_POLLING_INTERVAL_MS              (1000) // 1 second
 
+#define SYSMON_QUEUE_LENGTH   16
+#define SYSMON_QUEUE_WAIT_MS  0   // non-blocking enqueue
+
+
+/**
+ * @brief Per-core hyperperiod-aware CPU load calculation for ESP32 SMP FreeRTOS
+ *
+ * System configuration:
+ * - Core 0 tasks periods: 20ms, 100ms, 150ms, 200ms -> Hyperperiod = 600ms
+ * - Core 1 tasks periods: 50ms -> Hyperperiod = 50ms  
+ * - System hyperperiod: LCM(20, 50, 100, 150, 200) = 600ms
+ */
+
+/* System hyperperiod configuration */
+#define SYSTEM_HYPERPERIOD_MS 600    // LCM(20, 50, 100, 150, 200)
+#define CORE0_HYPERPERIOD_MS 600     // LCM(20, 100, 150, 200)  
+#define CORE1_HYPERPERIOD_MS 50      // LCM(50)
+#define MIN_SAMPLES_PER_CORE 5       // Minimum samples before valid reading
+#define NUMBER_OF_ALL_PERIODS 5
+
 
 /* Fault table extern declaration */
 extern SystemMonitor_FaultRecord_t SystemMonitor_FaultTable[SYSMON_MAX_FAULTS];
-
+/* System hyperperiod is LCM of all periods */
+extern uint32_t all_periods[NUMBER_OF_ALL_PERIODS];
 #endif /* SYSTEM_MONITOR_CFG_H */
 

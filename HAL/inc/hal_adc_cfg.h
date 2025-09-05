@@ -1,41 +1,67 @@
-/* ============================================================================
- * SOURCE FILE: HardwareAbstractionLayer/inc/hal_adc_cfg.h
- * ============================================================================*/
 /**
  * @file hal_adc_cfg.h
- * @brief Declarations for external ADC configuration data.
- * This header makes the static ADC configuration array and parameters available
- * to HAL_ADC.c for initialization. It does not declare any functions.
+ * @brief Configuration definitions for the ADC HAL.
+ * @version 1.3
+ * @date 2025
+ *
+ * This header file contains the configuration data structures and extern
+ * declarations for the ADC channels.
  */
-#ifndef hal_adc_cfg_H
-#define hal_adc_cfg_H
 
-#include "driver/adc.h"     // For ADC_WIDTH_BIT_x, ADC_ATTEN_DB_x, adc1_channel_t
-#include <stddef.h>         // For size_t
+#ifndef HAL_ADC_CFG_H
+#define HAL_ADC_CFG_H
 
-// ADC Configuration Parameters
-#define ADC_WIDTH_BITS              ADC_WIDTH_BIT_12 // 12-bit resolution
-#define ADC_NTC_ATTENUATION         ADC_ATTEN_DB_11  // Approx. 0-3.3V input range for NTC
+#include <stdint.h>
+#include "esp_adc/adc_oneshot.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* =============================================================================
+ * PUBLIC DEFINITIONS
+ * ============================================================================= */
 
 /**
- * @brief Structure to hold an ADC channel and its desired attenuation.
- * Defined here for external visibility, used in hal_adc_cfg.c.
+ * @brief The total number of ADC channels configured.
+ */
+#define ADC_CFG_MAX_CHANNELS    2
+
+/**
+ * @brief The single ADC unit to be used for all configured channels.
+ */
+#define ADC_CFG_UNIT            ADC_UNIT_1
+
+/* =============================================================================
+ * TYPE DEFINITIONS
+ * ============================================================================= */
+
+/**
+ * @brief Structure to hold the configuration for a single ADC channel.
  */
 typedef struct {
-    adc1_channel_t channel;
-    adc_atten_t attenuation;
-} adc_channel_atten_cfg_t;
+    adc_channel_t channel;
+    adc_oneshot_chan_cfg_t chan_cfg;
+} ADC_Channel_Config_t;
+
+/* =============================================================================
+ * PUBLIC VARIABLES
+ * ============================================================================= */
 
 /**
- * @brief External declaration of the array containing all predefined ADC channel configurations.
- * This array is defined in hal_adc_cfg.c and accessed by HAL_ADC.c to perform
- * initial ADC setup.
+ * @brief ADC unit initialization configuration.
  */
-extern const adc_channel_atten_cfg_t s_adc_channel_attenuations[];
+extern const adc_oneshot_unit_init_cfg_t g_adc_unit_init_cfg;
 
 /**
- * @brief External declaration of the number of elements in the ADC channel configurations array.
+ * @brief Array of ADC channel configurations.
+ *
+ * This array contains the specific settings for each ADC channel used by the system.
  */
-extern const size_t s_num_adc_channel_attenuations;
+extern ADC_Channel_Config_t g_adc_channel_configs[ADC_CFG_MAX_CHANNELS];
 
-#endif /* hal_adc_cfg_H */
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* HAL_ADC_CFG_H */

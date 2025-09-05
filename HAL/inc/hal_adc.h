@@ -1,34 +1,53 @@
-/* ============================================================================
- * SOURCE FILE: HardwareAbstractionLayer/inc/HAL_ADC.h
- * ============================================================================*/
 /**
- * @file HAL_ADC.h
- * @brief Public API for interacting with the ADC peripheral.
- * This header declares functions for initializing the ADC and reading raw ADC values.
+ * @file hal_adc.h
+ * @brief Public API for the ADC Hardware Abstraction Layer.
+ * @version 1.3
+ * @date 2025
+ *
+ * This header defines the public interface for the ADC HAL. It provides
+ * functions for initializing the ADC and reading a calibrated voltage value
+ * from a specific channel.
  */
+
 #ifndef HAL_ADC_H
 #define HAL_ADC_H
 
-#include "driver/adc.h" // For adc1_channel_t
-#include "common.h"     // For Status_t
+#include <stdint.h>
+#include "common.h"
+#include "esp_adc/adc_oneshot.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* =============================================================================
+ * PUBLIC API FUNCTIONS
+ * ============================================================================= */
 
 /**
- * @brief Initializes the ADC peripheral (ADC1 unit) with its specific configuration
- * and configures the channels based on the data in `hal_adc_cfg.c`.
- * This is the main initialization function for the ADC HAL.
- * @return E_OK if initialization is successful, otherwise an error code.
+ * @brief Initializes the ADC peripheral and all configured channels.
+ *
+ * This function sets up the ADC unit and then iterates through all channels
+ * defined in the configuration, initializing and calibrating each one.
+ *
+ * @return Status_t E_OK on successful initialization, E_NOK otherwise.
  */
 Status_t HAL_ADC_Init(void);
 
 /**
- * @brief Reads a raw ADC value from a specified ADC1 channel.
- * @param channel The ADC1 channel to read (e.g., HW_ADC1_NTC_TEMP1_CHANNEL from hal_cfg.h).
- * @param raw_value_out Pointer to store the raw 12-bit ADC value (0-4095).
- * @return E_OK on success, or an error code.
+ * @brief Reads a calibrated voltage from a specific ADC channel.
+ *
+ * This function performs a one-shot read on the configured ADC channel
+ * and converts the raw value to a calibrated voltage in millivolts (mV).
+ *
+ * @param channel_id The ID of the channel to read from.
+ * @param voltage_mv Pointer to store the read voltage in millivolts.
+ * @return Status_t E_OK on success, E_NOK on failure.
  */
-Status_t HAL_ADC_ReadRaw(adc1_channel_t channel, uint16_t *raw_value_out);
+Status_t HAL_ADC_ReadRaw(uint8_t channel_id, uint16_t *voltage_mv);
 
-// Note: For advanced usage like ADC calibration, refer to ESP-IDF's esp_adc_cal functions
-// as this typically lives at a higher layer than the raw HAL.
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* HAL_ADC_H */

@@ -1,37 +1,45 @@
-/* ============================================================================
- * SOURCE FILE: HardwareAbstractionLayer/src/hal_adc_cfg.c
- * ============================================================================*/
 /**
  * @file hal_adc_cfg.c
- * @brief Implements the static array of ADC channel configuration settings.
- * This file defines the specific initial resolution and channel attenuations.
- * It does not contain any initialization functions; its purpose is purely
- * to hold configuration data.
+ * @brief ADC HAL channel configuration implementation.
+ * @version 1.3
+ * @date 2025
+ *
+ * This file contains the initialized array of ADC channel configurations
+ * and the ADC unit initialization configuration.
  */
 
-#include "hal_adc_cfg.h" // Header for ADC configuration types and extern declarations
-#include "hal_cfg.h"     // Global hardware definitions (ADC channels like HW_ADC1_NTC_TEMP1_CHANNEL)
-#include <stddef.h>      // For size_t
+#include "hal_adc_cfg.h"
+
+/* =============================================================================
+ * PUBLIC VARIABLES
+ * ============================================================================= */
 
 /**
- * @brief Array containing all predefined ADC channel configurations.
- * Currently configured for NTC temperature sensors.
- * This array is made `const` and global (`extern` in header) to be accessed by `HAL_ADC.c`.
+ * @brief ADC unit initialization configuration.
  */
-const adc_channel_atten_cfg_t s_adc_channel_attenuations[] = {
-    {
-        .channel = HW_ADC1_NTC_TEMP1_CHANNEL,
-        .attenuation = ADC_NTC_ATTENUATION,
-    },
-    {
-        .channel = HW_ADC1_NTC_TEMP2_CHANNEL,
-        .attenuation = ADC_NTC_ATTENUATION,
-    },
-    // Add other ADC1 channel configurations here if needed
+const adc_oneshot_unit_init_cfg_t g_adc_unit_init_cfg = {
+    .unit_id = ADC_CFG_UNIT,
+    .ulp_mode = ADC_ULP_MODE_DISABLE,
 };
 
 /**
- * @brief Defines the number of elements in the `s_adc_channel_attenuations` array.
- * This variable is made `const` and global (`extern` in header) to be accessed by `HAL_ADC.c`.
+ * @brief Array of ADC channel configurations.
  */
-const size_t s_num_adc_channel_attenuations = sizeof(s_adc_channel_attenuations) / sizeof(s_adc_channel_attenuations[0]);
+ADC_Channel_Config_t g_adc_channel_configs[ADC_CFG_MAX_CHANNELS] = {
+    // Channel 0: NTC Sensor
+    {
+        .channel = ADC_CHANNEL_6,     // Corresponds to GPIO34 on ESP32
+        .chan_cfg = {
+            .bitwidth = ADC_BITWIDTH_DEFAULT,
+            .atten = ADC_ATTEN_DB_11,     // Full-scale voltage 3.9V
+        }
+    },
+    // Channel 1: LDR (Light Dependent Resistor)
+    {
+        .channel = ADC_CHANNEL_7,     // Corresponds to GPIO35 on ESP32
+        .chan_cfg = {
+            .bitwidth = ADC_BITWIDTH_DEFAULT,
+            .atten = ADC_ATTEN_DB_11,     // Full-scale voltage 3.9V
+        }
+    }
+};

@@ -6,6 +6,9 @@
 
 #include <stdint.h>
 
+
+#define ESP_SIMULATION  1
+
 // ... existing declarations ...
 #define true	1
 #define false	0

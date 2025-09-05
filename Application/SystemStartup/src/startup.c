@@ -64,17 +64,20 @@ void app_main(void)
         {
         }
     }
-    LOGI("SystemStartup", "RTE initialized. All components initialized.");
 
-    // 5. Start the FreeRTOS scheduler
-    LOGI("SystemStartup", "Starting FreeRTOS scheduler...");
-    vTaskStartScheduler();
-
-    // The scheduler takes control from this point.
-    // The code below should not be reached unless the scheduler fails.
-    LOGI("SystemStartup", "FATAL: Scheduler failed to start!");
-    SysMon_ReportFaultStatus(FAULT_ID_SYS_INIT_ERROR, 1);
-    while (1)
+    LOGI("SystemStartup", "Calling RTE_StartAllPermanentTasks to create all permanent FreeRTOS tasks...");
+    if (RTE_StartAllPermanentTasks() != E_OK)
     {
+        LOGE("SystemStartup", "Failed to start all permanent tasks via RTE! Halting.");
+        // Report the fault, but then halt.
+        SysMon_ReportFaultStatus(FAULT_ID_SYS_INIT_ERROR, 1);
+        while (1)
+        {
+        }
+    }
+
+    LOGI("SystemStartup", "RTE initialized. All components initialized.");
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }

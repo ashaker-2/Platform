@@ -81,7 +81,8 @@ void LOGGER_Log(Log_Level_t level, const char* file, int line, const char* forma
  * @param format Printf-like format string.
  * @param ... Variable arguments for the format string.
  */
-#define LOGI(tag, format, ...) ESP_LOGI(tag, "[%s:%d] " format, __FILE__, __LINE__, ##__VA_ARGS__)
+#define LOGI(tag, format, ...) ESP_LOGI(tag, "[%s:%d:%s] " format, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+
 
 /**
  * @brief Log a WARNING level message.
@@ -89,7 +90,7 @@ void LOGGER_Log(Log_Level_t level, const char* file, int line, const char* forma
  * @param format Printf-like format string.
  * @param ... Variable arguments for the format string.
  */
-#define LOGW(tag, format, ...) ESP_LOGW(tag, "[%s:%d] " format, __FILE__, __LINE__, ##__VA_ARGS__)
+#define LOGW(tag, format, ...) ESP_LOGW(tag, "[%s:%d:%s] " format, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 
 /**
  * @brief Log an ERROR level message.
@@ -97,7 +98,7 @@ void LOGGER_Log(Log_Level_t level, const char* file, int line, const char* forma
  * @param format Printf-like format string.
  * @param ... Variable arguments for the format string.
  */
-#define LOGE(tag, format, ...) ESP_LOGE(tag, "[%s:%d] " format, __FILE__, __LINE__, ##__VA_ARGS__)
+#define LOGE(tag, format, ...) ESP_LOGE(tag, "[%s:%d:%s] " format, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 
 /**
  * @brief Log a CRITICAL level message (mapped to ESP_LOGE with a "CRITICAL" prefix).
@@ -105,7 +106,7 @@ void LOGGER_Log(Log_Level_t level, const char* file, int line, const char* forma
  * @param format Printf-like format string.
  * @param ... Variable arguments for the format string.
  */
-#define LOGC(tag, format, ...) ESP_LOGE(tag, "[CRITICAL][%s:%d] " format, __FILE__, __LINE__, ##__VA_ARGS__)
+#define LOGC(tag, format, ...) ESP_LOGE(tag, "[CRITICAL][%s:%d:%s] " format, __FILE__, __LINE__,__func__, ##__VA_ARGS__)
 
 /**
  * @brief Log a DEBUG level message.
@@ -113,7 +114,7 @@ void LOGGER_Log(Log_Level_t level, const char* file, int line, const char* forma
  * @param format Printf-like format string.
  * @param ... Variable arguments for the format string.
  */
-#define LOGD(tag, format, ...) ESP_LOGD(tag, "[%s:%d] " format, __FILE__, __LINE__, ##__VA_ARGS__)
+#define LOGD(tag, format, ...) ESP_LOGD(tag, "[%s:%d:%s] " format, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 
 /**
  * @brief Log a VERBOSE level message.
@@ -121,6 +122,6 @@ void LOGGER_Log(Log_Level_t level, const char* file, int line, const char* forma
  * @param format Printf-like format string.
  * @param ... Variable arguments for the format string.
  */
-#define LOGV(tag, format, ...) ESP_LOGV(tag, "[%s:%d] " format, __FILE__, __LINE__, ##__VA_ARGS__)
+#define LOGV(tag, format, ...) ESP_LOGV(tag, "[%s:%d:%s] " format, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 
 #endif /* LOGGER_H */

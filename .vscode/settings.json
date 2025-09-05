@@ -12,6 +12,9 @@
     "hal_cfg.h": "c",
     "adc.h": "c",
     "esp_log.h": "c",
-    "hal_gpio.h": "c"
+    "hal_gpio.h": "c",
+    "startup.h": "c",
+    "hal_adc.h": "c",
+    "common.h": "c"
   }
 }

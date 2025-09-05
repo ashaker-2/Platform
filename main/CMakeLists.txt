@@ -27,6 +27,7 @@ idf_component_register(
         driver              # <-- this is what gives you <driver/gpio.h>
         freertos            # 🔹 ADD THIS for <freertos/FreeRTOS.h>
         dht
+        esp_adc
         ${APPLICATION_PUBLIC_REQUIRES}
     PRIV_REQUIRES
         ${APPLICATION_PRIVATE_REQUIRES}

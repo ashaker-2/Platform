@@ -184,7 +184,12 @@ static Status_t prv_read_sensor_data_from_hw(Sensor_Type_t sensor_type, uint8_t 
     switch (sensor_type)
     {
     case SENSOR_TYPE_NTC_THERMISTOR:
+#ifndef ESP_SIMULATION
         status = HAL_ADC_ReadRaw(hw_pin, &adc_raw_value);
+#else
+        adc_raw_value =25;
+        status = E_OK;
+#endif
         if (status == E_OK)
         {
             *temperature_out = prv_ntc_adc_to_celsius(adc_raw_value);
@@ -198,7 +203,13 @@ static Status_t prv_read_sensor_data_from_hw(Sensor_Type_t sensor_type, uint8_t 
         break;
 
     case SENSOR_TYPE_DHT11:
+#ifndef ESP_SIMULATION
         status = dht_read_data(SENSOR_TYPE_DHT11, hw_pin, &temp_raw_value, &hum_raw_value);
+#else
+        temp_raw_value =25;
+        hum_raw_value =25;
+        status = E_OK;
+#endif      
         if (status == E_OK)
         {
             *temperature_out = (float)temp_raw_value;
@@ -215,7 +226,13 @@ static Status_t prv_read_sensor_data_from_hw(Sensor_Type_t sensor_type, uint8_t 
         break;
 
     case SENSOR_TYPE_DHT22:
+#ifndef ESP_SIMULATION
         status = dht_read_data(SENSOR_TYPE_DHT22, hw_pin, &temp_raw_value, &hum_raw_value);
+#else
+        temp_raw_value =25;
+        hum_raw_value =25;
+        status = E_OK;
+#endif      
         if (status == E_OK)
         {
             *temperature_out = (float)temp_raw_value;
@@ -339,24 +356,24 @@ static Status_t prv_check_tempHum_thresholds(TempHum_Sensor_ID_t sensor_id)
     if (current_temp == -999.0f)
     {                                                                        // Check for read error
         s_SensorStatus[sensor_id].temp_status = TEMPHUM_STATUS_LEVEL_NORMAL; // Or define an error status
-        LOGW(TAG, "Temp for Sensor ID %d has read error. Skipping temp threshold check.", sensor_id);
+        // LOGW(TAG, "Temp for Sensor ID %d has read error. Skipping temp threshold check.", sensor_id);
     }
     else if (current_temp > threshold_cfg->temp_threshold_above)
     {
         s_SensorStatus[sensor_id].temp_status = TEMPHUM_STATUS_LEVEL_HIGH;
-        LOGW(TAG, "WARNING! Sensor ID %d (Temp: %.2f C) is above high temp threshold (%.2f C).",
-             sensor_id, current_temp, threshold_cfg->temp_threshold_above);
+        // LOGW(TAG, "WARNING! Sensor ID %d (Temp: %.2f C) is above high temp threshold (%.2f C).",
+        //      sensor_id, current_temp, threshold_cfg->temp_threshold_above);
     }
     else if (current_temp < threshold_cfg->temp_threshold_below)
     {
         s_SensorStatus[sensor_id].temp_status = TEMPHUM_STATUS_LEVEL_LOW;
-        LOGW(TAG, "WARNING! Sensor ID %d (Temp: %.2f C) is below low temp threshold (%.2f C).",
-             sensor_id, current_temp, threshold_cfg->temp_threshold_below);
+        // LOGW(TAG, "WARNING! Sensor ID %d (Temp: %.2f C) is below low temp threshold (%.2f C).",
+        //      sensor_id, current_temp, threshold_cfg->temp_threshold_below);
     }
     else
     {
         s_SensorStatus[sensor_id].temp_status = TEMPHUM_STATUS_LEVEL_NORMAL;
-        LOGD(TAG, "Sensor ID %d (Temp: %.2f C) is in Normal temp range.", sensor_id, current_temp);
+        // LOGD(TAG, "Sensor ID %d (Temp: %.2f C) is in Normal temp range.", sensor_id, current_temp);
     }
 
     // --- Check Humidity Thresholds ---
@@ -364,29 +381,29 @@ static Status_t prv_check_tempHum_thresholds(TempHum_Sensor_ID_t sensor_id)
     if (sensor_cfg->sensor_type == SENSOR_TYPE_NTC_THERMISTOR)
     {
         s_SensorStatus[sensor_id].hum_status = TEMPHUM_STATUS_LEVEL_NORMAL; // NTC has no humidity
-        LOGD(TAG, "Sensor ID %d (NTC) does not provide humidity. Skipping humidity threshold check.", sensor_id);
+        // LOGD(TAG, "Sensor ID %d (NTC) does not provide humidity. Skipping humidity threshold check.", sensor_id);
     }
     else if (current_hum == -999.0f)
     {                                                                       // Check for read error
         s_SensorStatus[sensor_id].hum_status = TEMPHUM_STATUS_LEVEL_NORMAL; // Or define an error status
-        LOGW(TAG, "Hum for Sensor ID %d has read error. Skipping hum threshold check.", sensor_id);
+        // LOGW(TAG, "Hum for Sensor ID %d has read error. Skipping hum threshold check.", sensor_id);
     }
     else if (current_hum > threshold_cfg->hum_threshold_high)
     {
         s_SensorStatus[sensor_id].hum_status = TEMPHUM_STATUS_LEVEL_HIGH;
-        LOGW(TAG, "WARNING! Sensor ID %d (Hum: %.2f %%) is above high hum threshold (%.2f %%).",
-             sensor_id, current_hum, threshold_cfg->hum_threshold_high);
+        // LOGW(TAG, "WARNING! Sensor ID %d (Hum: %.2f %%) is above high hum threshold (%.2f %%).",
+        //      sensor_id, current_hum, threshold_cfg->hum_threshold_high);
     }
     else if (current_hum < threshold_cfg->hum_threshold_low)
     {
         s_SensorStatus[sensor_id].hum_status = TEMPHUM_STATUS_LEVEL_LOW;
-        LOGW(TAG, "WARNING! Sensor ID %d (Hum: %.2f %%) is below low hum threshold (%.2f %%).",
-             sensor_id, current_hum, threshold_cfg->hum_threshold_low);
+        // LOGW(TAG, "WARNING! Sensor ID %d (Hum: %.2f %%) is below low hum threshold (%.2f %%).",
+        //      sensor_id, current_hum, threshold_cfg->hum_threshold_low);
     }
     else
     {
         s_SensorStatus[sensor_id].hum_status = TEMPHUM_STATUS_LEVEL_NORMAL;
-        LOGD(TAG, "Sensor ID %d (Hum: %.2f %%) is in Normal hum range.", sensor_id, current_hum);
+        // LOGD(TAG, "Sensor ID %d (Hum: %.2f %%) is in Normal hum range.", sensor_id, current_hum);
     }
     return E_OK;
 }
@@ -449,8 +466,6 @@ void TempHumCtrl_MainFunction(void)
         LOGE(TAG, "TempHumCtrl_MainFunction: Module not initialized. Skipping operations.");
         return;
     }
-
-    LOGI(TAG, "TempHumCtrl_MainFunction: Performing periodic sensor reads and threshold checks for all sensors.");
 
     for (TempHum_Sensor_ID_t id = 0; id < TEMPHUM_SENSOR_ID_COUNT; id++)
     {
@@ -852,7 +867,7 @@ Status_t TempHumCtrl_GetAverageHumidity(TempHum_Sensor_ID_t sensor_id, float *av
 
     if (sensor_cfg->sensor_type == SENSOR_TYPE_NTC_THERMISTOR)
     {
-        LOGW(TAG, "Sensor ID %d (NTC Thermistor) does not provide humidity data for averaging.", sensor_id);
+        // LOGW(TAG, "Sensor ID %d (NTC Thermistor) does not provide humidity data for averaging.", sensor_id);
         *average_humidity_out = 0.0f;
         return E_NOT_SUPPORTED;
     }

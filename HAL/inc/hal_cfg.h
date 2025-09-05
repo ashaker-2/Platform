@@ -52,7 +52,7 @@
 // NTC Temperature Sensors (ADC1)
 #define HW_ADC1_NTC_TEMP1_CHANNEL ADC1_CHANNEL_6 // Corresponds to GPIO34
 #define HW_ADC1_NTC_TEMP2_CHANNEL ADC1_CHANNEL_7 // Corresponds to GPIO35
-#define HW_ADC1_UNIT ADC_UNIT_1                  // Specifies ADC Unit 1
+#define HW_ADC1_UNIT 0                  // Specifies ADC Unit 1
 
 // Digital Temperature/Humidity Sensors (Bidirectional I/O)
 #define HW_TEMP_HUM_0_GPIO GPIO_NUM_19

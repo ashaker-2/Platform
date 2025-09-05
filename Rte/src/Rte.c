@@ -30,15 +30,25 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#define CORE0 0
+// only define xCoreID CORE1 as 1 if this is a multiple core processor target, else define it as tskNO_AFFINITY
+#define CORE1 ((CONFIG_FREERTOS_NUMBER_OF_CORES > 1) ? 1 : tskNO_AFFINITY)
+
 static const char *TAG = "RTE";
 
 // --- RTE Initialization Flow Tasks ---
 
 uint8_t RTE_Init(void)
 {
-    if (xTaskCreate(RTE_HwInitTask, "HwInitTask", 256, NULL, configMAX_PRIORITIES - 1, NULL) != pdPASS)
+    if (xTaskCreatePinnedToCore(RTE_HwInitTask, "HwInitTask", 4096, NULL, configMAX_PRIORITIES - 1, NULL, tskNO_AFFINITY) != pdPASS)
     {
         LOGE(TAG, "Failed to create HwInitTask!");
+        return E_NOK;
+    }
+
+    if (xTaskCreatePinnedToCore(RTE_AppInitTask, "AppInitTask", 4096, NULL, configMAX_PRIORITIES - 2, NULL, tskNO_AFFINITY) != pdPASS)
+    {
+        LOGE(TAG, "Failed to create AppInitTask! Halting.");
         return E_NOK;
     }
 
@@ -55,11 +65,7 @@ void RTE_HwInitTask(void *pvParameters)
     }
 
     LOGI(TAG, "HAL Initialization complete.");
-    if (xTaskCreate(RTE_AppInitTask, "AppInitTask", 4096, NULL, configMAX_PRIORITIES - 2, NULL) != pdPASS)
-    {
-        LOGE(TAG, "Failed to create AppInitTask! Halting.");
-        vTaskSuspend(NULL);
-    }
+
     LOGI(TAG, "RTE_HwInitTask deleting itself.");
     vTaskDelete(NULL);
 }
@@ -70,78 +76,62 @@ void RTE_AppInitTask(void *pvParameters)
     if (FanCtrl_Init() != E_OK)
     {
         LOGE(TAG, "Fan APP Init failed! Halting.");
-        vTaskSuspend(NULL);
+        // vTaskSuspend(NULL);
     }
     if (TempHumCtrl_Init() != E_OK)
     {
         LOGE(TAG, "Temperature and Humidity Sensor APP Init failed! Halting.");
-        vTaskSuspend(NULL);
+        // vTaskSuspend(NULL);
     }
     if (VenCtrl_Init() != E_OK)
     {
         LOGE(TAG, "Ventilator APP Init failed! Halting.");
-        vTaskSuspend(NULL);
+        // vTaskSuspend(NULL);
     }
     if (HeaterCtrl_Init() != E_OK)
     {
         LOGE(TAG, "Heater APP Init failed! Halting.");
-        vTaskSuspend(NULL);
+        // vTaskSuspend(NULL);
     }
     if (PumpCtrl_Init() != E_OK)
     {
         LOGE(TAG, "Pump APP Init failed! Halting.");
-        vTaskSuspend(NULL);
+        // vTaskSuspend(NULL);
     }
     if (LightCtrl_Init() != E_OK)
     {
         LOGE(TAG, "LightControl APP Init failed! Halting.");
-        vTaskSuspend(NULL);
+        // vTaskSuspend(NULL);
     }
     if (LedCtrl_Init() != E_OK)
     {
         LOGE(TAG, "LightIndication APP Init failed! Halting.");
-        vTaskSuspend(NULL);
+        // vTaskSuspend(NULL);
     }
     if (HAL_CharDisplay_Init() != E_OK)
     {
         LOGE(TAG, "CharacterDisplay APP Init failed! Halting.");
-        vTaskSuspend(NULL);
+        // vTaskSuspend(NULL);
     }
 
     // NEW: Call the ComM_Init (now defined in Rte.c)
     if (ComM_Init() != E_OK)
     {
         LOGE(TAG, "Communication Stack Init failed! Halting.");
-        vTaskSuspend(NULL);
+        // vTaskSuspend(NULL);
     }
     // System Manager, Monitor, and Communication Initializations
     if (SystemMonitor_Init() != E_OK)
     {
         LOGE(TAG, "System Monitor Init failed! Halting.");
-        vTaskSuspend(NULL);
+        // vTaskSuspend(NULL);
     }
     if (SYS_MGR_Init() != E_OK)
     {
         LOGE(TAG, "System Manager Init failed! Halting.");
-        vTaskSuspend(NULL);
+        // vTaskSuspend(NULL);
     }
     LOGI(TAG, "All Application modules initialized. Configuring System Manager parameters via RTE service calls...");
-
-    // Configure System Manager using RTE service calls
-    // RTE_Service_SetOperationalTemperature(22.0f, 26.0f); // Desired 22-26 C
-    // RTE_Service_SetOperationalHumidity(45.0f, 65.0f);   // Desired 45-65 %
-    // RTE_Service_SetVentilatorSchedule(10, 0, 18, 0); // ON from 10:00 to 18:00 simulated time
-    // RTE_Service_SetLightSchedule(19, 0, 23, 0);      // ON from 19:00 to 23:00 simulated time
-
-    // Initial display messages using RTE service calls
-    // RTE_Service_CHARACTER_DISPLAY_Clear(CHARACTER_DISPLAY_MAIN_STATUS);
-    // RTE_Service_CHARACTER_DISPLAY_PrintString(CHARACTER_DISPLAY_MAIN_STATUS, "System Init OK");
-    // RTE_Service_CHARACTER_DISPLAY_SetCursor(CHARACTER_DISPLAY_MAIN_STATUS, 0, 1);
-    // RTE_Service_CHARACTER_DISPLAY_PrintString(CHARACTER_DISPLAY_MAIN_STATUS, "Tasks Starting...");
-    // RTE_Service_CHARACTER_DISPLAY_Clear(CHARACTER_DISPLAY_ALARM_PANEL);
-    // RTE_Service_CHARACTER_DISPLAY_PrintString(CHARACTER_DISPLAY_ALARM_PANEL, "ALARM STATUS");
-    // RTE_Service_CHARACTER_DISPLAY_SetCursor(CHARACTER_DISPLAY_ALARM_PANEL, 0, 1);
-    // RTE_Service_CHARACTER_DISPLAY_PrintString(CHARACTER_DISPLAY_ALARM_PANEL, "Monitoring...");
 
     LOGI(TAG, "Calling RTE_StartAllPermanentTasks to create all permanent FreeRTOS tasks...");
     if (RTE_StartAllPermanentTasks() != E_OK)
@@ -156,38 +146,43 @@ void RTE_AppInitTask(void *pvParameters)
 // --- Implementation of RTE's Permanent Application Tasks ---
 void TaskAppCore0_20ms_Pri_3(void *pvParameters)
 {
+    int task_id = (int)(intptr_t)pvParameters; // recover the int
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(20);
-    // LOGI(TAG, "TaskAppCore0_20ms_Pri_3 started.");
+    LOGI(TAG, "Task Id : %d TaskAppCore0_20ms_Pri_3 started.", task_id);
     while (1)
     {
 
         TempHumCtrl_MainFunction();
-
+        // LOGI(TAG, "Hi from TaskAppCore0_20ms_Pri_3!");
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
 
 void TaskAppCore0_100ms_Pri_3(void *pvParameters)
 {
+    int task_id = (int)(intptr_t)pvParameters; // recover the int
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(100);
-    // LOGI(TAG, "TaskAppCore0_100ms_Pri_3 started.");
+    LOGI(TAG, "Task Id : %d TaskAppCore0_100ms_Pri_3 started.", task_id);
     while (1)
     {
         SYS_MGR_MainFunction();
         SysMon_MainFunction();
+        // LOGI(TAG, "Hi from TaskAppCore0_100ms_Pri_3!");
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
 
 void TaskAppCore0_150ms_Pri_4(void *pvParameters)
 {
+    int task_id = (int)(intptr_t)pvParameters; // recover the int
     TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t xFrequency = pdMS_TO_TICKS(1000);
-    // LOGI(TAG, "TaskAppCore0_150ms_Pri_4 started.");
+    const TickType_t xFrequency = pdMS_TO_TICKS(150);
+    LOGI(TAG, "Task Id : %d TaskAppCore0_150ms_Pri_4 started.", task_id);
     while (1)
     {
+        LOGI(TAG, "Hi from TaskAppCore0_150ms_Pri_4!");
         // RTE_Service_UpdateDisplayAndAlarm();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -195,17 +190,103 @@ void TaskAppCore0_150ms_Pri_4(void *pvParameters)
 
 void TaskAppCore0_200ms_Pri_5(void *pvParameters)
 {
+    int task_id = (int)(intptr_t)pvParameters; // recover the int
     TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t xFrequency = pdMS_TO_TICKS(5000); // 5 second periodicity
-    // LOGI(TAG, "TaskAppCore0_200ms_Pri_5 started.");
+    const TickType_t xFrequency = pdMS_TO_TICKS(200); // 5 second periodicity
+    LOGI(TAG, "Task Id : %d TaskAppCore0_200ms_Pri_5 started.", task_id);
     while (1)
     {
-        uint32_t current_hour, current_minute;
+        // uint32_t current_hour, current_minute;
+        // LOGI(TAG, "Hi from TaskAppCore0_200ms_Pri_5!");
         // RTE_Service_GetSimulatedTime(&current_hour, &current_minute);
         // LOGV(TAG, "Main Loop: Simulated Time: %02u:%02u", current_hour, current_minute);
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
+
+// NEW: Implementation of the Communication Stack Main Task within RTE
+void TaskAppCore1_50ms_Pri_2(void *pvParameters)
+{
+    int task_id = (int)(intptr_t)pvParameters; // recover the int
+    TickType_t xLastWakeTime;
+    // Define a processing frequency. This task coordinates several communication types.
+    const TickType_t xFrequency = pdMS_TO_TICKS(50); // Process every 100ms
+
+    xLastWakeTime = xTaskGetTickCount();
+    LOGI(TAG, "Task Id : %d TaskAppCore1_50ms_Pri_2 started.", task_id);
+
+    // Initial WiFi connection attempt (example, could be triggered by config)
+    // RTE_Service_WiFi_Connect("MyHomeNetwork", "MyNetworkPassword123");
+    // Note: It is generally acceptable for the task itself to call RTE services to
+    // initiate actions, as long as other app modules still go through RTE services.
+
+    while (1)
+    {
+        LOGI(TAG, "Hi from TaskAppCore1_50ms_Pri_2!");
+        // --- 1. Process Modbus communication ---
+        // Call the interface function, which handles MODBUS_MW_Process() and data exchange
+        // COMMUNICATION_STACK_ProcessModbus();
+
+        // --- 2. Process Bluetooth communication ---
+        // Call the interface function, which handles BLUETOOTH_MW_Process() and data exchange
+        // COMMUNICATION_STACK_ProcessBluetooth();
+
+        // --- 3. Process WiFi communication (if enabled and connected) ---
+        // Call the interface function, which handles WIFI_MW_Process() and data exchange
+        // COMMUNICATION_STACK_ProcessWiFi();
+
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+}
+
+// --- Function to centralize creation of ALL permanent tasks ---
+uint8_t RTE_StartAllPermanentTasks(void)
+{
+
+    uint8_t task_id0 = 0;
+    uint8_t task_id1 = 1;
+    uint8_t task_id2 = 2;
+    uint8_t task_id3 = 3;
+    uint8_t task_id4 = 4;
+
+    LOGI(TAG, "RTE_StartAllPermanentTasks: Creating all permanent application tasks...");
+
+    if (xTaskCreatePinnedToCore(TaskAppCore0_20ms_Pri_3, "TaskAppCore0_20ms_Pri_3", 4096, (void *)(intptr_t)task_id0, 5, NULL, CORE0) != pdPASS)
+    {
+        LOGE(TAG, "Failed to create TaskAppCore0_20ms_Pri_3!");
+        return E_NOK;
+    }
+
+    if (xTaskCreatePinnedToCore(TaskAppCore0_100ms_Pri_3, "TaskAppCore0_100ms_Pri_3", 4096, (void *)(intptr_t)task_id1, 4, NULL, CORE0) != pdPASS)
+    {
+        LOGE(TAG, "Failed to create TaskAppCore0_100ms_Pri_3!");
+        return E_NOK;
+    }
+
+    if (xTaskCreatePinnedToCore(TaskAppCore0_150ms_Pri_4, "TaskAppCore0_150ms_Pri_4", 4096, (void *)(intptr_t)task_id2, 4, NULL, CORE0) != pdPASS)
+    {
+        LOGE(TAG, "Failed to create TaskAppCore0_150ms_Pri_4!");
+        return E_NOK;
+    }
+
+    if (xTaskCreatePinnedToCore(TaskAppCore0_200ms_Pri_5, "TaskAppCore0_200ms_Pri_5", 4096, (void *)(intptr_t)task_id3, 6, NULL, CORE0) != pdPASS)
+    {
+        LOGE(TAG, "Failed to create TaskAppCore0_200ms_Pri_5!");
+        return E_NOK;
+    }
+
+    // The TaskAppCore1_50ms_Pri_2 is now explicitly created here
+    if (xTaskCreatePinnedToCore(TaskAppCore1_50ms_Pri_2, "TaskAppCore1_50ms_Pri_2", 4096, (void *)(intptr_t)task_id4, 7, NULL, CORE1) != pdPASS)
+    {
+        // Higher stack for comm
+        LOGE(TAG, "Failed to create TaskAppCore1_50ms_Pri_2!");
+        return E_NOK;
+    }
+    LOGI(TAG, "All permanent application tasks created successfully.");
+    return E_OK;
+}
+
+// --- Implementation of RTE Service Functions ---
 
 // NEW: Implementation of the Communication Stack Init function within RTE
 uint8_t ComM_Init(void)
@@ -234,77 +315,6 @@ uint8_t ComM_Init(void)
     // LOGI(TAG, "Communication Middleware Initialization complete.");
     return E_OK;
 }
-
-// NEW: Implementation of the Communication Stack Main Task within RTE
-void TaskAppCore1_50ms_Pri_2(void *pvParameters)
-{
-    TickType_t xLastWakeTime;
-    // Define a processing frequency. This task coordinates several communication types.
-    const TickType_t xFrequency = pdMS_TO_TICKS(100); // Process every 100ms
-
-    xLastWakeTime = xTaskGetTickCount();
-    // LOGI(TAG, "TaskAppCore1_50ms_Pri_2 started.");
-
-    // Initial WiFi connection attempt (example, could be triggered by config)
-    // RTE_Service_WiFi_Connect("MyHomeNetwork", "MyNetworkPassword123");
-    // Note: It is generally acceptable for the task itself to call RTE services to
-    // initiate actions, as long as other app modules still go through RTE services.
-
-    while (1)
-    {
-        // --- 1. Process Modbus communication ---
-        // Call the interface function, which handles MODBUS_MW_Process() and data exchange
-        // COMMUNICATION_STACK_ProcessModbus();
-
-        // --- 2. Process Bluetooth communication ---
-        // Call the interface function, which handles BLUETOOTH_MW_Process() and data exchange
-        // COMMUNICATION_STACK_ProcessBluetooth();
-
-        // --- 3. Process WiFi communication (if enabled and connected) ---
-        // Call the interface function, which handles WIFI_MW_Process() and data exchange
-        // COMMUNICATION_STACK_ProcessWiFi();
-
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-    }
-}
-
-// --- Function to centralize creation of ALL permanent tasks ---
-uint8_t RTE_StartAllPermanentTasks(void)
-{
-    // LOGI(TAG, "RTE_StartAllPermanentTasks: Creating all permanent application tasks...");
-    if (xTaskCreate(TaskAppCore0_20ms_Pri_3, "TaskAppCore0_20ms_Pri_3", 2048, NULL, 5, NULL) != pdPASS)
-    {
-        LOGE(TAG, "Failed to create TaskAppCore0_20ms_Pri_3!");
-        return E_NOK;
-    }
-    if (xTaskCreate(TaskAppCore0_100ms_Pri_3, "TaskAppCore0_100ms_Pri_3", 4096, NULL, 4, NULL) != pdPASS)
-    {
-        LOGE(TAG, "Failed to create TaskAppCore0_100ms_Pri_3!");
-        return E_NOK;
-    }
-    if (xTaskCreate(TaskAppCore0_150ms_Pri_4, "TaskAppCore0_150ms_Pri_4", 3072, NULL, 3, NULL) != pdPASS)
-    {
-        LOGE(TAG, "Failed to create TaskAppCore0_150ms_Pri_4!");
-        return E_NOK;
-    }
-    if (xTaskCreate(TaskAppCore0_200ms_Pri_5, "TaskAppCore0_200ms_Pri_5", 2048, NULL, 2, NULL) != pdPASS)
-    {
-        LOGE(TAG, "Failed to create TaskAppCore0_200ms_Pri_5!");
-        return E_NOK;
-    }
-
-    // The TaskAppCore1_50ms_Pri_2 is now explicitly created here
-    if (xTaskCreate(TaskAppCore1_50ms_Pri_2, "TaskAppCore1_50ms_Pri_2", 4096, NULL, 2, NULL) != pdPASS)
-    {
-        // Higher stack for comm
-        LOGE(TAG, "Failed to create TaskAppCore1_50ms_Pri_2!");
-        return E_NOK;
-    }
-    // LOGI(TAG, "All permanent application tasks created successfully.");
-    return E_OK;
-}
-
-// --- Implementation of RTE Service Functions ---
 
 // Services for Sensor Readings
 

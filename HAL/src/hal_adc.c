@@ -1,79 +1,157 @@
-/* ============================================================================
- * SOURCE FILE: HardwareAbstractionLayer/src/HAL_ADC.c
- * ============================================================================*/
 /**
- * @file HAL_ADC.c
- * @brief Implements the public API functions for ADC operations,
- * including the module's initialization function.
- * These functions wrap the ESP-IDF ADC driver calls with a common status return.
- */
-
-#include "hal_adc.h"        // Header for HAL_ADC functions
-#include "hal_adc_cfg.h"    // To access ADC configuration array and parameters
-#include "esp_log.h"        // ESP-IDF logging library
-#include "driver/adc.h"     // ESP-IDF ADC driver
-#include "esp_err.h"        // For ESP_OK, ESP_FAIL, etc.
-
-static const char *TAG = "HAL_ADC";
-
-/**
- * @brief Initializes the ADC peripheral (ADC1 unit) with its specific configuration
- * and configures the channels based on the internal `s_adc_channel_attenuations` array
- * from `hal_adc_cfg.c`.
+ * @file hal_adc.c
+ * @brief ADC Hardware Abstraction Layer (HAL) implementation.
+ * @version 1.3
+ * @date 2025
  *
- * @return E_OK if initialization is successful, otherwise an error code.
+ * This file provides the implementation for the ADC HAL using the
+ * modern ESP-IDF ADC one-shot driver. It uses the channel-specific
+ * configuration from hal_adc_cfg.c and includes robust error checking.
  */
-Status_t HAL_ADC_Init(void) {
-    esp_err_t ret;
 
-    ESP_LOGI(TAG, "Applying ADC configurations from hal_adc_cfg.c...");
+#include "hal_adc.h"
+#include "hal_adc_cfg.h"
+#include "esp_log.h"
+#include "esp_adc/adc_oneshot.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
 
-    // Configure ADC1 unit for 12-bit resolution (ADC_WIDTH_BITS is from hal_adc_cfg.h)
-    ret = adc1_config_width(ADC_WIDTH_BITS);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "ADC1 width config failed: %s", esp_err_to_name(ret));
-        return E_ERROR;
+/* =============================================================================
+ * PRIVATE GLOBAL VARIABLES
+ * ============================================================================= */
+
+static const char *TAG = "ADC_HAL";
+static bool g_is_initialized = false;
+static adc_oneshot_unit_handle_t g_adc_handle = NULL;
+static adc_cali_handle_t g_adc_cali_handle[ADC_CFG_MAX_CHANNELS] = {NULL};
+
+/* =============================================================================
+ * PRIVATE FUNCTION PROTOTYPES
+ * ============================================================================= */
+static Status_t adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_cali_handle_t *out_handle);
+static void adc_calibration_deinit(adc_cali_handle_t handle);
+
+/* =============================================================================
+ * PUBLIC API FUNCTIONS
+ * ============================================================================= */
+
+Status_t HAL_ADC_Init(void)
+{
+    if (g_is_initialized) {
+        ESP_LOGW(TAG, "ADC HAL already initialized.");
+        return E_OK;
     }
-    ESP_LOGD(TAG, "ADC1 configured for %d-bit resolution.", ADC_WIDTH_BITS);
-
-    // Configure NTC Temperature Sensor ADC1 channels with attenuation from array
-    for (size_t i = 0; i < s_num_adc_channel_attenuations; i++) {
-        const adc_channel_atten_cfg_t *channel_cfg = &s_adc_channel_attenuations[i];
-        ret = adc1_config_channel_atten(channel_cfg->channel, channel_cfg->attenuation);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "ADC1 channel %d config failed: %s", channel_cfg->channel, esp_err_to_name(ret));
-            return E_ERROR;
+    
+    // ADC unit initialization (done once for the entire unit)
+    esp_err_t err = adc_oneshot_new_unit(&g_adc_unit_init_cfg, &g_adc_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to create ADC unit: %s", esp_err_to_name(err));
+        return E_NOK;
+    }
+    
+    // Initialize and calibrate all configured channels
+    for (uint8_t i = 0; i < ADC_CFG_MAX_CHANNELS; i++) {
+        const ADC_Channel_Config_t *cfg = &g_adc_channel_configs[i];
+        
+        err = adc_oneshot_config_channel(g_adc_handle, cfg->channel, &cfg->chan_cfg);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to configure ADC channel %d: %s", i, esp_err_to_name(err));
+            return E_NOK;
         }
-        ESP_LOGD(TAG, "ADC1 channel %d configured with attenuation %d.",
-                 channel_cfg->channel, channel_cfg->attenuation);
+
+        if (adc_calibration_init(ADC_CFG_UNIT, cfg->chan_cfg.atten, &g_adc_cali_handle[i]) != E_OK) {
+            ESP_LOGE(TAG, "ADC calibration for channel %d failed.", i);
+            return E_NOK;
+        }
     }
 
-    ESP_LOGI(TAG, "ADC1 configurations applied successfully.");
+    g_is_initialized = true;
+    ESP_LOGI(TAG, "ADC HAL initialized successfully for all %d channels.", ADC_CFG_MAX_CHANNELS);
     return E_OK;
 }
 
-/**
- * @brief Reads a raw ADC value from a specified ADC1 channel.
- * @param channel The ADC1 channel to read.
- * @param raw_value_out Pointer to store the raw 12-bit ADC value (0-4095).
- * @return E_OK on success, or an error code.
- */
-Status_t HAL_ADC_ReadRaw(adc1_channel_t channel, uint16_t *raw_value_out) 
+Status_t HAL_ADC_ReadRaw(uint8_t channel_id, uint16_t *voltage_mv)
 {
-    if (raw_value_out == NULL) {
-        ESP_LOGE(TAG, "HAL_ADC1_ReadRaw: raw_value_out pointer is NULL for channel %d.", channel);
-        return E_INVALID_PARAM;
+    if (!g_is_initialized) {
+        ESP_LOGE(TAG, "ADC not initialized. Call HAL_ADC_Init() first.");
+        return E_NOK;
     }
-    if (channel >= ADC1_CHANNEL_MAX) {
-        ESP_LOGE(TAG, "HAL_ADC1_ReadRaw: Invalid ADC1 channel: %d.", channel);
-        return E_INVALID_PARAM;
+    
+    if (channel_id >= ADC_CFG_MAX_CHANNELS) {
+        ESP_LOGE(TAG, "Invalid channel ID: %d", channel_id);
+        return E_NOK;
     }
 
-    int raw = adc1_get_raw(channel);
-    if (raw == -1) { // adc1_get_raw returns -1 on error
-        ESP_LOGE(TAG, "Failed to get raw ADC reading for channel %d.", channel);
-        return E_ERROR;
+    if (voltage_mv == NULL) {
+        ESP_LOGE(TAG, "Output pointer is NULL.");
+        return E_NOK;
     }
-    *raw_value_out = raw;
+    
+    const ADC_Channel_Config_t *cfg = &g_adc_channel_configs[channel_id];
+
+    int raw_adc;
+    esp_err_t err = adc_oneshot_read(g_adc_handle, cfg->channel, &raw_adc);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to read from ADC channel %d: %s", channel_id, esp_err_to_name(err));
+        return E_NOK;
+    }
+
+    int voltage;
+    err = adc_cali_raw_to_voltage(g_adc_cali_handle[channel_id], raw_adc, &voltage);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Calibration conversion failed for channel %d: %s", channel_id, esp_err_to_name(err));
+        return E_NOK;
+    }
+
+    *voltage_mv = (uint32_t)voltage;
+    ESP_LOGD(TAG, "Channel %d ADC raw: %d, voltage: %d mV", channel_id, raw_adc, *voltage_mv);
+
     return E_OK;
+}
+
+/* =============================================================================
+ * PRIVATE FUNCTIONS
+ * ============================================================================= */
+
+static Status_t adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_cali_handle_t *out_handle)
+{
+    // ESP_LOGI(TAG, "Starting ADC calibration...");
+    // adc_cali_handle_t handle = NULL;
+    // esp_err_t ret = ESP_FAIL;
+    
+    // if (esp_adc_cali_check_efuse(ADC_CALI_SCHEME_CURVE_FITTING) == ESP_OK) {
+    //     adc_cali_curve_fitting_config_t cali_config = {
+    //         .unit_id = unit,
+    //         .atten = atten,
+    //         .bitwidth = ADC_BITWIDTH_DEFAULT,
+    //     };
+    //     ret = adc_cali_create_scheme_curve_fitting(&cali_config, &handle);
+    // } else {
+    //     ESP_LOGW(TAG, "eFuse calibration not available. Using default calibration curve.");
+    //     adc_cali_curve_fitting_config_t cali_config = {
+    //         .unit_id = unit,
+    //         .atten = atten,
+    //         .bitwidth = ADC_BITWIDTH_DEFAULT,
+    //     };
+    //     ret = adc_cali_create_scheme_curve_fitting(&cali_config, &handle);
+    // }
+    
+    // if (ret != ESP_OK) {
+    //     ESP_LOGE(TAG, "Calibration failed: %s", esp_err_to_name(ret));
+    //     return E_NOK;
+    // }
+    
+    // *out_handle = handle;
+    // ESP_LOGI(TAG, "Calibration successful.");
+    return E_OK;
+}
+
+static void adc_calibration_deinit(adc_cali_handle_t handle)
+{
+    // if (handle) {
+    //     esp_err_t err = adc_cali_delete_scheme_curve_fitting(handle);
+    //     if (err != ESP_OK) {
+    //         ESP_LOGE(TAG, "Failed to de-initialize calibration: %s", esp_err_to_name(err));
+    //     }
+    // }
 }

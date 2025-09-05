@@ -67,7 +67,9 @@ void SysMon_MainFunction(void);
  * @brief Gets current CPU load percentage
  * @return CPU load (0-100%)
  */
-uint8_t SysMon_GetCPULoad(void);
+uint8_t sysmon_get_core_cpu_load(uint8_t core_id, bool *is_hyperperiod_complete);
+uint8_t sysmon_get_system_cpu_load(bool *is_hyperperiod_complete);
+void sysmon_print_cpu_load_report(void);
 
 /**
  * @brief Gets total minimum free stack across all tasks
