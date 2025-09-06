@@ -69,11 +69,11 @@ typedef struct {
 #define SYSMON_MIN_FREE_STACK_THRESHOLD_BYTES   (1024) // 1KB
 
 // Interval for periodic system health logging (in seconds).
-#define SYSMON_HEALTH_LOG_INTERVAL_SEC          (10) // Log every 10 seconds
+#define SYSMON_HEALTH_LOG_INTERVAL_SEC          (20) // Log every 10 seconds
 
 // Polling interval for SysMon_MainFunction (in milliseconds).
 // This value is used for calculating the logging frequency.
-#define SYSMON_POLLING_INTERVAL_MS              (1000) // 1 second
+#define SYSMON_POLLING_INTERVAL_MS              (100) // 1 second
 
 #define SYSMON_QUEUE_LENGTH   16
 #define SYSMON_QUEUE_WAIT_MS  0   // non-blocking enqueue

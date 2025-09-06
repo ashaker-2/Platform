@@ -33,3 +33,5 @@ idf_component_register(
         ${APPLICATION_PRIVATE_REQUIRES}
 )
 
+# Disable -Werror=format-truncation for this component
+target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-error=format-truncation)

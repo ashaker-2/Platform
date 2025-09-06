@@ -22,6 +22,7 @@ static const char *TAG = "HeaterCtrl"; // Logging tag for this module
 // Array to store the current state of each heater. Initialized during HeaterCtrl_Init.
 static Heater_State_t s_current_heater_states[HEATER_ID_COUNT];
 
+static Status_t HeaterCtrl_SetSingle(Heater_ID_t heater_id, Heater_State_t state);
 // --- Public Functions ---
 
 /**
@@ -50,12 +51,7 @@ Status_t HeaterCtrl_Init(void) {
             case HEATER_CONTROL_TYPE_IO_EXPANDER:
                 // Set the initial state of the heater via the CH423S expander
                 status = HAL_CH423S_SetOutput(heater_cfg->pinNum, heater_cfg->initial_state);
-                if (status == E_OK) 
-                {
-                    ESP_LOGI(TAG, "Heater ID %d (CH423S pin %d) initialized to %s.",
-                             heater_cfg->heater_id, heater_cfg->pinNum,
-                             (heater_cfg->initial_state == HEATER_STATE_ON) ? "ON" : "OFF");
-                } else 
+                if (status != E_OK) 
                 {
                     ESP_LOGE(TAG, "Failed to set initial state for Heater ID %d (CH423S pin %d). Status: %d",
                              heater_cfg->heater_id, heater_cfg->pinNum, status);
@@ -65,11 +61,8 @@ Status_t HeaterCtrl_Init(void) {
             case HEATER_CONTROL_TYPE_GPIO:
                 // Initialize the direct GPIO pin and set its initial state
                 status = HAL_GPIO_SetLevel(heater_cfg->pinNum, heater_cfg->initial_state);
-                if (status == E_OK) {
-                    ESP_LOGI(TAG, "Heater ID %d (GPIO pin %d) initialized to %s.",
-                             heater_cfg->heater_id, heater_cfg->pinNum,
-                             (heater_cfg->initial_state == HEATER_STATE_ON) ? "ON" : "OFF");
-                } else {
+                if (status != E_OK) 
+                {
                     ESP_LOGE(TAG, "Failed to set initial state for Heater ID %d (GPIO pin %d). Status: %d",
                              heater_cfg->heater_id, heater_cfg->pinNum, status);
                 }
@@ -104,9 +97,32 @@ Status_t HeaterCtrl_Init(void) {
  * @return E_OK on success, E_INVALID_PARAM if `heater_id` is invalid, or
  * an error code from the underlying HAL if pin control fails.
  */
-Status_t HeaterCtrl_SetState(Heater_ID_t heater_id, Heater_State_t state) 
+Status_t HeaterCtrl_SetState(Heater_ID_t heater_id, Heater_State_t state)
 {
-    if (heater_id >= HEATER_ID_COUNT) {
+    // Special case: all heaters
+    if (heater_id == HEATER_ID_COUNT) {
+        Status_t overall_status = E_OK;
+
+        for (Heater_ID_t id = 0; id < HEATER_ID_COUNT; id++) {
+            Status_t s = HeaterCtrl_SetSingle(id, state);
+            if (s != E_OK) {
+                overall_status = s; // record last failure
+            }
+        }
+
+        return overall_status;
+    }
+
+    // Single heater case
+    return HeaterCtrl_SetSingle(heater_id, state);
+}
+
+
+// Helper function to set a single heater by ID
+static Status_t HeaterCtrl_SetSingle(Heater_ID_t heater_id, Heater_State_t state)
+{
+    // Validate heater_id
+    if (heater_id > HEATER_ID_COUNT) {
         ESP_LOGE(TAG, "Attempted to set state for invalid Heater ID %d.", heater_id);
         return E_INVALID_PARAM;
     }
@@ -131,11 +147,8 @@ Status_t HeaterCtrl_SetState(Heater_ID_t heater_id, Heater_State_t state)
         case HEATER_CONTROL_TYPE_IO_EXPANDER:
             // Call the HAL to set the output on the CH423S expander
             status = HAL_CH423S_SetOutput(heater_cfg->pinNum, state);
-            if (status == E_OK) {
-                ESP_LOGI(TAG, "Heater ID %d (CH423S pin %d) set to %s.",
-                         heater_id, heater_cfg->pinNum,
-                         (state == HEATER_STATE_ON) ? "ON" : "OFF");
-            } else {
+            if (status != E_OK) 
+            {
                 ESP_LOGE(TAG, "Failed to set Heater ID %d (CH423S pin %d) to %s. Status: %d",
                          heater_id, heater_cfg->pinNum,
                          (state == HEATER_STATE_ON) ? "ON" : "OFF", status);
@@ -145,11 +158,8 @@ Status_t HeaterCtrl_SetState(Heater_ID_t heater_id, Heater_State_t state)
         case HEATER_CONTROL_TYPE_GPIO:
             // Call the HAL to set the output on the direct GPIO pin
             status = HAL_GPIO_SetLevel(heater_cfg->pinNum, state);
-            if (status == E_OK) {
-                ESP_LOGI(TAG, "Heater ID %d (GPIO pin %d) set to %s.",
-                         heater_id, heater_cfg->pinNum,
-                         (state == HEATER_STATE_ON) ? "ON" : "OFF");
-            } else {
+            if (status != E_OK) 
+            {
                 ESP_LOGE(TAG, "Failed to set Heater ID %d (GPIO pin %d) to %s. Status: %d",
                          heater_id, heater_cfg->pinNum,
                          (state == HEATER_STATE_ON) ? "ON" : "OFF", status);
@@ -167,7 +177,7 @@ Status_t HeaterCtrl_SetState(Heater_ID_t heater_id, Heater_State_t state)
     }
 
     // Update the internal state tracking
-    s_current_heater_states[heater_id] = state;
+        s_current_heater_states[heater_id] = state;
     return E_OK;
 }
 

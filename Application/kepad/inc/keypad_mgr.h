@@ -55,7 +55,7 @@ typedef enum {
 
 /* Event enable mask flags - for configuring which events to generate per button */
 /* These are defined in keypad_mgr_cfg.h - this is just for reference */
-/*
+
 typedef enum {
     KEYPAD_EVT_ENABLE_NONE    = 0x00,
     KEYPAD_EVT_ENABLE_PRESS   = 0x01,
@@ -63,7 +63,7 @@ typedef enum {
     KEYPAD_EVT_ENABLE_RELEASE = 0x04,
     KEYPAD_EVT_ENABLE_ALL     = 0x07
 } Keypad_Event_Enable_t;
-*/
+
 
 /* Event structure */
 typedef struct {

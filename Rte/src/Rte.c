@@ -23,6 +23,7 @@
 #include "sys_mgr.h"        // Central system manager
 #include "system_monitor.h" // CPU & stack monitor
 #include "hal_init.h"
+#include "ui_manager.h"
 // NEW: Include the communication stack interface and middleware directly for init/task
 // #include "com.h" // Provides the processing functions
 
@@ -195,7 +196,7 @@ void TaskAppCore0_200ms_Pri_5(void *pvParameters)
     LOGI(TAG, "Task Id : %d TaskAppCore0_200ms_Pri_5 started.", task_id);
     while (1)
     {
-        SYS_MGR_MainFunction();
+        UI_MGR_MainFunction();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }

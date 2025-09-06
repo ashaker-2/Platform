@@ -22,6 +22,8 @@ static const char *TAG = "LedCtrl"; // Logging tag for this module
 // Array to store the current state of each led. Initialized during LedCtrl_Init.
 static Led_State_t s_current_led_states[LED_ID_COUNT];
 
+static Status_t LedCtrl_SetSingle(Led_ID_t led_id, Led_State_t state);
+
 // --- Public Functions ---
 
 /**
@@ -50,12 +52,7 @@ Status_t LedCtrl_Init(void) {
             case LED_CONTROL_TYPE_IO_EXPANDER:
                 // Set the initial state of the led via the CH423S expander
                 status = HAL_CH423S_SetOutput(led_cfg->pinNum, led_cfg->initial_state);
-                if (status == E_OK) 
-                {
-                    ESP_LOGI(TAG, "Led ID %d (CH423S pin %d) initialized to %s.",
-                             led_cfg->led_id, led_cfg->pinNum,
-                             (led_cfg->initial_state == LED_STATE_ON) ? "ON" : "OFF");
-                } else 
+                if (status != E_OK) 
                 {
                     ESP_LOGE(TAG, "Failed to set initial state for Led ID %d (CH423S pin %d). Status: %d",
                              led_cfg->led_id, led_cfg->pinNum, status);
@@ -65,11 +62,8 @@ Status_t LedCtrl_Init(void) {
             case LED_CONTROL_TYPE_GPIO:
                 // Initialize the direct GPIO pin and set its initial state
                 status = HAL_GPIO_SetLevel(led_cfg->pinNum, led_cfg->initial_state);
-                if (status == E_OK) {
-                    ESP_LOGI(TAG, "Led ID %d (GPIO pin %d) initialized to %s.",
-                             led_cfg->led_id, led_cfg->pinNum,
-                             (led_cfg->initial_state == LED_STATE_ON) ? "ON" : "OFF");
-                } else {
+                if (status != E_OK) 
+                {
                     ESP_LOGE(TAG, "Failed to set initial state for Led ID %d (GPIO pin %d). Status: %d",
                              led_cfg->led_id, led_cfg->pinNum, status);
                 }
@@ -104,7 +98,31 @@ Status_t LedCtrl_Init(void) {
  * @return E_OK on success, E_INVALID_PARAM if `led_id` is invalid, or
  * an error code from the underlying HAL if pin control fails.
  */
-Status_t LedCtrl_SetState(Led_ID_t led_id, Led_State_t state) {
+Status_t LedCtrl_SetState(Led_ID_t led_id, Led_State_t state) 
+{
+    if (led_id == LED_ID_COUNT) {
+        Status_t overall_status = E_OK;
+
+        for (Led_ID_t id = 0; id < LED_ID_COUNT; id++) 
+        {
+            Status_t s = LedCtrl_SetSingle(id, state);
+            if (s != E_OK) 
+            {
+                overall_status = s; // record last failure
+            }
+        }
+
+        return overall_status;
+    }
+
+    // Single heater case
+    return LedCtrl_SetSingle(led_id, state);
+}
+
+
+// Helper function to set a single heater by ID
+static Status_t LedCtrl_SetSingle(Led_ID_t led_id, Led_State_t state)  
+{
     if (led_id >= LED_ID_COUNT) {
         ESP_LOGE(TAG, "Attempted to set state for invalid Led ID %d.", led_id);
         return E_INVALID_PARAM;
@@ -130,11 +148,8 @@ Status_t LedCtrl_SetState(Led_ID_t led_id, Led_State_t state) {
         case LED_CONTROL_TYPE_IO_EXPANDER:
             // Call the HAL to set the output on the CH423S expander
             status = HAL_CH423S_SetOutput(led_cfg->pinNum, state);
-            if (status == E_OK) {
-                ESP_LOGI(TAG, "Led ID %d (CH423S pin %d) set to %s.",
-                         led_id, led_cfg->pinNum,
-                         (state == LED_STATE_ON) ? "ON" : "OFF");
-            } else {
+            if (status != E_OK) 
+            {
                 ESP_LOGE(TAG, "Failed to set Led ID %d (CH423S pin %d) to %s. Status: %d",
                          led_id, led_cfg->pinNum,
                          (state == LED_STATE_ON) ? "ON" : "OFF", status);

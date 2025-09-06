@@ -230,6 +230,25 @@ Status_t SYS_MGR_GetConfig(SysMgr_Config_t *out);
 Status_t SYS_MGR_UpdateConfigRuntime(const SysMgr_Config_t *in);
 
 /**
+ * @brief Validates a given configuration.
+ *
+ * This function is used to check if a configuration is valid before
+ * it is applied or saved. It is provided as a weak symbol, allowing
+ * it to be overridden with a project-specific implementation if needed.
+ *
+ * Implementation notes:
+ * - Check all temperature and humidity ranges against limits
+ * - Validate mode is within valid enum range
+ * - Check actuator cycle times are reasonable (1s - 1hour)
+ * - Validate light schedule times (0-23 hours, 0-59 minutes)
+ * - Ensure min < max for all threshold pairs
+ *
+ * @param[in] cfg A pointer to the configuration to be validated.
+ * @return Status_t E_OK if the configuration is valid, E_NOK otherwise.
+ */
+Status_t SYS_MGR_ValidateConfig(const SysMgr_Config_t *cfg);
+
+/**
  * @brief Saves the current configuration to flash.
  *
  * This function can be called on demand to save the configuration

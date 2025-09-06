@@ -85,7 +85,7 @@ void SYS_MGR_CORE_MainFunction(const SysMgr_Config_t *cfg)
     switch (cfg->mode) {
         case SYS_MGR_MODE_AUTOMATIC:
             read_temperature_and_humidity(cfg);
-            actuator_control(cfg);
+            // actuator_control(cfg);
             break;
         case SYS_MGR_MODE_HYBRID:
             read_temperature_and_humidity(cfg);

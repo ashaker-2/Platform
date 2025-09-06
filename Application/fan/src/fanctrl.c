@@ -22,6 +22,8 @@ static const char *TAG = "FanCtrl"; // Logging tag for this module
 // Array to store the current state of each fan. Initialized during FanCtrl_Init.
 static Fan_State_t s_current_fan_states[FAN_ID_COUNT];
 
+static Status_t FanCtrl_SetSingle(Fan_ID_t fan_id, Fan_State_t state);
+
 // --- Public Functions ---
 
 /**
@@ -50,12 +52,7 @@ Status_t FanCtrl_Init(void) {
             case FAN_CONTROL_TYPE_IO_EXPANDER:
                 // Set the initial state of the fan via the CH423S expander
                 status = HAL_CH423S_SetOutput(fan_cfg->pinNum, fan_cfg->initial_state);
-                if (status == E_OK) 
-                {
-                    ESP_LOGI(TAG, "Fan ID %d (CH423S pin %d) initialized to %s.",
-                             fan_cfg->fan_id, fan_cfg->pinNum,
-                             (fan_cfg->initial_state == FAN_STATE_ON) ? "ON" : "OFF");
-                } else 
+                if (status != E_OK) 
                 {
                     ESP_LOGE(TAG, "Failed to set initial state for Fan ID %d (CH423S pin %d). Status: %d",
                              fan_cfg->fan_id, fan_cfg->pinNum, status);
@@ -65,11 +62,8 @@ Status_t FanCtrl_Init(void) {
             case FAN_CONTROL_TYPE_GPIO:
                 // Initialize the direct GPIO pin and set its initial state
                 status = HAL_GPIO_SetLevel(fan_cfg->pinNum, fan_cfg->initial_state);
-                if (status == E_OK) {
-                    ESP_LOGI(TAG, "Fan ID %d (GPIO pin %d) initialized to %s.",
-                             fan_cfg->fan_id, fan_cfg->pinNum,
-                             (fan_cfg->initial_state == FAN_STATE_ON) ? "ON" : "OFF");
-                } else {
+                if (status != E_OK) 
+                {
                     ESP_LOGE(TAG, "Failed to set initial state for Fan ID %d (GPIO pin %d). Status: %d",
                              fan_cfg->fan_id, fan_cfg->pinNum, status);
                 }
@@ -104,8 +98,32 @@ Status_t FanCtrl_Init(void) {
  * @return E_OK on success, E_INVALID_PARAM if `fan_id` is invalid, or
  * an error code from the underlying HAL if pin control fails.
  */
-Status_t FanCtrl_SetState(Fan_ID_t fan_id, Fan_State_t state) {
-    if (fan_id >= FAN_ID_COUNT) {
+Status_t FanCtrl_SetState(Fan_ID_t fan_id, Fan_State_t state) 
+{
+    if (fan_id == FAN_ID_COUNT) {
+        Status_t overall_status = E_OK;
+
+        for (Fan_ID_t id = 0; id < FAN_ID_COUNT; id++) 
+        {
+            Status_t s = FanCtrl_SetSingle(id, state);
+            if (s != E_OK) 
+            {
+                overall_status = s; // record last failure
+            }
+        }
+
+        return overall_status;
+    }
+
+    // Single heater case
+    return FanCtrl_SetSingle(fan_id, state);
+}
+
+
+// Helper function to set a single heater by ID
+static Status_t FanCtrl_SetSingle(Fan_ID_t fan_id, Fan_State_t state) 
+{
+    if (fan_id > FAN_ID_COUNT) {
         ESP_LOGE(TAG, "Attempted to set state for invalid Fan ID %d.", fan_id);
         return E_INVALID_PARAM;
     }
@@ -130,11 +148,9 @@ Status_t FanCtrl_SetState(Fan_ID_t fan_id, Fan_State_t state) {
         case FAN_CONTROL_TYPE_IO_EXPANDER:
             // Call the HAL to set the output on the CH423S expander
             status = HAL_CH423S_SetOutput(fan_cfg->pinNum, state);
-            if (status == E_OK) {
-                ESP_LOGI(TAG, "Fan ID %d (CH423S pin %d) set to %s.",
-                         fan_id, fan_cfg->pinNum,
-                         (state == FAN_STATE_ON) ? "ON" : "OFF");
-            } else {
+            if (status != E_OK) 
+            {
+                
                 ESP_LOGE(TAG, "Failed to set Fan ID %d (CH423S pin %d) to %s. Status: %d",
                          fan_id, fan_cfg->pinNum,
                          (state == FAN_STATE_ON) ? "ON" : "OFF", status);

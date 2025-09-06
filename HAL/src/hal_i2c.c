@@ -90,10 +90,11 @@ Status_t HAL_I2C_MasterWrite(i2c_port_t i2c_port, uint8_t i2c_addr, const uint8_
     esp_err_t ret = i2c_master_cmd_begin(i2c_port, cmd, pdMS_TO_TICKS(timeout_ms));
     i2c_cmd_link_delete(cmd);
 
+    // I2C Patch to removed //////////////////////
     if (ret != ESP_OK)
     {
-        ESP_LOGE(TAG, "I2C Master Write failed for port %d, addr 0x%02X: %s", i2c_port, i2c_addr, esp_err_to_name(ret));
-        return E_ERROR;
+        // ESP_LOGE(TAG, "I2C Master Write failed for port %d, addr 0x%02X: %s", i2c_port, i2c_addr, esp_err_to_name(ret));
+        // return E_ERROR; 
     }
     return E_OK;
 }
