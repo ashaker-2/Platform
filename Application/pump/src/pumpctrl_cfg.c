@@ -20,9 +20,9 @@
  */
 const pump_config_item_t s_pump_configurations[] = {
     {
-        .pump_id = PUMP_ID_1,
+        .pump_id = PUMP_ID_0,
         .control_type = PUMP_CONTROL_TYPE_IO_EXPANDER,
-        .pinNum = HW_CH423S_GP_PUMP_1, // Controlled by CH423S
+        .pinNum = HW_CH423S_GP_PUMP_0, // Controlled by CH423S
         .initial_state = PUMP_STATE_OFF,
     }
     // Add more pump configurations here.

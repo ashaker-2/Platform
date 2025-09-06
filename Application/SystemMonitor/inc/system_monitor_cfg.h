@@ -94,6 +94,9 @@ typedef struct {
 #define CORE1_HYPERPERIOD_MS 50      // LCM(50)
 #define MIN_SAMPLES_PER_CORE 5       // Minimum samples before valid reading
 #define NUMBER_OF_ALL_PERIODS 5
+#define N_HISTORY 8
+
+
 
 
 /* Fault table extern declaration */

@@ -20,7 +20,7 @@
  */
 const light_config_item_t s_light_configurations[] = {
     {
-        .light_id = LIGHT_ID_1,
+        .light_id = LIGHT_ID_0,
         .control_type = LIGHT_CONTROL_TYPE_IO_EXPANDER,
         .pinNum = HW_CH423S_GP_LIGHT, // Controlled by CH423S
         .initial_state = LIGHT_STATE_OFF,

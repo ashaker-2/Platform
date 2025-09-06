@@ -9,8 +9,8 @@
  * each heater and their initial states.
  */
 
-#include "heaterctrl_cfg.h"   // Header for heater configuration types and extern declarations
-#include "hal_cfg.h"     // Global hardware definitions for CH423S/GPIO pins
+#include "heaterctrl_cfg.h" // Header for heater configuration types and extern declarations
+#include "hal_cfg.h"        // Global hardware definitions for CH423S/GPIO pins
 #include <stddef.h>         // For size_t
 
 /**
@@ -20,9 +20,9 @@
  */
 const heater_config_item_t s_heater_configurations[] = {
     {
-        .heater_id = HEATER_ID_1,
+        .heater_id = HEATER_ID_0,
         .control_type = HEATER_CONTROL_TYPE_IO_EXPANDER,
-        .pinNum = HW_CH423S_GP_HEATER_1, // Controlled by CH423S
+        .pinNum = HW_CH423S_GP_HEATER_0, // Controlled by CH423S
         .initial_state = HEATER_STATE_OFF,
     },
     // Add more heater configurations here.

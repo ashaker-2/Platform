@@ -20,6 +20,12 @@
  */
 const fan_config_item_t s_fan_configurations[] = {
     {
+        .fan_id = FAN_ID_0,
+        .control_type = FAN_CONTROL_TYPE_IO_EXPANDER,
+        .pinNum = HW_CH423S_GP_FAN_0, // Controlled by CH423S
+        .initial_state = FAN_STATE_OFF,
+    },
+    {
         .fan_id = FAN_ID_1,
         .control_type = FAN_CONTROL_TYPE_IO_EXPANDER,
         .pinNum = HW_CH423S_GP_FAN_1, // Controlled by CH423S
@@ -35,12 +41,6 @@ const fan_config_item_t s_fan_configurations[] = {
         .fan_id = FAN_ID_3,
         .control_type = FAN_CONTROL_TYPE_IO_EXPANDER,
         .pinNum = HW_CH423S_GP_FAN_3,         // Controlled by direct ESP32 GPIO
-        .initial_state = FAN_STATE_OFF,
-    },
-    {
-        .fan_id = FAN_ID_4,
-        .control_type = FAN_CONTROL_TYPE_IO_EXPANDER,
-        .pinNum = HW_CH423S_GP_FAN_4,         // Controlled by direct ESP32 GPIO
         .initial_state = FAN_STATE_OFF,
     },
     // Add more fan configurations here.

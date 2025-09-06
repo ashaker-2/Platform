@@ -167,7 +167,7 @@ void TaskAppCore0_100ms_Pri_3(void *pvParameters)
     LOGI(TAG, "Task Id : %d TaskAppCore0_100ms_Pri_3 started.", task_id);
     while (1)
     {
-        SYS_MGR_MainFunction();
+        
         SysMon_MainFunction();
         // LOGI(TAG, "Hi from TaskAppCore0_100ms_Pri_3!");
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -182,8 +182,7 @@ void TaskAppCore0_150ms_Pri_4(void *pvParameters)
     LOGI(TAG, "Task Id : %d TaskAppCore0_150ms_Pri_4 started.", task_id);
     while (1)
     {
-        LOGI(TAG, "Hi from TaskAppCore0_150ms_Pri_4!");
-        // RTE_Service_UpdateDisplayAndAlarm();
+        SYS_MGR_MainFunction();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
@@ -196,10 +195,7 @@ void TaskAppCore0_200ms_Pri_5(void *pvParameters)
     LOGI(TAG, "Task Id : %d TaskAppCore0_200ms_Pri_5 started.", task_id);
     while (1)
     {
-        // uint32_t current_hour, current_minute;
-        // LOGI(TAG, "Hi from TaskAppCore0_200ms_Pri_5!");
-        // RTE_Service_GetSimulatedTime(&current_hour, &current_minute);
-        // LOGV(TAG, "Main Loop: Simulated Time: %02u:%02u", current_hour, current_minute);
+        SYS_MGR_MainFunction();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
@@ -222,7 +218,7 @@ void TaskAppCore1_50ms_Pri_2(void *pvParameters)
 
     while (1)
     {
-        LOGI(TAG, "Hi from TaskAppCore1_50ms_Pri_2!");
+        // LOGI(TAG, "Hi from TaskAppCore1_50ms_Pri_2!");
         // --- 1. Process Modbus communication ---
         // Call the interface function, which handles MODBUS_MW_Process() and data exchange
         // COMMUNICATION_STACK_ProcessModbus();

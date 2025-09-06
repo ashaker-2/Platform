@@ -51,7 +51,8 @@ static const char *TAG = "SysMgr_Core";
  * ============================================================================= */
 static void update_sensor_data_averages(void);
 static void check_critical_conditions(void);
-static void apply_temperature_and_humidity_control(const SysMgr_Config_t *cfg);
+static void read_temperature_and_humidity(const SysMgr_Config_t *cfg);
+static void actuator_control(const SysMgr_Config_t *cfg);
 static void apply_light_and_cycle_control(const SysMgr_Config_t *cfg);
 static void enter_failsafe_mode(void);
 
@@ -83,10 +84,11 @@ void SYS_MGR_CORE_MainFunction(const SysMgr_Config_t *cfg)
 
     switch (cfg->mode) {
         case SYS_MGR_MODE_AUTOMATIC:
-            apply_temperature_and_humidity_control(cfg);
+            read_temperature_and_humidity(cfg);
+            actuator_control(cfg);
             break;
         case SYS_MGR_MODE_HYBRID:
-            apply_temperature_and_humidity_control(cfg);
+            read_temperature_and_humidity(cfg);
             apply_light_and_cycle_control(cfg);
             break;
         case SYS_MGR_MODE_MANUAL:
@@ -171,31 +173,37 @@ static void check_critical_conditions(void)
  *
  * @param cfg The current system configuration.
  */
-static void apply_temperature_and_humidity_control(const SysMgr_Config_t *cfg)
+static void read_temperature_and_humidity(const SysMgr_Config_t *cfg)
 {
     if (cfg->per_sensor_control_enabled) {
-        for (int i = 0; i < TEMPHUM_SENSOR_ID_COUNT; i++) {
+        for (int i = 0; i < TEMPHUM_SENSOR_ID_COUNT; i++) 
+        {
             if (cfg->per_sensor[i].temp_configured) {
                 float temp_reading = g_ema_temperature_data[i];
                 float min_temp = cfg->per_sensor[i].temp_min_C;
                 float max_temp = cfg->per_sensor[i].temp_max_C;
                 float hyst = SYS_MGR_DEFAULT_TEMP_HYST_C;
 
-                if (temp_reading >= (max_temp + hyst)) {
+                if (temp_reading >= (max_temp + hyst)) 
+                {
                     HeaterCtrl_SetState((Heater_ID_t)i, HEATER_STATE_OFF);
                     FanCtrl_SetState((Fan_ID_t)i, FAN_STATE_ON);
-                } else if (temp_reading <= (min_temp - hyst)) {
+                } 
+                else if (temp_reading <= (min_temp - hyst)) 
+                {
                     HeaterCtrl_SetState((Heater_ID_t)i, HEATER_STATE_ON);
                     FanCtrl_SetState((Fan_ID_t)i, FAN_STATE_OFF);
                 }
             }
-            if (cfg->per_sensor[i].hum_configured) {
+            if (cfg->per_sensor[i].hum_configured) 
+            {
                 float hum_reading = g_ema_humidity_data[i];
                 float min_hum = cfg->per_sensor[i].hum_min_P;
                 float max_hum = cfg->per_sensor[i].hum_max_P;
                 float hyst = SYS_MGR_DEFAULT_HUM_HYST_P;
 
-                if (hum_reading >= (max_hum + hyst)) {
+                if (hum_reading >= (max_hum + hyst)) 
+                {
                     VenCtrl_SetState((Ven_ID_t)i, VEN_STATE_ON);
                     PumpCtrl_SetState((Pump_ID_t)i, PUMP_STATE_OFF);
                 } else if (hum_reading <= (min_hum - hyst)) {
@@ -204,7 +212,9 @@ static void apply_temperature_and_humidity_control(const SysMgr_Config_t *cfg)
                 }
             }
         }
-    } else {
+    } 
+    else 
+    {
         if (g_average_valid) {
             float min_temp = cfg->global_temp_min;
             float max_temp = cfg->global_temp_max;

@@ -12,8 +12,8 @@
 #ifndef LIGHT_CTRL_H
 #define LIGHT_CTRL_H
 
-#include "common.h"  // For Status_t
-#include "lightctrl_cfg.h"   // For Light_ID_t, Light_State_t
+#include "common.h"        // For Status_t
+#include "lightctrl_cfg.h" // For Light_ID_t, Light_State_t
 
 /**
  * @brief Initializes the Light Control (LightCtrl) module.

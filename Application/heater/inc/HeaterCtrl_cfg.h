@@ -19,10 +19,10 @@
  * @brief Enumeration for unique Heater IDs.
  * These IDs are used to reference specific heaters within the Heater Control module.
  */
-typedef enum {
-    HEATER_ID_0 = 0,   ///< First heater
-    HEATER_ID_1 ,   ///< First heater
-    HEATER_ID_COUNT    ///< Total number of heaters configured
+typedef enum
+{
+    HEATER_ID_0 = 0, ///< First heater
+    HEATER_ID_COUNT  ///< Total number of heaters configured
 } Heater_ID_t;
 
 #define HEATER_ID_ALL (HEATER_ID_COUNT)
@@ -30,7 +30,8 @@ typedef enum {
 /**
  * @brief Enumeration for heater states.
  */
-typedef enum {
+typedef enum
+{
     HEATER_STATE_OFF = 0, ///< Heater is off
     HEATER_STATE_ON,      ///< Heater is on
     HEATER_STATE_INVALID  ///< Invalid heater state
@@ -39,7 +40,8 @@ typedef enum {
 /**
  * @brief Enumeration for the type of control mechanism for a heater.
  */
-typedef enum {
+typedef enum
+{
     HEATER_CONTROL_TYPE_IO_EXPANDER = 0, ///< Controlled via CH423S I/O expander
     HEATER_CONTROL_TYPE_GPIO,            ///< Controlled via direct ESP32 GPIO pin
     HEATER_CONTROL_TYPE_COUNT            ///< Total number of control types
@@ -51,11 +53,12 @@ typedef enum {
  * This includes the control type and the specific pin number.
  * The interpretation of `pinNum` depends on `control_type`.
  */
-typedef struct {
-    Heater_ID_t heater_id;                   ///< Unique identifier for the heater
-    Heater_Control_Type_t control_type;   ///< How this heater is controlled
-    uint8_t pinNum;                    ///< The pin number (either CH423S GP pin or direct GPIO pin)
-    Heater_State_t initial_state;         ///< Initial state of the heater (ON/OFF)
+typedef struct
+{
+    Heater_ID_t heater_id;              ///< Unique identifier for the heater
+    Heater_Control_Type_t control_type; ///< How this heater is controlled
+    uint8_t pinNum;                     ///< The pin number (either CH423S GP pin or direct GPIO pin)
+    Heater_State_t initial_state;       ///< Initial state of the heater (ON/OFF)
 } heater_config_item_t;
 
 /**

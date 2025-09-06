@@ -19,19 +19,19 @@
  * @brief Enumeration for unique Pump IDs.
  * These IDs are used to reference specific pumps within the Pump Control module.
  */
-typedef enum {
-    PUMP_ID_0 = 0,   ///< First pump
-    PUMP_ID_1 ,   ///< First pump
-    PUMP_ID_COUNT    ///< Total number of pumps configured
+typedef enum
+{
+    PUMP_ID_0 = 0, ///< First pump
+    PUMP_ID_COUNT  ///< Total number of pumps configured
 } Pump_ID_t;
-
 
 #define PUMP_ID_ALL (PUMP_ID_COUNT)
 
 /**
  * @brief Enumeration for pump states.
  */
-typedef enum {
+typedef enum
+{
     PUMP_STATE_OFF = 0, ///< Pump is off
     PUMP_STATE_ON,      ///< Pump is on
     PUMP_STATE_INVALID  ///< Invalid pump state
@@ -40,7 +40,8 @@ typedef enum {
 /**
  * @brief Enumeration for the type of control mechanism for a pump.
  */
-typedef enum {
+typedef enum
+{
     PUMP_CONTROL_TYPE_IO_EXPANDER = 0, ///< Controlled via CH423S I/O expander
     PUMP_CONTROL_TYPE_GPIO,            ///< Controlled via direct ESP32 GPIO pin
     PUMP_CONTROL_TYPE_COUNT            ///< Total number of control types
@@ -52,11 +53,12 @@ typedef enum {
  * This includes the control type and the specific pin number.
  * The interpretation of `pinNum` depends on `control_type`.
  */
-typedef struct {
-    Pump_ID_t pump_id;                   ///< Unique identifier for the pump
-    Pump_Control_Type_t control_type;   ///< How this pump is controlled
-    uint8_t pinNum;                    ///< The pin number (either CH423S GP pin or direct GPIO pin)
-    Pump_State_t initial_state;         ///< Initial state of the pump (ON/OFF)
+typedef struct
+{
+    Pump_ID_t pump_id;                ///< Unique identifier for the pump
+    Pump_Control_Type_t control_type; ///< How this pump is controlled
+    uint8_t pinNum;                   ///< The pin number (either CH423S GP pin or direct GPIO pin)
+    Pump_State_t initial_state;       ///< Initial state of the pump (ON/OFF)
 } pump_config_item_t;
 
 /**

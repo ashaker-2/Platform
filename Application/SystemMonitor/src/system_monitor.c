@@ -19,31 +19,47 @@
 
 
 typedef struct {
+    uint32_t hyperperiod_ms;
+    uint32_t window_start_time;
+    uint32_t last_idle_run_time;
     uint32_t accumulated_cpu_load;
     uint32_t samples_count;
-    uint32_t window_start_time;
-    uint32_t hyperperiod_ms;
-    uint32_t last_idle_run_time;
-    bool hyperperiod_complete;
+
     uint8_t current_load_percent;
-} core_cpu_context_t;
+    bool hyperperiod_complete;
+
+    // Rolling history
+    uint8_t hyperperiod_load_history[N_HISTORY];
+    uint8_t history_index;
+    bool history_full;
+} core_context_t;
 
 typedef struct {
+    uint32_t hyperperiod_ms;
+    uint32_t window_start_time;
     uint32_t accumulated_system_load;
     uint32_t samples_count;
-    uint32_t window_start_time;
-    bool system_hyperperiod_complete;
+
     uint8_t system_load_percent;
-} system_cpu_context_t;
+    bool system_hyperperiod_complete;
+
+    // Rolling history
+    uint8_t hyperperiod_load_history[N_HISTORY];
+    uint8_t history_index;
+    bool history_full;
+} system_context_t;
 
 
 
 /* --- Internal Data Structures --- */
+static const char *TAG = "SystemMonitor";
 
 /* System health metrics */
 static uint8_t u8ClearAllFaultRequest = 0;
 static uint8_t s_current_cpu_load_percent = 0;
 static uint32_t s_total_min_free_stack_bytes = 0;
+static uint32_t s_min_task_free_stack_bytes = 0;
+
 static uint32_t s_active_task_count = 0;
 
 /* Module state */
@@ -51,13 +67,10 @@ static bool s_is_initialized = false;
 static SemaphoreHandle_t s_system_monitor_mutex = NULL;
 static QueueHandle_t s_sysmon_queue = NULL;
 
-static core_cpu_context_t s_core_contexts[configNUMBER_OF_CORES] = {
-    {.hyperperiod_ms = CORE0_HYPERPERIOD_MS},
-    {.hyperperiod_ms = CORE1_HYPERPERIOD_MS}
-};
-
-static system_cpu_context_t s_system_context = {0};
-
+static core_context_t s_core_contexts[configNUMBER_OF_CORES];
+static system_context_t s_system_context;
+static uint32_t last_measure_total_run_time = 0;
+static bool first_measurement = true;
 
 /* --- Private Function Prototypes --- */
 static SystemMonitor_FaultRecord_t *sysmon_find_fault_record(SystemMonitor_FaultId_t fault_id);
@@ -263,7 +276,7 @@ static void sysmon_monitor_system_health(void)
 /**
  * @brief Calculate GCD using Euclidean algorithm
  */
-static uint32_t gcd(uint32_t a, uint32_t b) 
+ static uint32_t gcd(uint32_t a, uint32_t b) 
 {
     while (b != 0) {
         uint32_t temp = b;
@@ -295,42 +308,36 @@ static uint32_t calculate_hyperperiod(const uint32_t periods[], size_t count)
     return result;
 }
 
+
 /**
  * @brief Initialize CPU load monitoring with actual task periods
  */
 static void sysmon_init_cpu_load_monitoring(void) 
 {
-/* Core 0 task periods */
- const uint32_t core0_periods[] = {20, 100, 150, 200};
- const size_t core0_period_count = sizeof(core0_periods) / sizeof(core0_periods[0]);
- 
-/* Core 1 task periods */
- const uint32_t core1_periods[] = {50};
- const size_t core1_period_count = sizeof(core1_periods) / sizeof(core1_periods[0]);
+    // Core 0 task periods
+    const uint32_t core0_periods[] = {20, 100, 150, 200};
+    // Core 1 task periods
+    const uint32_t core1_periods[] = {50};
+    // System periods
+    const uint32_t all_periods[] = {20, 50, 100, 150, 200};
 
-/* System hyperperiod is LCM of all periods */
-uint32_t all_periods[NUMBER_OF_ALL_PERIODS] = {20, 50, 100, 150, 200};
+    uint32_t hp_core0 = calculate_hyperperiod(core0_periods, sizeof(core0_periods)/sizeof(core0_periods[0]));
+    uint32_t hp_core1 = calculate_hyperperiod(core1_periods, sizeof(core1_periods)/sizeof(core1_periods[0]));
+    uint32_t hp_system = calculate_hyperperiod(all_periods, sizeof(all_periods)/sizeof(all_periods[0]));
 
-    /* Calculate actual hyperperiods */
-    uint32_t calculated_core0_hp = calculate_hyperperiod(core0_periods, core0_period_count);
-    uint32_t calculated_core1_hp = calculate_hyperperiod(core1_periods, core1_period_count);
-    uint32_t calculated_system_hp = calculate_hyperperiod(all_periods, 5);
-    
-    LOGI("SystemMonitor:", "Calculated hyperperiods - Core0: %lums, Core1: %lums, System: %lums",
-         calculated_core0_hp, calculated_core1_hp, calculated_system_hp);
-    
-    /* Update contexts with calculated values */
-    s_core_contexts[0].hyperperiod_ms = calculated_core0_hp;
-    s_core_contexts[1].hyperperiod_ms = calculated_core1_hp;
-    
-    /* Initialize timing */
-    uint32_t current_time = xTaskGetTickCount() * portTICK_PERIOD_MS;
-    for (int i = 0; i < configNUMBER_OF_CORES ; i++) {
-        s_core_contexts[i].window_start_time = current_time;
+    ESP_LOGI(TAG, "Hyperperiods -> Core0: %ums, Core1: %ums, System: %ums", hp_core0, hp_core1, hp_system);
+
+    uint32_t now = xTaskGetTickCount() * portTICK_PERIOD_MS;
+
+    memset(s_core_contexts, 0, sizeof(s_core_contexts));
+    for (int i = 0; i < configNUMBER_OF_CORES; i++) {
+        s_core_contexts[i].hyperperiod_ms = (i == 0) ? hp_core0 : hp_core1;
+        s_core_contexts[i].window_start_time = now;
     }
-    s_system_context.window_start_time = current_time;
-    
-    LOGI("SystemMonitor:", "CPU load monitoring initialized with hyperperiod awareness");
+
+    memset(&s_system_context, 0, sizeof(s_system_context));
+    s_system_context.hyperperiod_ms = hp_system;
+    s_system_context.window_start_time = now;
 }
 
 /**
@@ -338,151 +345,114 @@ uint32_t all_periods[NUMBER_OF_ALL_PERIODS] = {20, 50, 100, 150, 200};
  */
 static void sysmon_calculate_cpu_load(void)
 {
-    static TickType_t last_measure_total_run_time = 0;
-    static bool first_measurement = true;
-
     TaskStatus_t *task_status_array;
     UBaseType_t initial_task_count;
     uint32_t current_total_run_time;
     uint32_t current_time_ms = xTaskGetTickCount() * portTICK_PERIOD_MS;
-    /* Calculate per-core CPU loads */
-    uint32_t total_system_idle_delta = 0;
 
     initial_task_count = uxTaskGetNumberOfTasks();
-    s_active_task_count = initial_task_count;
-
     task_status_array = pvPortMalloc(initial_task_count * sizeof(TaskStatus_t));
-    if (task_status_array == NULL) 
-    {
-        LOGE("SystemMonitor:", " Failed to allocate memory for task status array.");
+    if (!task_status_array) {
+        ESP_LOGE(TAG, "Malloc failed in sysmon_calculate_cpu_load");
         return;
     }
 
-    UBaseType_t actual_task_count = uxTaskGetSystemState(task_status_array, 
-                                                         initial_task_count, 
-                                                         &current_total_run_time);
+    UBaseType_t actual_task_count = uxTaskGetSystemState(
+        task_status_array, initial_task_count, &current_total_run_time);
 
-    if (!first_measurement && last_measure_total_run_time != 0) 
-    {
-        uint32_t core_idle_times[2] = {0, 0};
+    if (!first_measurement && last_measure_total_run_time != 0) {
         uint32_t total_time_delta = current_total_run_time - last_measure_total_run_time;
-        
-        /* Collect idle times per core */
-        for (UBaseType_t i = 0; i < actual_task_count; i++) 
-        {
-            const char* task_name = task_status_array[i].pcTaskName;
-            
-            if (strcmp(task_name, "IDLE0") == 0) 
-            {
-                core_idle_times[0] = task_status_array[i].ulRunTimeCounter;
-            } 
-            else if (strcmp(task_name, "IDLE1") == 0) 
-            {
-                core_idle_times[1] = task_status_array[i].ulRunTimeCounter;
-            }
-            else if (strcmp(task_name, "IDLE") == 0) 
-            {
-                /* Single core or legacy naming */
-                core_idle_times[0] = task_status_array[i].ulRunTimeCounter;
+        uint32_t core_idle_times[configNUMBER_OF_CORES] = {0};
+        uint32_t total_system_idle_delta = 0;
+
+        // Collect idle task counters
+        for (UBaseType_t i = 0; i < actual_task_count; i++) {
+            if (strncmp(task_status_array[i].pcTaskName, "IDLE", 4) == 0) {
+                uint32_t core = task_status_array[i].xCoreID;
+                if (core < configNUMBER_OF_CORES) {
+                    core_idle_times[core] = task_status_array[i].ulRunTimeCounter;
+                }
             }
         }
-        
-        for (int core = 0; core < 2; core++) {
+
+        // Per-core calculation
+        for (int core = 0; core < configNUMBER_OF_CORES; core++) {
+            uint32_t core_idle_delta = core_idle_times[core] - s_core_contexts[core].last_idle_run_time;
+            total_system_idle_delta += core_idle_delta;
+
             if (total_time_delta > 0) {
-                uint32_t core_idle_delta = core_idle_times[core] - s_core_contexts[core].last_idle_run_time;
-                total_system_idle_delta += core_idle_delta;
-                
-                /* Per-core CPU usage calculation */
-                if (core_idle_delta <= total_time_delta) {
-                    uint32_t core_work_time = total_time_delta - core_idle_delta;
-                    uint32_t core_cpu_usage = (core_work_time * 100) / total_time_delta;
-                    
-                    /* Accumulate for hyperperiod averaging */
-                    s_core_contexts[core].accumulated_cpu_load += core_cpu_usage;
-                    s_core_contexts[core].samples_count++;
-                } else {
-                    /* Handle overflow case */
-                    s_core_contexts[core].accumulated_cpu_load += 0;
-                    s_core_contexts[core].samples_count++;
-                }
-                
-                s_core_contexts[core].last_idle_run_time = core_idle_times[core];
+                uint32_t core_work_time = (core_idle_delta <= total_time_delta) ?
+                                          (total_time_delta - core_idle_delta) : 0;
+                uint32_t core_cpu_usage = (core_work_time * 100) / total_time_delta;
+
+                s_core_contexts[core].accumulated_cpu_load += core_cpu_usage;
+                s_core_contexts[core].samples_count++;
             }
-            
-            /* Check if core hyperperiod is complete */
+
+            s_core_contexts[core].last_idle_run_time = core_idle_times[core];
+
+            // Hyperperiod check
             uint32_t core_window_duration = current_time_ms - s_core_contexts[core].window_start_time;
-            
-            if (core_window_duration >= s_core_contexts[core].hyperperiod_ms && 
+            if (core_window_duration >= s_core_contexts[core].hyperperiod_ms &&
                 s_core_contexts[core].samples_count >= MIN_SAMPLES_PER_CORE) {
-                
-                /* Calculate average CPU load for this core over hyperperiod */
-                uint32_t avg_core_load = s_core_contexts[core].accumulated_cpu_load / 
-                                       s_core_contexts[core].samples_count;
-                
-                s_core_contexts[core].current_load_percent = (avg_core_load > 100) ? 100 : (uint8_t)avg_core_load;
+
+                uint32_t avg_core_load = s_core_contexts[core].accumulated_cpu_load /
+                                         s_core_contexts[core].samples_count;
+                s_core_contexts[core].current_load_percent = (avg_core_load > 100) ? 100 : avg_core_load;
                 s_core_contexts[core].hyperperiod_complete = true;
-                
-                // LOGI("SystemMonitor:", "Core %d hyperperiod complete: %lu samples, avg load: %u%%, window: %lums",
-                //      core, s_core_contexts[core].samples_count, avg_core_load, core_window_duration);
-                
-                /* Reset for next hyperperiod */
+
+                // Store in rolling history
+                s_core_contexts[core].hyperperiod_load_history[s_core_contexts[core].history_index] =
+                        s_core_contexts[core].current_load_percent;
+                s_core_contexts[core].history_index = (s_core_contexts[core].history_index + 1) % N_HISTORY;
+                if (s_core_contexts[core].history_index == 0) s_core_contexts[core].history_full = true;
+
+                // Reset
                 s_core_contexts[core].accumulated_cpu_load = 0;
                 s_core_contexts[core].samples_count = 0;
                 s_core_contexts[core].window_start_time = current_time_ms;
             }
         }
-        
-        /* Calculate overall system CPU load */
-        if (total_time_delta > 0) 
-        {
-            const uint32_t num_cores = configNUMBER_OF_CORES ? 1 : 2;
-            uint32_t total_possible_work_time = total_time_delta * num_cores;
-            
-            if (total_system_idle_delta > total_possible_work_time) {
-                total_system_idle_delta = total_possible_work_time;
-            }
-            
-            uint32_t system_work_time = total_possible_work_time - total_system_idle_delta;
-            uint32_t system_cpu_usage = (system_work_time * 100) / total_possible_work_time;
-            
-            s_system_context.accumulated_system_load += system_cpu_usage;
-            s_system_context.samples_count++;
-        }
-        
-        /* Check if system hyperperiod is complete */
+
+        // System-wide calculation
+        uint32_t total_possible_work_time = total_time_delta * configNUMBER_OF_CORES;
+        if (total_system_idle_delta > total_possible_work_time)
+            total_system_idle_delta = total_possible_work_time;
+
+        uint32_t system_work_time = total_possible_work_time - total_system_idle_delta;
+        uint32_t system_cpu_usage = (system_work_time * 100) / total_possible_work_time;
+
+        s_system_context.accumulated_system_load += system_cpu_usage;
+        s_system_context.samples_count++;
+
         uint32_t system_window_duration = current_time_ms - s_system_context.window_start_time;
-        
-        if (system_window_duration >= SYSTEM_HYPERPERIOD_MS && 
+        if (system_window_duration >= s_system_context.hyperperiod_ms &&
             s_system_context.samples_count >= MIN_SAMPLES_PER_CORE) {
-            
-            uint32_t avg_system_load = s_system_context.accumulated_system_load / 
-                                     s_system_context.samples_count;
-            
-            s_system_context.system_load_percent = (avg_system_load > 100) ? 100 : (uint8_t)avg_system_load;
+
+            uint32_t avg_system_load = s_system_context.accumulated_system_load /
+                                       s_system_context.samples_count;
+            s_system_context.system_load_percent = (avg_system_load > 100) ? 100 : avg_system_load;
             s_system_context.system_hyperperiod_complete = true;
-            
-            /* Also update global for compatibility */
-            s_current_cpu_load_percent = s_system_context.system_load_percent;
-            
-            // LOGI("SystemMonitor:", "System hyperperiod complete: %lu samples, avg load: %u%%, window: %lums",
-            //      s_system_context.samples_count, avg_system_load, system_window_duration);
-            
-            /* Reset for next system hyperperiod */
+
+            // Store in rolling history
+            s_system_context.hyperperiod_load_history[s_system_context.history_index] =
+                    s_system_context.system_load_percent;
+            s_system_context.history_index = (s_system_context.history_index + 1) % N_HISTORY;
+            if (s_system_context.history_index == 0) s_system_context.history_full = true;
+
+            // Reset
             s_system_context.accumulated_system_load = 0;
             s_system_context.samples_count = 0;
             s_system_context.window_start_time = current_time_ms;
         }
     } else {
-        /* First measurement - initialize baseline values */
+        // First measurement baseline
         for (UBaseType_t i = 0; i < actual_task_count; i++) {
-            const char* task_name = task_status_array[i].pcTaskName;
-            
-            if (strcmp(task_name, "IDLE0") == 0) {
-                s_core_contexts[0].last_idle_run_time = task_status_array[i].ulRunTimeCounter;
-            } else if (strcmp(task_name, "IDLE1") == 0) {
-                s_core_contexts[1].last_idle_run_time = task_status_array[i].ulRunTimeCounter;
-            } else if (strcmp(task_name, "IDLE") == 0) {
-                s_core_contexts[0].last_idle_run_time = task_status_array[i].ulRunTimeCounter;
+            if (strncmp(task_status_array[i].pcTaskName, "IDLE", 4) == 0) {
+                uint32_t core = task_status_array[i].xCoreID;
+                if (core < configNUMBER_OF_CORES) {
+                    s_core_contexts[core].last_idle_run_time = task_status_array[i].ulRunTimeCounter;
+                }
             }
         }
         first_measurement = false;
@@ -518,18 +488,55 @@ uint8_t sysmon_get_system_cpu_load(bool *is_hyperperiod_complete)
     return s_system_context.system_load_percent;
 }
 
+uint8_t sysmon_get_core_cpu_load_avg(uint8_t core_id) 
+{
+    if (core_id >= configNUMBER_OF_CORES)
+    { 
+        return 0;
+    }
+    core_context_t *ctx = &s_core_contexts[core_id];
+    uint8_t count = ctx->history_full ? N_HISTORY : ctx->history_index;
+    if (count == 0)
+    {
+        return 0;
+    }
+    uint32_t sum = 0;
+    for (uint8_t i = 0; i < count; i++)
+    {
+        sum += ctx->hyperperiod_load_history[i];
+    }
+    return sum / count;
+}
+
+
+uint8_t sysmon_get_system_cpu_load_avg(void) 
+{
+    uint8_t count = s_system_context.history_full ? N_HISTORY : s_system_context.history_index;
+    if (count == 0) 
+    {
+        return 0;
+    }
+    uint32_t sum = 0;
+    for (uint8_t i = 0; i < count; i++) 
+    {
+        sum += s_system_context.hyperperiod_load_history[i];
+    }
+    return sum / count;
+}
+
+
 /**
  * @brief Print comprehensive CPU load report
  */
 void sysmon_print_cpu_load_report(void) 
 {
-    bool core0_valid, core1_valid, system_valid;
+
     
-    uint8_t core0_load = sysmon_get_core_cpu_load(0, &core0_valid);
-    uint8_t core1_load = sysmon_get_core_cpu_load(1, &core1_valid);
-    uint8_t system_load = sysmon_get_system_cpu_load(&system_valid);
+    uint8_t core0_load = sysmon_get_core_cpu_load_avg(0);
+    uint8_t core1_load = sysmon_get_core_cpu_load_avg(1);
+    uint8_t system_load = sysmon_get_system_cpu_load_avg();
     
-    if(system_load >= SYSMON_CPU_LOAD_THRESHOLD_PERCENT && system_load == 1)
+    if(system_load >= SYSMON_CPU_LOAD_THRESHOLD_PERCENT)
     {
         SysMon_ReportFaultStatus(FAULT_ID_OVERALL_CPU_LOAD, true);
     }
@@ -538,7 +545,7 @@ void sysmon_print_cpu_load_report(void)
         SysMon_ReportFaultStatus(FAULT_ID_OVERALL_CPU_LOAD, false);
     }
     
-    if(core0_load >= SYSMON_CPU_LOAD_THRESHOLD_PERCENT && core0_valid == 1)
+    if(core0_load >= SYSMON_CPU_LOAD_THRESHOLD_PERCENT)
     {
         SysMon_ReportFaultStatus(FAULT_ID_CORE_0_CPU_LOAD, true);
     }
@@ -547,7 +554,7 @@ void sysmon_print_cpu_load_report(void)
         SysMon_ReportFaultStatus(FAULT_ID_CORE_0_CPU_LOAD, false);
     }
 
-    if(core1_load >= SYSMON_CPU_LOAD_THRESHOLD_PERCENT && core1_valid == 1)
+    if(core1_load >= SYSMON_CPU_LOAD_THRESHOLD_PERCENT)
     {
         SysMon_ReportFaultStatus(FAULT_ID_CORE_1_CPU_LOAD, true);
     }
@@ -558,22 +565,19 @@ void sysmon_print_cpu_load_report(void)
     
 
     LOGI("SystemMonitor:", "=== CPU Load Report ===");
-    LOGI("SystemMonitor:", "Core 0: %u%% %s(HP: %lums)", 
-         core0_load, core0_valid ? "[VALID] " : "[PENDING] ", CORE0_HYPERPERIOD_MS);
-    LOGI("SystemMonitor:", "Core 1: %u%% %s(HP: %lums)", 
-         core1_load, core1_valid ? "[VALID] " : "[PENDING] ", CORE1_HYPERPERIOD_MS);
-    LOGI("SystemMonitor:", "System: %u%% %s(HP: %lums)", 
-         system_load, system_valid ? "[VALID] " : "[PENDING] ", SYSTEM_HYPERPERIOD_MS);
+    LOGI("SystemMonitor:", "Core 0: %u%%" ,core0_load);
+    LOGI("SystemMonitor:", "Core 1: %u%%" ,core1_load);
+    LOGI("SystemMonitor:", "System: %u%% ",system_load);
     LOGI("SystemMonitor:", "======================");
 }
 
-
 /**
- * @brief Print comprehensive CPU load report
+ * @brief Print comprehensive Stack usage report
  */
 static void sysmon_print_stack_report(void) 
 {
-    if(s_total_min_free_stack_bytes <= SYSMON_MIN_FREE_STACK_THRESHOLD_BYTES)
+    // Check system-wide threshold
+    if (s_total_min_free_stack_bytes <= SYSMON_MIN_FREE_STACK_THRESHOLD_BYTES)
     {
         SysMon_ReportFaultStatus(FAULT_ID_STACK_OVERFLOW, true);
     }
@@ -582,7 +586,8 @@ static void sysmon_print_stack_report(void)
         SysMon_ReportFaultStatus(FAULT_ID_STACK_OVERFLOW, false);
     }
 
-    if(s_total_min_free_stack_bytes <= 256)
+    // Check per-task minimum free stack
+    if (s_min_task_free_stack_bytes <= 256)   // <-- critical low margin
     {
         SysMon_ReportFaultStatus(FAULT_ID_STACK_UNDERFLOW, true);
     }
@@ -592,27 +597,10 @@ static void sysmon_print_stack_report(void)
     }
 
     LOGI("SystemMonitor:", "=== Stack Report ===");
-    LOGI("SystemMonitor:", "Current free Stack : %d bytes", s_total_min_free_stack_bytes);
+    LOGI("SystemMonitor:", "System total min free stack : %u bytes", s_total_min_free_stack_bytes);
+    LOGI("SystemMonitor:", "Lowest per-task min free stack : %u bytes", s_min_task_free_stack_bytes);
     LOGI("SystemMonitor:", "======================");
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /**
  * @brief Calculates the total minimum free stack space across all tasks.
@@ -626,32 +614,41 @@ static void sysmon_calculate_stack_usage(void)
 {
     TaskStatus_t *task_status_array;
     UBaseType_t initial_task_count;
-    uint32_t total_run_time_dummy; // Not used, but required by uxTaskGetSystemState
+    uint32_t total_run_time_dummy;
     uint32_t current_total_min_free_stack = 0;
+    uint32_t min_task_free_stack = UINT32_MAX;
 
-    /* Get the current number of tasks for memory allocation. */
     initial_task_count = uxTaskGetNumberOfTasks();
-
-    /* Allocate memory for task status array. */
     task_status_array = pvPortMalloc(initial_task_count * sizeof(TaskStatus_t));
     if (task_status_array == NULL)
     {
-        LOGE("SystemMonitor:"," Failed to allocate memory for task status array (stack usage calculation).");
+        LOGE("SystemMonitor:", "Failed to allocate memory for task status array (stack usage).");
         return;
     }
 
-    /* Get current system state, including stack high water marks. */
-    UBaseType_t actual_task_count = uxTaskGetSystemState(task_status_array, initial_task_count, &total_run_time_dummy);
+    UBaseType_t actual_task_count = uxTaskGetSystemState(task_status_array,
+                                                         initial_task_count,
+                                                         &total_run_time_dummy);
 
-    /* Sum the minimum free stack (high water mark) for all tasks.
-     * `usStackHighWaterMark` is in words, convert to bytes using `sizeof(StackType_t)`. */
     for (UBaseType_t i = 0; i < actual_task_count; i++)
     {
-        current_total_min_free_stack += task_status_array[i].usStackHighWaterMark * sizeof(StackType_t);
+        uint32_t free_stack_bytes = task_status_array[i].usStackHighWaterMark * sizeof(StackType_t);
+        current_total_min_free_stack += free_stack_bytes;
+
+        if (free_stack_bytes < min_task_free_stack)
+        {
+            min_task_free_stack = free_stack_bytes;
+        }
+
+        // Optional: log per-task stack usage for debugging
+        // LOGI("SystemMonitor:", "Task %s min free stack: %u bytes",
+        //      task_status_array[i].pcTaskName, free_stack_bytes);
     }
 
-    s_total_min_free_stack_bytes = current_total_min_free_stack; // Update static variable
-    vPortFree(task_status_array);                                // Free allocated memory
+    s_total_min_free_stack_bytes = current_total_min_free_stack;
+    s_min_task_free_stack_bytes = min_task_free_stack;  // <-- new metric
+
+    vPortFree(task_status_array);
 }
 
 /**

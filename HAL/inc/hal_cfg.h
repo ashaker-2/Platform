@@ -67,19 +67,19 @@
 #define HW_CH423S_I2C_ADDR (0x40) // Default I2C address for CH423S. Verify datasheet.
 
 // CH423S GPIO Pin Mappings (0-15) - used for relay control and LEDs
-#define HW_CH423S_GP_FAN_1 (0)
-#define HW_CH423S_GP_FAN_2 (1)
-#define HW_CH423S_GP_FAN_3 (2)
-#define HW_CH423S_GP_FAN_4 (3)
+#define HW_CH423S_GP_FAN_0 (0)
+#define HW_CH423S_GP_FAN_1 (1)
+#define HW_CH423S_GP_FAN_2 (2)
+#define HW_CH423S_GP_FAN_3 (3)
 
-#define HW_CH423S_GP_VEN_1 (4)
-#define HW_CH423S_GP_VEN_2 (5)
-#define HW_CH423S_GP_VEN_3 (6)
-#define HW_CH423S_GP_VEN_4 (7)
+#define HW_CH423S_GP_VEN_0 (4)
+#define HW_CH423S_GP_VEN_1 (5)
+#define HW_CH423S_GP_VEN_2 (6)
+#define HW_CH423S_GP_VEN_3 (7)
 
 #define HW_CH423S_GP_LIGHT (8)
-#define HW_CH423S_GP_HEATER_1 (9)
-#define HW_CH423S_GP_PUMP_1 (10)
+#define HW_CH423S_GP_HEATER_0 (9)
+#define HW_CH423S_GP_PUMP_0 (10)
 
 #define HW_CH423S_GP_FAN_LED (11)
 #define HW_CH423S_GP_VEN_LED (12)

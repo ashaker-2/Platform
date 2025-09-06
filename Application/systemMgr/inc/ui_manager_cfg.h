@@ -1,38 +1,41 @@
 /**
  * @file ui_manager_cfg.h
- * @brief Configuration constants for the UI Manager
- * @version 2.2
- * @date 2025
+ * @brief Configuration for the UI Manager
  *
- * Centralized UI configuration (timings, sizes) moved out of ui_manager.c.
- * This file intentionally defines the exact macros used by ui_manager.c so
- * the implementation file needs only to include this header.
+ * Defines screen size, timings, buffer sizes, and UI behavior constants.
  */
 
 #ifndef UI_MANAGER_CFG_H
 #define UI_MANAGER_CFG_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
-/** Screen rotation period in milliseconds */
-#define UI_SCREEN_ROTATE_MS     3000   /**< Time to rotate main screens (ms) */
+/* LCD size */
+#define UI_LCD_ROWS              2
+#define UI_LCD_COLS              16
 
-/** Menu timeout in milliseconds (auto-exit) */
-#define UI_MENU_TIMEOUT_MS      60000  /**< Inactivity timeout for menu (ms) */
+/* Periods & timeouts */
+#define UI_MGR_MAIN_PERIOD_MS    100   /* call period */
+#define UI_SCREEN_ROTATE_MS      5000  /* auto-rotate dashboard screen */
+#define UI_MENU_TIMEOUT_MS       15000 /* auto-exit menu if idle */
 
-/** Maximum characters for numeric input buffer in ui_manager.c */
-#define UI_MAX_INPUT_LEN        8      /**< Max characters for numeric input */
+/* Input buffer size for numeric entry */
+#define UI_MAX_INPUT_LEN         4
 
-/** Main function execution period in milliseconds (used by ui_manager.c) */
-#define UI_MGR_MAIN_PERIOD_MS   100
+/* Temperature & humidity limits (user editable ranges) */
+#define UI_TEMP_MIN_LIMIT_C      20.0f
+#define UI_TEMP_MAX_LIMIT_C      60.0f
+#define UI_HUM_MIN_LIMIT_P       20.0f
+#define UI_HUM_MAX_LIMIT_P       60.0f
 
-/** LCD display dimensions (used in UI header types) */
-#define UI_LCD_ROWS             2
-#define UI_LCD_COLS             16
+/* Actuator cycle constraints */
+#define UI_ACT_ON_MAX_SEC        999
+#define UI_ACT_ON_MAX_MIN        720
+#define UI_ACT_ON_MAX_HR         12
 
-void ui_display_message(const char *line1, const char *line2);
-void ui_display_numeric_input(const char *label, const char *input);
-void ui_display_clear();
-uint32_t UI_MGR_GetTick(void);
+/* Light schedule constraints */
+#define UI_LIGHT_HOUR_MAX        23
+#define UI_LIGHT_MINUTE_MAX      59
 
 #endif /* UI_MANAGER_CFG_H */
