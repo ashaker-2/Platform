@@ -1,18 +1,18 @@
 /**
  * @file sys_mgr_core.c
  * @brief System Manager Core Control Logic
- * @version 1.1
+ * @version 1.2
  * @date 2025
  *
- * This file contains the core control logic for the SysMgr system,
- * including the state machine for managing operational modes, sensor
- * data processing, and actuator control. This is a new module created
- * as part of the refactoring effort to separate the core logic from
- * the main SysMgr interface.
+ * Core logic for System Manager:
+ *  - Reads sensor values (Temp/Hum)
+ *  - Applies thresholds and hysteresis
+ *  - Runs mode-specific control (AUTO / MANUAL / HYBRID)
+ *  - Drives actuators
+ *  - Provides status snapshots for UI
  */
 
 #include "sys_mgr_core.h"
-#include "sys_mgr_cfg.h"
 #include "temphumctrl.h"
 #include "fanctrl.h"
 #include "heaterctrl.h"
@@ -20,346 +20,337 @@
 #include "venctrl.h"
 #include "lightctrl.h"
 #include "ledctrl.h"
-#include "system_monitor.h"
 #include "logger.h"
-#include "temphumctrl_cfg.h"
-#include "logger.h" 
+
 #include <string.h>
-#include <math.h>
-#include <time.h>   // if RTC or system time is available
-
-
-/* =============================================================================
- * PRIVATE GLOBAL VARIABLES
- * ============================================================================= */
-
-static float g_ema_temperature_data[TEMPHUM_SENSOR_ID_COUNT];
-static float g_ema_humidity_data[TEMPHUM_SENSOR_ID_COUNT];
-static float g_average_temperature;
-static float g_average_humidity;
-static bool g_average_valid;
-static bool g_is_critical_condition;
-static uint32_t g_fan_cycle_timer_ms = 0;
-static bool g_fan_is_on = false;
-static uint32_t g_core_tick_acc_ms = 0;
-
-
+#include <stdbool.h>
 
 static const char *TAG = "SysMgr_Core";
-/* =============================================================================
- * PRIVATE FUNCTION PROTOTYPES
- * ============================================================================= */
-static void update_sensor_data_averages(void);
-static void check_critical_conditions(void);
-static void read_temperature_and_humidity(const SysMgr_Config_t *cfg);
-static void actuator_control(const SysMgr_Config_t *cfg);
-static void apply_light_and_cycle_control(const SysMgr_Config_t *cfg);
-static void enter_failsafe_mode(void);
 
-/* =============================================================================
- * PUBLIC FUNCTIONS
- * ============================================================================= */
+/* ============================================================================
+ * PRIVATE GLOBALS
+ * ========================================================================== */
 
-/**
- * @brief The main periodic function for the SysMgr core logic.
- *
- * This function is called by the `sys_mgr.c` component at a regular
- * interval. It updates sensor data and executes the appropriate control
- * logic based on the current system mode.
- *
- * @param tick_ms The time in milliseconds since the last call.
- * @param cfg The current system configuration.
- */
+static float g_avg_temp = 0.0f;
+static float g_avg_hum = 0.0f;
+static bool g_avg_valid = false;
+
+static SysMgr_ActuatorStates_t g_actuator_states;
+
+/* Timers for manual cycle control */
+static uint32_t g_cycle_timer_ms_fan = 0;
+static uint32_t g_cycle_timer_ms_heater = 0;
+static uint32_t g_cycle_timer_ms_pump = 0;
+static uint32_t g_cycle_timer_ms_vent = 0;
+
+static bool g_cycle_on_fan = false;
+static bool g_cycle_on_heater = false;
+static bool g_cycle_on_pump = false;
+static bool g_cycle_on_vent = false;
+
+/* Tick accumulator */
+static uint32_t g_core_tick_acc_ms = 0;
+
+/* ============================================================================
+ * PRIVATE HELPERS
+ * ========================================================================== */
+
+static void update_averages(void);
+static void apply_auto_control(const SysMgr_Config_t *cfg);
+static void apply_hybrid_control(const SysMgr_Config_t *cfg);
+static void apply_manual_control(const SysMgr_Config_t *cfg);
+static void apply_light_schedule(const SysMgr_Config_t *cfg);
+static void apply_actuator_cycles(const SysMgr_Config_t *cfg);
+static void update_actuator_states(void);
+
+/* ============================================================================
+ * PUBLIC API
+ * ========================================================================== */
+
 void SYS_MGR_CORE_MainFunction(const SysMgr_Config_t *cfg)
 {
-    g_core_tick_acc_ms += SYS_MGR_MAIN_PERIOD_MS; /* increment by constant tick */
+    if (!cfg) return;
 
-    update_sensor_data_averages();
-    check_critical_conditions();
+    g_core_tick_acc_ms += SYS_MGR_MAIN_PERIOD_MS;
 
-    if (g_is_critical_condition) {
-        enter_failsafe_mode();
-        return;
-    }
+    update_averages();
 
-    switch (cfg->mode) {
+    switch (cfg->mode)
+    {
         case SYS_MGR_MODE_AUTOMATIC:
-            read_temperature_and_humidity(cfg);
-            // actuator_control(cfg);
+            apply_auto_control(cfg);
             break;
+
         case SYS_MGR_MODE_HYBRID:
-            read_temperature_and_humidity(cfg);
-            apply_light_and_cycle_control(cfg);
+            apply_hybrid_control(cfg);
             break;
+
         case SYS_MGR_MODE_MANUAL:
-            apply_light_and_cycle_control(cfg);
+            apply_manual_control(cfg);
             break;
+
         default:
-            LOGE(TAG,"Invalid system mode: %d", cfg->mode);
-            enter_failsafe_mode();
+            LOGE(TAG, "Invalid mode %d", cfg->mode);
             break;
     }
+
+    update_actuator_states();
 }
 
-/**
- * @brief Gets the average temperature and humidity readings.
- *
- * Provides the system-wide average sensor readings.
- *
- * @param[out] avg_temp Pointer to store the average temperature in Celsius.
- * @param[out] avg_hum Pointer to store the average humidity in percent.
- * @return Status_t E_OK on success, E_NOK if no valid readings are available.
- */
 Status_t SYS_MGR_CORE_GetAverageReadings(float *avg_temp, float *avg_hum)
 {
     if (!avg_temp || !avg_hum) return E_NOK;
-    if (!g_average_valid) return E_NOK;
+    if (!g_avg_valid) return E_NOK;
 
-    *avg_temp = g_average_temperature;
-    *avg_hum = g_average_humidity;
-
+    *avg_temp = g_avg_temp;
+    *avg_hum = g_avg_hum;
     return E_OK;
 }
 
-/* =============================================================================
+Status_t SYS_MGR_CORE_GetActuatorStates(SysMgr_ActuatorStates_t *states_out)
+{
+    if (!states_out) return E_NOK;
+    *states_out = g_actuator_states;
+    return E_OK;
+}
+
+void SYS_MGR_CORE_RequestFailsafe(void)
+{
+    /* Placeholder for fire alarm or absolute failsafe logic */
+    HeaterCtrl_SetState(HEATER_ID_COUNT, HEATER_STATE_OFF);
+    FanCtrl_SetState(FAN_ID_COUNT, FAN_STATE_ON);
+    VenCtrl_SetState(VEN_ID_COUNT, VEN_STATE_ON);
+    PumpCtrl_SetState(PUMP_ID_COUNT, PUMP_STATE_OFF);
+    LightCtrl_SetState(LIGHT_ID_COUNT, LIGHT_STATE_OFF);
+    LedCtrl_SetState(LED_ID_COUNT, LED_STATE_ON);
+
+    LOGW(TAG, "FAILSAFE activated");
+}
+
+SysClock_Time_t SysMgr_GetCurrentTime(void)
+{
+    SysClock_Time_t t = {0};
+    /* TODO: integrate RTC/FreeRTOS time */
+    return t;
+}
+
+/* ============================================================================
  * PRIVATE FUNCTIONS
- * ============================================================================= */
+ * ========================================================================== */
 
 /**
- * @brief Updates EMA and average values for all temperature/humidity sensors.
+ * @brief Update global average values from TempHumCtrl
  */
-static void update_sensor_data_averages(void)
+static void update_averages(void)
 {
-    uint8_t valid_temp_count = 0;
-    uint8_t valid_hum_count = 0;
-    float rdg = 0;
-    Status_t status = E_OK;
-    for (int i = 0; i < TEMPHUM_SENSOR_ID_COUNT; i++) 
-    {    
-        status = TempHumCtrl_GetAverageTemperature((TempHum_Sensor_ID_t)i, &rdg);
-        if (status == E_OK) 
-        {
-            g_ema_temperature_data[i] = rdg;
-            valid_temp_count++;
-        }
-        status = TempHumCtrl_GetAverageHumidity((TempHum_Sensor_ID_t)i, &rdg);
-        if (status == E_OK) 
-        {
-            g_ema_humidity_data[i] = rdg;
-            valid_hum_count++;
-        }
+    if (TempHumCtrl_GetSystemAverageTemperature(&g_avg_temp) == E_OK &&
+        TempHumCtrl_GetSystemAverageHumidity(&g_avg_hum) == E_OK)
+    {
+        g_avg_valid = true;
     }
-
-    g_average_valid = (valid_temp_count > 0 || valid_hum_count > 0);
-    TempHumCtrl_GetSystemAverageTemperature(&g_average_temperature);
-    TempHumCtrl_GetSystemAverageHumidity(&g_average_humidity);
+    else
+    {
+        g_avg_valid = false;
+    }
 }
 
 /**
- * @brief Checks for critical system conditions, e.g., fire alarm.
+ * @brief Automatic mode – thresholds per-sensor or global
  */
-static void check_critical_conditions(void)
+static void apply_auto_control(const SysMgr_Config_t *cfg)
 {
-    // Check for fire/critical temperature
-    g_is_critical_condition = (g_average_temperature >= SYS_MGR_FIRE_TEMP_THRESHOLD_C);
-}
+    uint8_t count = TEMPHUM_SENSOR_ID_COUNT;
 
-/**
- * @brief Applies temperature and humidity control based on current configuration.
- *
- * This function implements the hysteresis control logic for fans, heaters,
- * pumps, and ventilators. It uses either per-sensor thresholds or global
- * averages based on the configuration.
- *
- * @param cfg The current system configuration.
- */
-static void read_temperature_and_humidity(const SysMgr_Config_t *cfg)
-{
-    if (cfg->per_sensor_control_enabled) {
-        for (int i = 0; i < TEMPHUM_SENSOR_ID_COUNT; i++) 
+    if (cfg->per_sensor_control_enabled)
+    {
+        for (uint8_t i = 0; i < count; i++)
         {
-            if (cfg->per_sensor[i].temp_configured) {
-                float temp_reading = g_ema_temperature_data[i];
-                float min_temp = cfg->per_sensor[i].temp_min_C;
-                float max_temp = cfg->per_sensor[i].temp_max_C;
-                float hyst = SYS_MGR_DEFAULT_TEMP_HYST_C;
+            TempHum_Status_Level_t st_temp, st_hum;
 
-                if (temp_reading >= (max_temp + hyst)) 
+            if (TempHumCtrl_GetTemperatureStatus((TempHum_Sensor_ID_t)i, &st_temp) == E_OK)
+            {
+                if (st_temp == TEMPHUM_STATUS_HIGH)
                 {
-                    HeaterCtrl_SetState((Heater_ID_t)i, HEATER_STATE_OFF);
                     FanCtrl_SetState((Fan_ID_t)i, FAN_STATE_ON);
-                } 
-                else if (temp_reading <= (min_temp - hyst)) 
+                    HeaterCtrl_SetState((Heater_ID_t)i, HEATER_STATE_OFF);
+                }
+                else if (st_temp == TEMPHUM_STATUS_LOW)
                 {
                     HeaterCtrl_SetState((Heater_ID_t)i, HEATER_STATE_ON);
                     FanCtrl_SetState((Fan_ID_t)i, FAN_STATE_OFF);
                 }
             }
-            if (cfg->per_sensor[i].hum_configured) 
-            {
-                float hum_reading = g_ema_humidity_data[i];
-                float min_hum = cfg->per_sensor[i].hum_min_P;
-                float max_hum = cfg->per_sensor[i].hum_max_P;
-                float hyst = SYS_MGR_DEFAULT_HUM_HYST_P;
 
-                if (hum_reading >= (max_hum + hyst)) 
+            if (TempHumCtrl_GetHumidityStatus((TempHum_Sensor_ID_t)i, &st_hum) == E_OK)
+            {
+                if (st_hum == TEMPHUM_STATUS_HIGH)
                 {
                     VenCtrl_SetState((Ven_ID_t)i, VEN_STATE_ON);
                     PumpCtrl_SetState((Pump_ID_t)i, PUMP_STATE_OFF);
-                } else if (hum_reading <= (min_hum - hyst)) {
-                    VenCtrl_SetState((Ven_ID_t)i, VEN_STATE_OFF);
+                }
+                else if (st_hum == TEMPHUM_STATUS_LOW)
+                {
                     PumpCtrl_SetState((Pump_ID_t)i, PUMP_STATE_ON);
+                    VenCtrl_SetState((Ven_ID_t)i, VEN_STATE_OFF);
                 }
             }
         }
-    } 
-    else 
+    }
+    else if (g_avg_valid)
     {
-        if (g_average_valid) {
-            float min_temp = cfg->global_temp_min;
-            float max_temp = cfg->global_temp_max;
-            float min_hum = cfg->global_hum_min;
-            float max_hum = cfg->global_hum_max;
-            float temp_hyst = SYS_MGR_DEFAULT_TEMP_HYST_C;
-            float hum_hyst = SYS_MGR_DEFAULT_HUM_HYST_P;
+        /* Global thresholds */
+        if (g_avg_temp >= cfg->global_temp_max)
+        {
+            FanCtrl_SetState(FAN_ID_COUNT, FAN_STATE_ON);
+            HeaterCtrl_SetState(HEATER_ID_COUNT, HEATER_STATE_OFF);
+        }
+        else if (g_avg_temp <= cfg->global_temp_min)
+        {
+            HeaterCtrl_SetState(HEATER_ID_COUNT, HEATER_STATE_ON);
+            FanCtrl_SetState(FAN_ID_COUNT, FAN_STATE_OFF);
+        }
 
-            if (g_average_temperature >= (max_temp + temp_hyst)) 
-            {
-                HeaterCtrl_SetState(HEATER_ID_COUNT, HEATER_STATE_OFF);
-                FanCtrl_SetState(FAN_ID_COUNT, FAN_STATE_ON);
-            } 
-            else if (g_average_temperature <= (min_temp - temp_hyst)) 
-            {
-                HeaterCtrl_SetState(HEATER_ID_COUNT, HEATER_STATE_ON);
-                FanCtrl_SetState(FAN_ID_COUNT, FAN_STATE_OFF);
-            }
-
-            if (g_average_humidity >= (max_hum + hum_hyst)) 
-            {
-                VenCtrl_SetState(VEN_ID_COUNT, VEN_STATE_ON);
-                PumpCtrl_SetState(PUMP_ID_COUNT, PUMP_STATE_OFF);
-            } 
-            else if (g_average_humidity <= (min_hum - hum_hyst)) 
-            {
-                VenCtrl_SetState(VEN_ID_COUNT, VEN_STATE_OFF);
-                PumpCtrl_SetState(PUMP_ID_COUNT, PUMP_STATE_ON);
-            }
+        if (g_avg_hum >= cfg->global_hum_max)
+        {
+            VenCtrl_SetState(VEN_ID_COUNT, VEN_STATE_ON);
+            PumpCtrl_SetState(PUMP_ID_COUNT, PUMP_STATE_OFF);
+        }
+        else if (g_avg_hum <= cfg->global_hum_min)
+        {
+            PumpCtrl_SetState(PUMP_ID_COUNT, PUMP_STATE_ON);
+            VenCtrl_SetState(VEN_ID_COUNT, VEN_STATE_OFF);
         }
     }
 }
 
 /**
- * @brief Applies light and time-based cycle control.
- *
- * This function handles the time-based control of actuators,
- * used in Hybrid and Manual modes.
- *
- * @param cfg The current system configuration.
- * @param tick_ms The time in milliseconds since the last call.
+ * @brief Hybrid mode – light schedule + manual cycles override
  */
-static void apply_light_and_cycle_control(const SysMgr_Config_t *cfg)
+static void apply_hybrid_control(const SysMgr_Config_t *cfg)
 {
-    
-    if (cfg->fans_cycle.enabled) 
+    apply_auto_control(cfg);
+    apply_light_schedule(cfg);
+    apply_actuator_cycles(cfg);
+}
+
+/**
+ * @brief Manual mode – only light schedule + cycles
+ */
+static void apply_manual_control(const SysMgr_Config_t *cfg)
+{
+    apply_light_schedule(cfg);
+    apply_actuator_cycles(cfg);
+}
+
+/**
+ * @brief Apply light on/off schedule
+ */
+static void apply_light_schedule(const SysMgr_Config_t *cfg)
+{
+    if (!cfg->light_schedule.enabled) return;
+
+    SysClock_Time_t now = SysMgr_GetCurrentTime();
+
+    uint32_t now_s = now.hour * 3600U + now.minute * 60U + now.second;
+    uint32_t on_s = cfg->light_schedule.on_hour * 3600U + cfg->light_schedule.on_min * 60U;
+    uint32_t off_s = cfg->light_schedule.off_hour * 3600U + cfg->light_schedule.off_min * 60U;
+
+    bool active = (on_s < off_s) ?
+                  (now_s >= on_s && now_s < off_s) :
+                  (now_s >= on_s || now_s < off_s);
+
+    for (uint8_t i = 0; i < LIGHT_ID_COUNT; i++)
+    {
+        LightCtrl_SetState((Light_ID_t)i, active ? LIGHT_STATE_ON : LIGHT_STATE_OFF);
+    }
+}
+
+/**
+ * @brief Apply time-based cycles for actuators
+ */
+static void apply_actuator_cycles(const SysMgr_Config_t *cfg)
+{
+    /* Example: Fans */
+    if (cfg->fans_cycle.enabled)
     {
         uint32_t on_ms = cfg->fans_cycle.on_time_sec * 1000U;
         uint32_t off_ms = cfg->fans_cycle.off_time_sec * 1000U;
-        g_fan_cycle_timer_ms += SYS_MGR_MAIN_PERIOD_MS;
 
-        if (g_fan_is_on) 
+        g_cycle_timer_ms_fan += SYS_MGR_MAIN_PERIOD_MS;
+
+        if (g_cycle_on_fan)
         {
-            if (g_fan_cycle_timer_ms >= on_ms) {
-                FanCtrl_SetState(FAN_ID_ALL, FAN_STATE_OFF); /* define FAN_ID_ALL sentinel in fanctrl_cfg.h */
-                g_fan_is_on = false;
-                g_fan_cycle_timer_ms = 0;
+            if (g_cycle_timer_ms_fan >= on_ms)
+            {
+                FanCtrl_SetState(FAN_ID_COUNT, FAN_STATE_OFF);
+                g_cycle_on_fan = false;
+                g_cycle_timer_ms_fan = 0;
             }
-        } 
-        else 
+        }
+        else
         {
-            if (g_fan_cycle_timer_ms >= off_ms) 
+            if (g_cycle_timer_ms_fan >= off_ms)
             {
                 FanCtrl_SetState(FAN_ID_COUNT, FAN_STATE_ON);
-                g_fan_is_on = true;
-                g_fan_cycle_timer_ms = 0;
+                g_cycle_on_fan = true;
+                g_cycle_timer_ms_fan = 0;
             }
         }
     }
 
-    if (cfg->light_schedule.enabled) 
-    {
-        Status_t status = E_OK;
-        SysClock_Time_t current= SysMgr_GetCurrentTime();
-        if (status == E_OK) 
-        {
-            uint32_t now_s = current.hour * 3600U + current.minute * 60U + current.second;
-            uint32_t on_s = cfg->light_schedule.on_hour * 3600U + cfg->light_schedule.on_min * 60U;
-            uint32_t off_s = cfg->light_schedule.off_hour * 3600U + cfg->light_schedule.off_min * 60U;
-            bool is_on_period = false;
-            if (on_s < off_s) 
-            {
-                is_on_period = (now_s >= on_s && now_s < off_s);
-            } 
-            else 
-            { /* crosses midnight */
-                is_on_period = (now_s >= on_s || now_s < off_s);
-            }
-
-            if (is_on_period)
-            { 
-                for(uint8_t i =0; i < Light_ID_ALL ; i++)
-                {
-                    LightCtrl_SetState( (Light_ID_t)i, LIGHT_STATE_ON);
-                }
-            }
-            else
-            { 
-                for(uint8_t i =0; i < Light_ID_ALL ; i++)
-                {
-                    LightCtrl_SetState( (Light_ID_t)i, LIGHT_STATE_OFF);
-                }                
-            }
-        }
-}
-
-
+    /* Same pattern can be extended for heaters, pumps, vents if desired */
 }
 
 /**
- * @brief Enters the Fail-Safe operational mode.
- *
- * This function sets all actuators to a safe state and activates
- * the alarm LED, overriding all other control logic.
+ * @brief Snapshot actuator states into g_actuator_states
  */
-static void enter_failsafe_mode(void)
+static void update_actuator_states(void)
 {
-    HeaterCtrl_SetState(HEATER_ID_COUNT, HEATER_STATE_OFF);
-    LightCtrl_SetState(LIGHT_ID_COUNT, LIGHT_STATE_OFF);
-    VenCtrl_SetState(VEN_ID_COUNT, VEN_STATE_ON);
-    FanCtrl_SetState(FAN_ID_COUNT, FAN_STATE_ON);
-    PumpCtrl_SetState(PUMP_ID_COUNT, PUMP_STATE_OFF);
-    LedCtrl_SetState(LED_ID_COUNT, LED_STATE_ON);
-    
-    /* report and request mode change */
-    // SysMon_ReportFaultStatus(SYS_MON_FAULT_CRITICAL_TEMP, SYS_MON_FAULT_STATUS_ACTIVE);
-    // SYS_MGR_CORE_RequestModeChange(SYS_MGR_MODE_FAILSAFE);
+    memset(&g_actuator_states, 0, sizeof(g_actuator_states));
+
+    /* For simplicity: if ANY device of type ON → mark as ON */
+    for (uint8_t i = 0; i < FAN_ID_COUNT; i++)
+    {
+        Fan_State_t st;
+        if (FanCtrl_GetState((Fan_ID_t)i, &st) == E_OK && st == FAN_STATE_ON)
+        {
+            g_actuator_states.fans_on = true;
+        }
+    }
+
+    for (uint8_t i = 0; i < HEATER_ID_COUNT; i++)
+    {
+        Heater_State_t st;
+        if (HeaterCtrl_GetState((Heater_ID_t)i, &st) == E_OK && st == HEATER_STATE_ON)
+        {
+            g_actuator_states.heaters_on = true;
+        }
+    }
+
+    for (uint8_t i = 0; i < PUMP_ID_COUNT; i++)
+    {
+        Pump_State_t st;
+        if (PumpCtrl_GetState((Pump_ID_t)i, &st) == E_OK && st == PUMP_STATE_ON)
+        {
+            g_actuator_states.pumps_on = true;
+        }
+    }
+
+    for (uint8_t i = 0; i < VEN_ID_COUNT; i++)
+    {
+        Ven_State_t st;
+        if (VenCtrl_GetState((Ven_ID_t)i, &st) == E_OK && st == VEN_STATE_ON)
+        {
+            g_actuator_states.vents_on = true;
+        }
+    }
+
+    for (uint8_t i = 0; i < LIGHT_ID_COUNT; i++)
+    {
+        Light_State_t st;
+        if (LightCtrl_GetState((Light_ID_t)i, &st) == E_OK && st == LIGHT_STATE_ON)
+        {
+            g_actuator_states.lights_on = true;
+        }
+    }
 }
-
-
-SysClock_Time_t SysMgr_GetCurrentTime(void)
-{
-    SysClock_Time_t t;
-
-    // RTC_TimeTypeDef rtc_time;
-    // HAL_RTC_GetTime(&hrtc, &rtc_time, RTC_FORMAT_BIN);
-
-    // t.hour   = rtc_time.Hours;
-    // t.minute = rtc_time.Minutes;
-    // t.second = rtc_time.Seconds;
-
-    t.hour   = 0;
-    t.minute = 0;
-    t.second = 0;
-
-    return t;
-}
-

@@ -1,157 +1,123 @@
 /**
  * @file sys_mgr_cfg.h
- * @brief Default System Configuration Definitions
- * @version 1.1
+ * @brief Configuration structures and defaults for System Manager.
+ * @version 1.0
  * @date 2025
  *
- * This header file contains constants and the default configuration structure
- * used by the System Manager. It provides a single point of truth for
- * initial values and can be modified to change system behavior at compile time.
+ * This file defines the configuration model for SysMgr:
+ *  - Temperature/Humidity thresholds (global + per-sensor)
+ *  - Actuator operating modes (AUTO / MANUAL with ON/OFF cycles)
+ *  - Lighting schedule
+ *  - System-wide defaults and limits
+ *
+ * All configuration here is runtime-editable via UI Manager and
+ * can be persisted in non-volatile memory by SysMgr.
  */
 
 #ifndef SYS_MGR_CFG_H
 #define SYS_MGR_CFG_H
 
-#include "sys_mgr.h"
+#include <stdint.h>
+#include <stdbool.h>
+#include "common.h"
+#include "temphum_ctrl.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/* =============================================================================
- * DEFAULT VALUES
- * ============================================================================= */
-
-/** @defgroup SysMgr_Default_Values Default Configuration Values
- * @{
- */
-
-/** Default minimum temperature threshold in degrees Celsius */
-#define SYS_MGR_DEFAULT_TEMP_MIN_C    20.0f
-/** Default maximum temperature threshold in degrees Celsius */
-#define SYS_MGR_DEFAULT_TEMP_MAX_C    25.0f
-
-/** Default minimum humidity threshold in percent */
-#define SYS_MGR_DEFAULT_HUM_MIN_P     40.0f
-/** Default maximum humidity threshold in percent */
-#define SYS_MGR_DEFAULT_HUM_MAX_P     60.0f
-
-/** Default actuator cycle ON time in seconds */
-#define SYS_MGR_DEFAULT_CYCLE_ON_SEC  60
-/** Default actuator cycle OFF time in seconds */
-#define SYS_MGR_DEFAULT_CYCLE_OFF_SEC 30
-
-/** Default light schedule ON time (21:00) */
-#define SYS_MGR_DEFAULT_LIGHT_ON_HOUR  21
-#define SYS_MGR_DEFAULT_LIGHT_ON_MIN   0
-/** Default light schedule OFF time (06:00) */
-#define SYS_MGR_DEFAULT_LIGHT_OFF_HOUR 6
-#define SYS_MGR_DEFAULT_LIGHT_OFF_MIN  0
-
-/** Configuration version for current structure */
-#define SYS_MGR_CONFIG_VERSION        0x0001
-
-/** @} */
-
-/* =============================================================================
- * VALIDATION CONSTANTS
- * ============================================================================= */
-
-/** @defgroup SysMgr_Validation_Limits Configuration Validation Limits
- * @{
- */
-
-/** Minimum allowed temperature threshold */
-#define SYS_MGR_TEMP_MIN_LIMIT_C     -40.0f
-/** Maximum allowed temperature threshold */
-#define SYS_MGR_TEMP_MAX_LIMIT_C      85.0f
-
-/** Minimum allowed humidity threshold */
-#define SYS_MGR_HUM_MIN_LIMIT_P       0.0f
-/** Maximum allowed humidity threshold */
-#define SYS_MGR_HUM_MAX_LIMIT_P     100.0f
-
-/** Minimum actuator cycle time in seconds */
-#define SYS_MGR_CYCLE_MIN_SEC         1
-/** Maximum actuator cycle time in seconds */
-#define SYS_MGR_CYCLE_MAX_SEC      3600
-
-/** @} */
-
-/* =============================================================================
- * PUBLIC VARIABLES
- * ============================================================================= */
+/* ============================================================================
+ * ENUMS & CONSTANTS
+ * ========================================================================== */
 
 /**
- * @brief The default system configuration.
- *
- * This global variable holds the factory-default settings for the system.
- * It is used for initialization when no configuration is available in flash.
- * 
- * Implementation note: Define this in sys_mgr_cfg.c
+ * @brief System operation modes.
  */
-extern const SysMgr_Config_t g_default_system_configuration;
-
-/* =============================================================================
- * PUBLIC API FUNCTIONS
- * ============================================================================= */
-
+typedef enum {
+    SYS_MGR_MODE_AUTOMATIC = 0,  /**< Fully automatic control */
+    SYS_MGR_MODE_MANUAL,         /**< Manual ON/OFF cycles */
+    SYS_MGR_MODE_HYBRID,         /**< Mixed: some manual, some automatic */
+    SYS_MGR_MODE_FAILSAFE        /**< Emergency safe state (future) */
+} SysMgr_Mode_t;
 
 /**
- * @brief Gets the default configuration.
- *
- * Helper function to get a copy of the default configuration.
- * Useful for UI reset operations or initialization.
- *
- * @param[out] cfg Pointer to configuration structure to be filled with defaults.
- * @return Status_t E_OK on success, E_NOK if cfg is null.
+ * @brief Actuator control mode.
  */
-Status_t SYS_MGR_GetDefaultConfig(SysMgr_Config_t *cfg);
+typedef enum {
+    ACTUATOR_MODE_AUTOMATIC = 0, /**< Controlled by thresholds/system logic */
+    ACTUATOR_MODE_MANUAL         /**< Manual cycle (on/off periods) */
+} Actuator_Mode_t;
+
+/* ---------------- CONFIG LIMITS ---------------- */
+#define SYS_TEMP_MIN_LIMIT_C     0.0f
+#define SYS_TEMP_MAX_LIMIT_C     60.0f
+#define SYS_HUM_MIN_LIMIT_PCT    20.0f
+#define SYS_HUM_MAX_LIMIT_PCT    100.0f
+
+#define SYS_ACTUATOR_MAX_ON_SEC  (12 * 3600)  /**< Max ON period: 12 hours */
+#define SYS_ACTUATOR_MAX_OFF_SEC (12 * 3600)  /**< Max OFF period: 12 hours */
+
+#define SYS_LIGHT_HOUR_MAX       23
+#define SYS_LIGHT_MINUTE_MAX     59
+
+/* ============================================================================
+ * STRUCTS
+ * ========================================================================== */
 
 /**
- * @brief Validates individual parameter ranges.
- *
- * Helper functions for parameter validation. These can be used by
- * the UI layer for real-time input validation.
+ * @brief Per-sensor configuration thresholds.
  */
+typedef struct {
+    float temp_min_c;  /**< Minimum allowed temperature (Celsius) */
+    float temp_max_c;  /**< Maximum allowed temperature (Celsius) */
+    float hum_min_pct; /**< Minimum allowed humidity (%) */
+    float hum_max_pct; /**< Maximum allowed humidity (%) */
+} SysMgr_SensorCfg_t;
 
 /**
- * @brief Validates temperature range.
- * @param temp_min Minimum temperature threshold
- * @param temp_max Maximum temperature threshold
- * @return Status_t E_OK if valid range, E_NOK otherwise
+ * @brief Manual cycle configuration for actuators (used in MANUAL mode).
  */
-Status_t SYS_MGR_ValidateTemperatureRange(float temp_min, float temp_max);
+typedef struct {
+    Actuator_Mode_t mode;   /**< AUTO or MANUAL */
+    uint32_t on_period_s;   /**< ON period in seconds (when MANUAL) */
+    uint32_t off_period_s;  /**< OFF period in seconds (when MANUAL) */
+} SysMgr_ActuatorCfg_t;
 
 /**
- * @brief Validates humidity range.
- * @param hum_min Minimum humidity threshold
- * @param hum_max Maximum humidity threshold
- * @return Status_t E_OK if valid range, E_NOK otherwise
+ * @brief Lighting schedule configuration.
  */
-Status_t SYS_MGR_ValidateHumidityRange(float hum_min, float hum_max);
+typedef struct {
+    uint8_t on_hour;    /**< ON time (hour, 0–23) */
+    uint8_t on_minute;  /**< ON time (minute, 0–59) */
+    uint8_t off_hour;   /**< OFF time (hour, 0–23) */
+    uint8_t off_minute; /**< OFF time (minute, 0–59) */
+} SysMgr_LightCfg_t;
 
 /**
- * @brief Validates actuator cycle timing.
- * @param on_time_sec ON duration in seconds
- * @param off_time_sec OFF duration in seconds
- * @return Status_t E_OK if valid timing, E_NOK otherwise
+ * @brief Complete working configuration for SysMgr.
  */
-Status_t SYS_MGR_ValidateActuatorCycle(uint32_t on_time_sec, uint32_t off_time_sec);
+typedef struct {
+    SysMgr_Mode_t mode; /**< Current system mode */
+
+    /* Per-sensor thresholds */
+    SysMgr_SensorCfg_t sensor_cfg[TEMPHUM_SENSOR_ID_COUNT];
+
+    /* Actuator configs (arrays sized per actuator type) */
+    SysMgr_ActuatorCfg_t fans[FAN_ID_COUNT];
+    SysMgr_ActuatorCfg_t vents[VEN_ID_COUNT];
+    SysMgr_ActuatorCfg_t pumps[PUMP_ID_COUNT];
+    SysMgr_ActuatorCfg_t heaters[HEATER_ID_COUNT];
+    SysMgr_ActuatorCfg_t leds[LED_ID_COUNT];
+
+    /* Light schedule (single config for lights group) */
+    SysMgr_LightCfg_t lights[LIGHT_ID_COUNT];
+
+} SysMgr_Config_t;
+
+/* ============================================================================
+ * DEFAULTS
+ * ========================================================================== */
 
 /**
- * @brief Validates light schedule times.
- * @param on_hour ON hour (0-23)
- * @param on_min ON minute (0-59)
- * @param off_hour OFF hour (0-23)
- * @param off_min OFF minute (0-59)
- * @return Status_t E_OK if valid schedule, E_NOK otherwise
+ * @brief Provides a default configuration (used at startup or reset).
+ * Defined in sys_mgr_cfg.c
  */
-Status_t SYS_MGR_ValidateLightSchedule(uint8_t on_hour, uint8_t on_min, 
-                                       uint8_t off_hour, uint8_t off_min);
-
-#ifdef __cplusplus
-}
-#endif
+extern const SysMgr_Config_t SYS_MGR_DEFAULT_CONFIG;
 
 #endif /* SYS_MGR_CFG_H */
